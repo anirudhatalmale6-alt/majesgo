@@ -29,7 +29,10 @@
         .app{display:flex;min-height:100vh}
 
         /* Sidebar */
-        .side{width:246px;background:var(--sidebar);color:#cfd6de;display:flex;flex-direction:column;position:fixed;inset:0 auto 0 0;z-index:20}
+        .side{width:246px;background:var(--sidebar);color:#cfd6de;display:flex;flex-direction:column;position:fixed;inset:0 auto 0 0;z-index:40;transition:transform .25s ease}
+        .scrim{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:30;opacity:0;transition:opacity .25s}
+        .menu-btn{display:none;background:none;border:0;cursor:pointer;padding:8px;margin-right:6px;color:#1c2430}
+        .menu-btn svg{width:24px;height:24px}
         .side .brand{padding:20px 18px 14px}
         .side .brand .mg-logo{width:170px;height:auto}
         .side nav{padding:8px 12px;display:flex;flex-direction:column;gap:3px;margin-top:6px}
@@ -103,12 +106,23 @@
         .pagi{display:flex;gap:6px;margin-top:16px}
         .pagi a,.pagi span{padding:7px 11px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:#fff}
         .pagi .on{background:var(--verde);color:#fff;border-color:var(--verde)}
-        @media(max-width:820px){.side{transform:translateX(-100%)}.main{margin-left:0}.stats{grid-template-columns:repeat(2,1fr)}}
+        @media(max-width:820px){
+            .side{transform:translateX(-100%)}
+            .side.open{transform:translateX(0)}
+            .scrim.show{display:block;opacity:1}
+            .main{margin-left:0}
+            .stats{grid-template-columns:repeat(2,1fr)}
+            .menu-btn{display:inline-flex;align-items:center}
+            .top{padding:0 14px}
+            .content{padding:18px 14px}
+            .top .who .nm{display:none}
+        }
     </style>
 </head>
 <body>
 <div class="app">
-    <aside class="side">
+    <div class="scrim" id="scrim" onclick="toggleMenu(false)"></div>
+    <aside class="side" id="side">
         <div class="brand">@include('admin.partials.logo')</div>
         <nav>
             <a href="{{ route('admin.dashboard') }}" class="{{ request()->routeIs('admin.dashboard')?'on':'' }}">
@@ -141,7 +155,12 @@
 
     <div class="main">
         <header class="top">
-            <h1>@yield('title', 'Panel')</h1>
+            <div style="display:flex;align-items:center;min-width:0">
+                <button class="menu-btn" onclick="toggleMenu()" aria-label="Menú">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+                </button>
+                <h1>@yield('title', 'Panel')</h1>
+            </div>
             <div class="who">
                 <div class="nm" style="text-align:right">{{ auth()->user()->name ?? 'Admin' }}<small>{{ auth()->user()->email ?? '' }}</small></div>
                 <div class="av">{{ strtoupper(substr(auth()->user()->name ?? 'A',0,1)) }}</div>
@@ -160,6 +179,16 @@
 <script>
     // token CSRF disponible para formularios inline (POST vía fetch si hiciera falta)
     window.CSRF = document.querySelector('meta[name=csrf-token]').content;
+    function toggleMenu(force){
+        var s=document.getElementById('side'), sc=document.getElementById('scrim');
+        var open = force===undefined ? !s.classList.contains('open') : force;
+        s.classList.toggle('open', open);
+        sc.classList.toggle('show', open);
+    }
+    // cerrar el menú al tocar un enlace del sidebar (en móvil)
+    document.querySelectorAll('#side nav a').forEach(function(a){
+        a.addEventListener('click', function(){ if(window.innerWidth<=820) toggleMenu(false); });
+    });
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
     }
