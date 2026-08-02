@@ -18,6 +18,7 @@ class Dispatch
     {
         $radiusKm ??= (float) Setting::get('dispatch_radius_km', 3.0);
         $commission = (float) Setting::get('commission_value', 0.50);
+        $staleS = (int) Setting::get('driver_stale_s', 60);
 
         $drivers = Driver::query()
             ->where('status', 'disponible')
@@ -25,6 +26,12 @@ class Dispatch
             ->where('saldo', '>=', $commission)
             ->whereNotNull('lat')
             ->whereNotNull('lng')
+            // solo conductores realmente activos (la app reporta ubicación cada pocos segundos);
+            // así un conductor que cerró la app sin desconectarse no bloquea el despacho.
+            ->where(function ($q) use ($staleS) {
+                $q->where('last_active_at', '>=', now()->subSeconds($staleS))
+                  ->orWhere('is_demo', true);
+            })
             ->get();
 
         $out = [];
