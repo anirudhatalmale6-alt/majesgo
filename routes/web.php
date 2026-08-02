@@ -5,9 +5,35 @@ use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\DriverController;
 use App\Http\Controllers\Admin\RechargeController;
 use App\Http\Controllers\Admin\SettingController;
+use App\Http\Controllers\Passenger\AuthController as PassengerAuth;
+use App\Http\Controllers\Passenger\PageController as PassengerPage;
+use App\Http\Controllers\Passenger\RideController as PassengerRide;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', fn () => redirect()->route('admin.login'));
+
+/*
+| App del PASAJERO (PWA instalable) — Hito 2
+*/
+Route::prefix('app')->name('app.')->group(function () {
+    Route::get('/', [PassengerPage::class, 'app'])->name('home');
+
+    // Autenticación (pública)
+    Route::get('api/me', [PassengerAuth::class, 'me']);
+    Route::post('api/register', [PassengerAuth::class, 'register']);
+    Route::post('api/login', [PassengerAuth::class, 'login']);
+    Route::post('api/logout', [PassengerAuth::class, 'logout']);
+
+    // Viajes (requieren pasajero autenticado)
+    Route::middleware('passenger')->group(function () {
+        Route::post('api/quote', [PassengerRide::class, 'quote']);
+        Route::post('api/rides', [PassengerRide::class, 'store']);
+        Route::get('api/rides/current', [PassengerRide::class, 'current']);
+        Route::post('api/rides/cancel', [PassengerRide::class, 'cancel']);
+        Route::post('api/rides/rate', [PassengerRide::class, 'rate']);
+        Route::get('api/rides/history', [PassengerRide::class, 'history']);
+    });
+});
 
 Route::prefix('admin')->name('admin.')->group(function () {
 
