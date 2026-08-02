@@ -30,3 +30,4 @@ Thumbs.db
 /qa.py
 /make_icon.py
 /database/database.sqlite
+/make_driver_icon.py

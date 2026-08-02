@@ -94,21 +94,43 @@ class RideController extends Controller
         $ride = $passenger->activeRide();
 
         if (! $ride) {
+            // ¿Un viaje que acaba de terminar y el pasajero aún no ve el resultado?
+            $recent = $passenger->rides()
+                ->whereIn('status', ['completado', 'cancelado', 'sin_conductor'])
+                ->where('updated_at', '>=', now()->subMinutes(2))
+                ->first();
+            if ($recent && $request->session()->get('pax_ack_ride') != $recent->id) {
+                return response()->json(['ride' => $this->payload($recent, null)]);
+            }
             return response()->json(['ride' => null]);
         }
 
         // Búsqueda de conductor
         if ($ride->status === 'solicitando') {
-            $delay = (int) Setting::get('search_delay_s', 3);
-            $waited = now()->getTimestamp() - $ride->requested_at->getTimestamp();
+            // ¿Hay conductores REALES conectados y elegibles para este viaje?
+            $realOnline = false;
+            foreach (Dispatch::eligibleDrivers((float) $ride->origin_lat, (float) $ride->origin_lng) as $e) {
+                if (! $e['driver']->is_demo) { $realOnline = true; break; }
+            }
 
-            if ($waited >= $delay) {
-                $this->assignDemoDriver($ride);   // (Hito 3: aquí aceptará un conductor real)
-                // primer momento: "conductor asignado", el conductor está en su punto de partida
-                $driver = $ride->driver;
-                return response()->json(['ride' => $this->payload($ride, [
-                    'lat' => (float) $driver->lat, 'lng' => (float) $driver->lng,
-                ])]);
+            // Si hay conductores reales en línea, esperamos a que uno acepte desde su app.
+            if ($realOnline) {
+                return response()->json(['ride' => $this->payload($ride, null)]);
+            }
+
+            // Si no hay conductores reales conectados, usamos el conductor de prueba
+            // para poder probar el recorrido sin necesitar dos personas.
+            if ((string) Setting::get('demo_enabled', '1') === '1') {
+                $delay = (int) Setting::get('search_delay_s', 3);
+                $waited = now()->getTimestamp() - $ride->requested_at->getTimestamp();
+
+                if ($waited >= $delay) {
+                    $this->assignDemoDriver($ride);
+                    $driver = $ride->driver;
+                    return response()->json(['ride' => $this->payload($ride, [
+                        'lat' => (float) $driver->lat, 'lng' => (float) $driver->lng,
+                    ])]);
+                }
             }
 
             return response()->json(['ride' => $this->payload($ride, null)]);
@@ -196,6 +218,13 @@ class RideController extends Controller
         return response()->json(['ok' => true]);
     }
 
+    /** El pasajero confirma que ya vio la pantalla final (para no repetirla al recargar). */
+    public function ack(Request $request)
+    {
+        $request->session()->put('pax_ack_ride', $request->input('ride_id'));
+        return response()->json(['ok' => true]);
+    }
+
     public function history(Request $request)
     {
         $passenger = $this->passenger($request);
@@ -219,6 +248,7 @@ class RideController extends Controller
         $driver = $ride->driver;
 
         return [
+            'id'           => $ride->id,
             'code'         => $ride->code,
             'status'       => $ride->status,
             'status_label' => $ride->statusLabel(),

@@ -8,6 +8,9 @@ use App\Http\Controllers\Admin\SettingController;
 use App\Http\Controllers\Passenger\AuthController as PassengerAuth;
 use App\Http\Controllers\Passenger\PageController as PassengerPage;
 use App\Http\Controllers\Passenger\RideController as PassengerRide;
+use App\Http\Controllers\Driver\AuthController as DriverAuth;
+use App\Http\Controllers\Driver\PageController as DriverPage;
+use App\Http\Controllers\Driver\RideController as DriverRide;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', fn () => redirect()->route('admin.login'));
@@ -31,7 +34,45 @@ Route::prefix('app')->name('app.')->group(function () {
         Route::get('api/rides/current', [PassengerRide::class, 'current']);
         Route::post('api/rides/cancel', [PassengerRide::class, 'cancel']);
         Route::post('api/rides/rate', [PassengerRide::class, 'rate']);
+        Route::post('api/rides/ack', [PassengerRide::class, 'ack']);
         Route::get('api/rides/history', [PassengerRide::class, 'history']);
+    });
+});
+
+/*
+| App del CONDUCTOR (PWA instalable) — Hito 3
+*/
+Route::prefix('conductor')->name('driver.')->group(function () {
+    Route::get('/', [DriverPage::class, 'app'])->name('home');
+
+    // Autenticación (las cuentas las crea el administrador; el conductor solo inicia sesión)
+    Route::get('api/me', [DriverAuth::class, 'me']);
+    Route::post('api/login', [DriverAuth::class, 'login']);
+    Route::post('api/logout', [DriverAuth::class, 'logout']);
+
+    Route::middleware('driver')->group(function () {
+        // Conexión y ubicación
+        Route::post('api/connect', [DriverRide::class, 'connect']);
+        Route::post('api/location', [DriverRide::class, 'location']);
+
+        // Solicitudes entrantes
+        Route::get('api/pending', [DriverRide::class, 'pending']);
+        Route::post('api/accept', [DriverRide::class, 'accept']);
+        Route::post('api/reject', [DriverRide::class, 'reject']);
+
+        // Viaje en curso
+        Route::get('api/current', [DriverRide::class, 'current']);
+        Route::post('api/arrive', [DriverRide::class, 'arrive']);
+        Route::post('api/start', [DriverRide::class, 'start']);
+        Route::post('api/complete', [DriverRide::class, 'complete']);
+        Route::post('api/cancel', [DriverRide::class, 'cancel']);
+        Route::post('api/rate', [DriverRide::class, 'ratePassenger']);
+        Route::post('api/ack', [DriverRide::class, 'ack']);
+
+        // Saldo y recargas
+        Route::get('api/saldo', [DriverRide::class, 'saldo']);
+        Route::post('api/recharge', [DriverRide::class, 'recharge']);
+        Route::get('api/history', [DriverRide::class, 'history']);
     });
 });
 

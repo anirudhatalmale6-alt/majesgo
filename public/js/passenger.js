@@ -295,6 +295,7 @@ function startPolling() {
   poll = setInterval(tick, 2500);
 }
 function stopPolling() { if (poll) clearInterval(poll); poll = null; }
+function ackRide(r) { if (r && r.id) api('api/rides/ack', { ride_id: r.id }).catch(() => {}); }
 
 async function tick() {
   let data;
@@ -317,8 +318,12 @@ function renderRide(r) {
   if (oMarker) oMarker.setLatLng([r.origin.lat, r.origin.lng]).dragging.disable();
   if (!dMarker) setDest({ lat: r.dest.lat, lng: r.dest.lng }, r.dest.address); else dMarker.setLatLng([r.dest.lat, r.dest.lng]);
 
-  if (r.status === 'completado') { renderCompleted(r); return; }
-  if (r.status === 'cancelado' || r.status === 'sin_conductor') { stopPolling(); toast(r.status_label); resetAfterRide(); return; }
+  if (r.status === 'completado') { ackRide(r); renderCompleted(r); return; }
+  if (r.status === 'cancelado' || r.status === 'sin_conductor') {
+    ackRide(r); stopPolling();
+    toast(r.status === 'cancelado' ? 'El viaje fue cancelado.' : r.status_label);
+    resetAfterRide(); return;
+  }
   if (r.status === 'solicitando') { renderSearching(r); return; }
   renderAssigned(r);
 }

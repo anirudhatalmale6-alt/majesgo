@@ -22,6 +22,17 @@ class Driver extends Model
         return $this->hasMany(Recharge::class);
     }
 
+    public function rides()
+    {
+        return $this->hasMany(Ride::class)->latest('id');
+    }
+
+    /** Viaje activo actual del conductor (uno a la vez). */
+    public function activeRide(): ?Ride
+    {
+        return $this->rides()->whereIn('status', Ride::ACTIVE_STATES)->first();
+    }
+
     public function movements()
     {
         return $this->hasMany(SaldoMovement::class)->latest();

@@ -14,10 +14,11 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'passenger' => \App\Http\Middleware\EnsurePassenger::class,
+            'driver'    => \App\Http\Middleware\EnsureDriver::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
-            fn (Request $request) => $request->is('api/*') || $request->is('app/api/*'),
+            fn (Request $request) => $request->is('api/*') || $request->is('app/api/*') || $request->is('conductor/api/*'),
         );
     })->create();

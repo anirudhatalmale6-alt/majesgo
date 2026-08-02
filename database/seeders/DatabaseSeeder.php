@@ -34,6 +34,8 @@ class DatabaseSeeder extends Seeder
             'yape_number'      => '',
             'yape_holder'      => '',
             'min_saldo_alert'  => '5.00',
+            'dispatch_radius_km' => '3.0',   // radio para avisar a conductores cercanos
+            'demo_enabled'     => '1',       // conductor demo cuando no hay conductores reales conectados
         ];
         foreach ($defaults as $k => $v) {
             Setting::updateOrCreate(['key' => $k], ['value' => $v]);

@@ -42,6 +42,22 @@
         </div>
 
         <div class="card">
+            <h3 style="margin-bottom:14px">Despacho de viajes</h3>
+            <div class="field">
+                <label>Radio de búsqueda de conductores (km)</label>
+                <input class="input" type="number" step="0.5" min="0.5" name="dispatch_radius_km" value="{{ old('dispatch_radius_km',$settings['dispatch_radius_km']) }}" required>
+                <div class="muted" style="font-size:12px;margin-top:5px">A qué distancia del pasajero se avisa a los conductores. Ej: 3</div>
+            </div>
+            <div class="field">
+                <label style="display:flex;align-items:center;gap:9px;cursor:pointer">
+                    <input type="checkbox" name="demo_enabled" value="1" {{ old('demo_enabled',$settings['demo_enabled'])=='1' ? 'checked' : '' }} style="width:auto">
+                    <span>Conductor de prueba (demo) cuando no hay conductores conectados</span>
+                </label>
+                <div class="muted" style="font-size:12px;margin-top:5px">Útil para probar la app del pasajero solo. Desactívalo para una prueba real con conductor. Si hay un conductor real conectado, el demo nunca interviene.</div>
+            </div>
+        </div>
+
+        <div class="card">
             <h3 style="margin-bottom:10px">Seguridad</h3>
             <div class="muted" style="font-size:12.5px;margin-bottom:12px">Cambia la contraseña de tu cuenta de administrador.</div>
             <div id="pwbox">

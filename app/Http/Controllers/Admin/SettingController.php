@@ -20,6 +20,8 @@ class SettingController extends Controller
             'yape_number'      => Setting::get('yape_number', ''),
             'yape_holder'      => Setting::get('yape_holder', ''),
             'min_saldo_alert'  => Setting::get('min_saldo_alert', '5.00'),
+            'dispatch_radius_km' => Setting::get('dispatch_radius_km', '3.0'),
+            'demo_enabled'     => Setting::get('demo_enabled', '1'),
         ];
 
         return view('admin.settings.edit', compact('settings'));
@@ -37,7 +39,11 @@ class SettingController extends Controller
             'yape_number'      => ['nullable', 'string', 'max:20'],
             'yape_holder'      => ['nullable', 'string', 'max:120'],
             'min_saldo_alert'  => ['required', 'numeric', 'min:0'],
+            'dispatch_radius_km' => ['required', 'numeric', 'min:0.5', 'max:50'],
+            'demo_enabled'     => ['nullable'],
         ]);
+
+        $data['demo_enabled'] = $request->boolean('demo_enabled') ? '1' : '0';
 
         foreach ($data as $k => $v) {
             Setting::put($k, $v);
