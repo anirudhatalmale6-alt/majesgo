@@ -114,6 +114,7 @@ class RideController extends Controller
                 'payment_method'      => $ride->payment_method,
                 'origin'              => ['lat' => (float) $ride->origin_lat, 'lng' => (float) $ride->origin_lng, 'address' => $ride->origin_address],
                 'dest'                => ['lat' => (float) $ride->dest_lat, 'lng' => (float) $ride->dest_lng, 'address' => $ride->dest_address],
+                'reference'           => $ride->reference,
                 'passenger'           => $this->passengerCard($ride),
             ];
         }
@@ -454,6 +455,7 @@ class RideController extends Controller
             'duration_s'   => $ride->duration_s,
             'origin'       => ['lat' => (float) $ride->origin_lat, 'lng' => (float) $ride->origin_lng, 'address' => $ride->origin_address],
             'dest'         => ['lat' => (float) $ride->dest_lat, 'lng' => (float) $ride->dest_lng, 'address' => $ride->dest_address],
+            'reference'    => $ride->reference,
             'route_to_pickup' => $ride->route_to_pickup,
             'route_trip'   => $ride->route_trip,
             'passenger'    => $this->passengerCard($ride),

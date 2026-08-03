@@ -404,6 +404,7 @@ function showRequest(req) {
       <div><div class="nm">${esc(req.passenger.name)}</div><div class="car2">⭐ ${(req.passenger.rating || 5).toFixed(1)} · ${req.passenger.trips || 0} viajes</div></div>
     </div>
     <div class="addr"><span class="dot o"></span><div class="tx">${esc(req.origin.address || 'Punto de recojo')}<small>Recojo · a ${km(req.to_pickup_m)}</small></div></div>
+    ${req.reference ? `<div class="addr"><span class="dot" style="background:var(--amarillo)"></span><div class="tx">${esc(req.reference)}<small>Referencia del pasajero</small></div></div>` : ''}
     <div class="addr"><span class="dot d"></span><div class="tx">${esc(req.dest.address || 'Destino')}<small>Destino · ${km(req.trip_distance_m)} · ${mins(req.trip_duration_s)}</small></div></div>
     <div class="acts">
       <button class="btn ghost" id="reqNo">Rechazar</button>
@@ -487,6 +488,7 @@ function renderRide(r) {
       <div class="rate"><b>${money(earn)}</b><small>recibes</small></div>
     </div>
     <div class="addr"><span class="dot o"></span><div class="tx">${esc(r.origin.address || 'Punto de recojo')}<small>Recojo</small></div></div>
+    ${r.reference ? `<div class="addr"><span class="dot" style="background:var(--amarillo)"></span><div class="tx">${esc(r.reference)}<small>Referencia del pasajero</small></div></div>` : ''}
     <div class="addr"><span class="dot d"></span><div class="tx">${esc(r.dest.address || 'Destino')}<small>Destino · ${km(r.distance_m)} · ${money(r.offered_price)} ${r.payment_method === 'yape' ? '(Yape)' : '(efectivo)'}</small></div></div>
     ${primary}
     <div class="acts">
@@ -518,7 +520,7 @@ function renderWaitingConfirm(r) {
     </div>
     <div class="drv" style="margin-top:8px">
       <div class="av">${p.initial || 'P'}</div>
-      <div><div class="nm">${esc(p.name || 'Pasajero')}</div><div class="car2">Recojo: ${esc(r.origin.address || 'Punto marcado')}</div></div>
+      <div><div class="nm">${esc(p.name || 'Pasajero')}</div><div class="car2">Recojo: ${esc(r.origin.address || 'Punto marcado')}${r.reference ? ' · ' + esc(r.reference) : ''}</div></div>
       <div class="rate"><b>${money(r.offered_price)}</b><small>${r.payment_method === 'yape' ? 'Yape' : 'efectivo'}</small></div>
     </div>`;
 }

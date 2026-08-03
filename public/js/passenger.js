@@ -27,7 +27,7 @@ function toast(msg) {
 
 /* ---------- Estado ---------- */
 let map, oMarker, dMarker, meMarker, routeLine, carMarker;
-let origin = null, dest = null;
+let origin = null, dest = null, reference = '';
 let quote = null, price = null, method = 'efectivo';
 let poll = false, pollTimer = null, lastStatus = null, carFrom = null;
 let offerTimer = null, offerKey = null;
@@ -316,11 +316,12 @@ function renderPlanning() {
   b.innerHTML = `
     <h2>¿A dónde vamos?</h2>
     <div class="sub">Elige tu destino y propón tu precio.</div>
-    <div class="fieldrow"><span class="dot o"></span><input id="oIn" value="${(origin && origin.address) ? esc(origin.address) : 'Mi ubicación'}" readonly><small>Origen</small></div>
+    <div class="fieldrow"><span class="dot o"></span><input id="oIn" value="${(origin && origin.address) ? esc(origin.address) : 'Mi ubicación'}" placeholder="Origen (puedes editarlo)"><small>Origen</small></div>
     <div class="sugg">
       <div class="fieldrow"><span class="dot d"></span><input id="dIn" placeholder="Escribe el destino o toca el mapa" value="${dest && dest.address ? esc(dest.address) : ''}"><small>Destino</small></div>
       <div class="suggbox" id="sugg"></div>
     </div>
+    <div class="fieldrow"><span class="dot" style="background:#FFC107"></span><input id="refIn" placeholder="Referencia del recojo (opcional): casa, color, algo cercano…" value="${reference ? esc(reference) : ''}"><small>Referencia</small></div>
     ${hasRoute ? `
       <div class="routeinfo">
         <div class="chip"><div class="v">${(quote.distance_m / 1000).toFixed(1)} km</div><div class="l">Distancia</div></div>
@@ -343,6 +344,11 @@ function renderPlanning() {
   `;
 
   const dIn = $('#dIn'); if (dIn) dIn.addEventListener('input', () => searchPlaces(dIn.value.trim(), $('#sugg')));
+  const oIn = $('#oIn'); if (oIn) oIn.addEventListener('input', () => {
+    originPinned = true;                 // si edita el texto, dejamos de sobrescribirlo con el GPS
+    if (origin) origin.address = oIn.value;
+  });
+  const refIn = $('#refIn'); if (refIn) refIn.addEventListener('input', () => { reference = refIn.value; });
   if (hasRoute) {
     $('#minus').addEventListener('click', () => bump(-0.5));
     $('#plus').addEventListener('click', () => bump(0.5));
@@ -364,6 +370,7 @@ async function doRequest() {
   try {
     await api('api/rides', {
       origin_lat: origin.lat, origin_lng: origin.lng, origin_address: origin.address || 'Mi ubicación',
+      reference: (reference || '').trim() || null,
       dest_lat: dest.lat, dest_lng: dest.lng, dest_address: dest.address || 'Destino',
       offered_price: price, payment_method: method,
     });
@@ -556,7 +563,7 @@ async function cancelRide() {
 function resetAfterRide() {
   stopPolling();
   clearInterval(offerTimer); offerKey = null;
-  dest = null; quote = null; price = null;
+  dest = null; quote = null; price = null; reference = '';
   if (dMarker) { dMarker.remove(); dMarker = null; }
   if (routeLine) { routeLine.remove(); routeLine = null; }
   if (carMarker) { carMarker.remove(); carMarker = null; }
