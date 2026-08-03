@@ -39,12 +39,19 @@ class DriverController extends Controller
     public function store(Request $request)
     {
         $data = $this->validateDriver($request);
+        $request->validate(['saldo' => ['nullable', 'numeric', 'min:0', 'max:100000']]);
 
         $data['code']       = $this->nextCode();
         $data['password']   = Hash::make($data['password']);
         $data['created_by'] = $request->user()->id;
 
         $driver = Driver::create($data);
+
+        // saldo inicial opcional (queda registrado en el historial de movimientos)
+        $initial = round((float) $request->input('saldo', 0), 2);
+        if ($initial > 0) {
+            $driver->applyMovement('ajuste', $initial, 'Saldo inicial', 'manual', null, $request->user()->id);
+        }
 
         return redirect()->route('admin.drivers.show', $driver)
             ->with('ok', "Conductor {$driver->full_name} creado. Código {$driver->code}.");

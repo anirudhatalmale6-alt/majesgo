@@ -11,8 +11,13 @@
     </div>
 
     @unless($driver->exists)
-    <div class="field" style="max-width:340px"><label>Contraseña de la app del conductor *</label><input class="input" type="text" name="password" value="{{ old('password') }}" placeholder="mín. 6 caracteres" required>
-        <div class="muted" style="font-size:12px;margin-top:5px">El conductor la usará para ingresar a su app. Podrás restablecerla luego.</div>
+    <div class="row">
+        <div class="field" style="max-width:340px"><label>Contraseña de la app del conductor *</label><input class="input" type="text" name="password" value="{{ old('password') }}" placeholder="mín. 6 caracteres" required>
+            <div class="muted" style="font-size:12px;margin-top:5px">El conductor la usará para ingresar a su app. Podrás restablecerla luego.</div>
+        </div>
+        <div class="field" style="max-width:220px"><label>Saldo inicial (S/)</label><input class="input" type="number" step="0.50" min="0" name="saldo" value="{{ old('saldo', 20) }}" placeholder="0.00">
+            <div class="muted" style="font-size:12px;margin-top:5px">Necesita saldo para conectarse y recibir viajes. Puedes ajustarlo luego.</div>
+        </div>
     </div>
     @endunless
 
