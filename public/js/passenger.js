@@ -31,6 +31,7 @@ let origin = null, dest = null;
 let quote = null, price = null, method = 'efectivo';
 let poll = false, pollTimer = null, lastStatus = null, carFrom = null;
 let offerTimer = null, offerKey = null;
+let meWatchId = null, followMe = true, originPinned = false, lastGeoAt = 0, lastMeLL = null;
 
 /* ================= AUTH ================= */
 let authMode = 'login';
@@ -91,6 +92,7 @@ async function boot() {
   if (!map) initMap();
   $('#sheet').classList.remove('hidden');
   $('#btnLoc').classList.remove('hidden');
+  startMeWatch(); // rastreo GPS del pasajero en tiempo real
   // ¿hay un viaje activo?
   const cur = await api('api/rides/current').catch(() => ({ ride: null }));
   if (cur.ride) { startPolling(); }
@@ -109,6 +111,8 @@ function initMap() {
     if (isRiding()) return;
     setDest({ lat: e.latlng.lat, lng: e.latlng.lng });
   });
+  // si el usuario mueve el mapa a mano, dejamos de recentrar automáticamente
+  map.on('dragstart', () => { followMe = false; });
 
   const ro = new ResizeObserver((en) => {
     const h = en[0].contentRect.height;
@@ -131,16 +135,60 @@ function setDefaultOrigin() {
 
 function locate(recenter) {
   if (!navigator.geolocation) return;
+  if (recenter) { followMe = true; originPinned = false; } // el botón reactiva el seguimiento
   navigator.geolocation.getCurrentPosition((pos) => {
     const p = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-    setOrigin(p);
-    if (!meMarker) meMarker = L.marker(p, { icon: icon('medot', '', [16, 16], [8, 8]), interactive: false }).addTo(map);
-    else meMarker.setLatLng(p);
-    if (recenter || !dest) map.setView(p, 16);
+    if (!isRiding() && !dest && !originPinned) setOrigin(p);
+    updateMe(p);
+    if (recenter || !dest) map.setView([p.lat, p.lng], 16);
     reverseGeocode(p).then((a) => { if (a) { origin.address = a; if (!isRiding()) renderPlanning(); } });
   }, () => {
     if (recenter) toast('No pudimos ubicarte. Arrastra el punto verde a tu ubicación.');
   }, { enableHighAccuracy: true, timeout: 8000 });
+}
+
+/* Rastreo GPS continuo del pasajero: mantiene su ubicación al día en tiempo real. */
+function startMeWatch() {
+  if (!navigator.geolocation || meWatchId !== null) return;
+  meWatchId = navigator.geolocation.watchPosition(onMePos, () => {}, {
+    enableHighAccuracy: true, maximumAge: 1000, timeout: 15000,
+  });
+}
+
+function onMePos(pos) {
+  const p = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+  updateMe(p);
+
+  // mientras planifica (aún no fija destino ni ancla el origen), el punto de recojo sigue al usuario
+  if (!isRiding() && !dest && !originPinned) {
+    setOrigin(p);
+    // recentrar solo si el usuario se sale de la zona central (evita "pelear" con el mapa)
+    if (followMe && map && !map.getBounds().pad(-0.25).contains([p.lat, p.lng])) {
+      map.panTo([p.lat, p.lng], { animate: true, duration: 0.6 });
+    }
+    // refrescar la dirección del origen por distancia/tiempo (sin geocodificar en cada tick)
+    const moved = lastMeLL ? geoDist(lastMeLL, p) : 999;
+    const now = performance.now();
+    if (moved > 12 && now - lastGeoAt > 6000) {
+      lastGeoAt = now;
+      reverseGeocode(p).then((a) => {
+        if (a && origin) { origin.address = a; const oIn = document.getElementById('oIn'); if (oIn) oIn.value = a; }
+      });
+    }
+  }
+  lastMeLL = p;
+}
+
+function updateMe(p) {
+  if (!meMarker) meMarker = L.marker([p.lat, p.lng], { icon: icon('medot', '', [16, 16], [8, 8]), interactive: false, zIndexOffset: 500 }).addTo(map);
+  else meMarker.setLatLng([p.lat, p.lng]);
+}
+
+function geoDist(a, b) {
+  const R = 6371000, r = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * r, dLng = (b.lng - a.lng) * r;
+  const x = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(x));
 }
 
 function setOrigin(p, address) {
@@ -148,6 +196,7 @@ function setOrigin(p, address) {
   if (!oMarker) {
     oMarker = L.marker(p, { icon: icon('pin o', '', [26, 26], [13, 26]), draggable: true }).addTo(map);
     oMarker.on('dragend', () => {
+      originPinned = true; // el usuario eligió un punto de recojo a mano → dejamos de seguir el GPS
       const ll = oMarker.getLatLng(); origin = { lat: ll.lat, lng: ll.lng };
       reverseGeocode(ll).then((a) => { origin.address = a; refreshQuote(); });
     });
