@@ -126,13 +126,16 @@ function startGeo() {
     // primera vez, centrar
     if (!map._centeredOnce) { map.setView(myPos, 16); map._centeredOnce = true; }
     pushLocation();
-  }, () => {}, { enableHighAccuracy: true, maximumAge: 4000, timeout: 12000 });
+  }, () => {}, { enableHighAccuracy: true, maximumAge: 1000, timeout: 12000 });
 }
 function pushLocation() {
   if (!myPos) return;
   const now = Date.now();
-  if (now - lastPostAt < 4000) return;          // como máximo cada 4s
-  if (!online && !(ride && ACTIVE.includes(ride.status))) return;
+  const onTrip = ride && ACTIVE.includes(ride.status);
+  // en viaje reportamos más seguido (ubicación en vivo tipo Uber); en espera, algo más lento
+  const minGap = onTrip ? 1500 : 3500;
+  if (now - lastPostAt < minGap) return;
+  if (!online && !onTrip) return;
   lastPostAt = now;
   api('api/location', { lat: myPos.lat, lng: myPos.lng }).then((r) => {
     if (r && typeof r.saldo === 'number') updateSaldo(r.saldo, r.can_receive);

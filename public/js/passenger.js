@@ -29,7 +29,7 @@ function toast(msg) {
 let map, oMarker, dMarker, meMarker, routeLine, carMarker;
 let origin = null, dest = null;
 let quote = null, price = null, method = 'efectivo';
-let poll = null, lastStatus = null, carFrom = null;
+let poll = false, pollTimer = null, lastStatus = null, carFrom = null;
 
 /* ================= AUTH ================= */
 let authMode = 'login';
@@ -286,23 +286,29 @@ async function doRequest() {
 }
 
 /* ================= POLLING / VIAJE ================= */
-function isRiding() { return poll !== null; }
+function isRiding() { return !!poll; }
+const ACTIVE_ST = ['aceptado', 'en_camino', 'llego', 'a_bordo'];
 
 function startPolling() {
   lastStatus = null;
-  if (poll) clearInterval(poll);
+  poll = true;
+  clearTimeout(pollTimer);
   tick();
-  poll = setInterval(tick, 2500);
 }
-function stopPolling() { if (poll) clearInterval(poll); poll = null; }
+function stopPolling() { poll = false; clearTimeout(pollTimer); }
 function ackRide(r) { if (r && r.id) api('api/rides/ack', { ride_id: r.id }).catch(() => {}); }
 
 async function tick() {
+  if (!poll) return;
   let data;
-  try { data = await api('api/rides/current'); } catch (e) { return; }
+  try { data = await api('api/rides/current'); }
+  catch (e) { if (poll) pollTimer = setTimeout(tick, 2500); return; }
   const r = data.ride;
   if (!r) { stopPolling(); resetAfterRide(); return; }
   renderRide(r);
+  if (!poll) return;                         // renderRide pudo detener el sondeo (fin de viaje)
+  // en viaje sondeamos más seguido para una ubicación más fluida
+  pollTimer = setTimeout(tick, ACTIVE_ST.includes(r.status) ? 1600 : 2500);
 }
 
 function renderRide(r) {
@@ -410,12 +416,18 @@ function moveCar(pos) {
   const to = [pos.lat, pos.lng];
   if (!carMarker) { carMarker = L.marker(to, { icon: icon('car', '🚕', [30, 30], [15, 15]), interactive: false, zIndexOffset: 1000 }).addTo(map); carFrom = to; return; }
   const from = carFrom || carMarker.getLatLng();
-  const start = performance.now(), dur = 900;
   const a = L.latLng(from), b = L.latLng(to);
+  // no re-animar si prácticamente no se movió
+  if (Math.abs(a.lat - b.lat) < 1e-6 && Math.abs(a.lng - b.lng) < 1e-6) { carFrom = to; return; }
+  // deslizamiento continuo: la duración ~ el intervalo entre actualizaciones,
+  // así el auto avanza sin congelarse entre un dato y otro (fluido tipo Uber)
+  if (carMarker._anim) cancelAnimationFrame(carMarker._anim);
+  const start = performance.now(), dur = 1700;
   (function step(t) {
     const k = Math.min(1, (t - start) / dur);
-    carMarker.setLatLng([a.lat + (b.lat - a.lat) * k, a.lng + (b.lng - a.lng) * k]);
-    if (k < 1) requestAnimationFrame(step); else carFrom = to;
+    const e = 1 - Math.pow(1 - k, 2);        // easing suave al llegar
+    carMarker.setLatLng([a.lat + (b.lat - a.lat) * e, a.lng + (b.lng - a.lng) * e]);
+    if (k < 1) carMarker._anim = requestAnimationFrame(step); else { carFrom = to; carMarker._anim = null; }
   })(start);
 }
 
