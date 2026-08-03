@@ -41,6 +41,10 @@ class DriverController extends Controller
         $data = $this->validateDriver($request);
         $request->validate(['saldo' => ['nullable', 'numeric', 'min:0', 'max:100000']]);
 
+        // normalizar el teléfono a 9 dígitos (sin código de país/espacios) para que el login coincida siempre
+        $digits = preg_replace('/\D/', '', $data['phone']);
+        $data['phone'] = strlen($digits) > 9 ? substr($digits, -9) : $digits;
+
         $data['code']       = $this->nextCode();
         $data['password']   = Hash::make($data['password']);
         $data['created_by'] = $request->user()->id;

@@ -34,8 +34,14 @@ class AuthController extends Controller
             'password' => ['required', 'string'],
         ]);
 
-        $phone = preg_replace('/\D/', '', $data['phone']);
-        $d = Driver::where('phone', $phone)->orWhere('phone', $data['phone'])->first();
+        // aceptar el número con o sin código de país / espacios / guiones (compara por los últimos 9 dígitos)
+        $digits = preg_replace('/\D/', '', $data['phone']);
+        $candidates = array_values(array_unique(array_filter([
+            $data['phone'],
+            $digits,
+            strlen($digits) > 9 ? substr($digits, -9) : $digits,
+        ])));
+        $d = Driver::whereIn('phone', $candidates)->first();
 
         if (! $d || ! Hash::check($data['password'], $d->password)) {
             throw ValidationException::withMessages([

@@ -64,7 +64,14 @@ class AuthController extends Controller
             'password' => ['required', 'string'],
         ]);
 
-        $p = Passenger::where('phone', $data['phone'])->first();
+        // aceptar el número con o sin código de país / espacios (compara por los últimos 9 dígitos)
+        $digits = preg_replace('/\D/', '', $data['phone']);
+        $candidates = array_values(array_unique(array_filter([
+            $data['phone'],
+            $digits,
+            strlen($digits) > 9 ? substr($digits, -9) : $digits,
+        ])));
+        $p = Passenger::whereIn('phone', $candidates)->first();
 
         if (! $p || ! Hash::check($data['password'], $p->password)) {
             throw ValidationException::withMessages([
