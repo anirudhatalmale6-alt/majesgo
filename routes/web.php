@@ -32,6 +32,8 @@ Route::prefix('app')->name('app.')->group(function () {
         Route::post('api/quote', [PassengerRide::class, 'quote']);
         Route::post('api/rides', [PassengerRide::class, 'store']);
         Route::get('api/rides/current', [PassengerRide::class, 'current']);
+        Route::post('api/rides/confirm-driver', [PassengerRide::class, 'confirmDriver']);
+        Route::post('api/rides/reject-driver', [PassengerRide::class, 'rejectDriver']);
         Route::post('api/rides/cancel', [PassengerRide::class, 'cancel']);
         Route::post('api/rides/rate', [PassengerRide::class, 'rate']);
         Route::post('api/rides/ack', [PassengerRide::class, 'ack']);

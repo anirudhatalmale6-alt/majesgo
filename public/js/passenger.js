@@ -30,6 +30,7 @@ let map, oMarker, dMarker, meMarker, routeLine, carMarker;
 let origin = null, dest = null;
 let quote = null, price = null, method = 'efectivo';
 let poll = false, pollTimer = null, lastStatus = null, carFrom = null;
+let offerTimer = null, offerKey = null;
 
 /* ================= AUTH ================= */
 let authMode = 'login';
@@ -287,7 +288,7 @@ async function doRequest() {
 
 /* ================= POLLING / VIAJE ================= */
 function isRiding() { return !!poll; }
-const ACTIVE_ST = ['aceptado', 'en_camino', 'llego', 'a_bordo'];
+const ACTIVE_ST = ['ofrecido', 'aceptado', 'en_camino', 'llego', 'a_bordo'];
 
 function startPolling() {
   lastStatus = null;
@@ -313,7 +314,7 @@ async function tick() {
 
 function renderRide(r) {
   // dibujar rutas
-  if (r.status === 'aceptado' || r.status === 'en_camino' || r.status === 'llego') {
+  if (r.status === 'ofrecido' || r.status === 'aceptado' || r.status === 'en_camino' || r.status === 'llego') {
     if (r.route_to_pickup) drawRoute(r.route_to_pickup, '#FFC107');
   } else if (r.status === 'a_bordo') {
     if (r.route_trip) drawRoute(r.route_trip, '#00C853');
@@ -324,6 +325,8 @@ function renderRide(r) {
   if (oMarker) oMarker.setLatLng([r.origin.lat, r.origin.lng]).dragging.disable();
   if (!dMarker) setDest({ lat: r.dest.lat, lng: r.dest.lng }, r.dest.address); else dMarker.setLatLng([r.dest.lat, r.dest.lng]);
 
+  if (r.status !== 'ofrecido') { clearInterval(offerTimer); offerKey = null; }
+
   if (r.status === 'completado') { ackRide(r); renderCompleted(r); return; }
   if (r.status === 'cancelado' || r.status === 'sin_conductor') {
     ackRide(r); stopPolling();
@@ -331,7 +334,72 @@ function renderRide(r) {
     resetAfterRide(); return;
   }
   if (r.status === 'solicitando') { renderSearching(r); return; }
+  if (r.status === 'ofrecido') {
+    const key = r.id + ':' + ((r.driver && r.driver.plate) || '');
+    if (offerKey !== key) { offerKey = key; renderOffer(r); }  // no re-pintar en cada sondeo (no cortar el clic)
+    return;
+  }
   renderAssigned(r);
+}
+
+/* ====== Oferta: confirmar o buscar otro conductor ====== */
+function renderOffer(r) {
+  const d = r.driver || {}, off = r.offer || {};
+  const timeout = off.timeout || 15;
+  let left = (off.seconds_left != null) ? off.seconds_left : timeout;
+  const eta = off.eta_min ? ('~' + off.eta_min + ' min') : '—';
+  $('#sheetBody').innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <span style="color:#00C853;font-weight:700;font-size:14px">✅ ¡Conductor encontrado!</span>
+      <span id="offCd" style="font-weight:800;font-size:17px;color:#FFC107">${left}s</span>
+    </div>
+    <div style="height:5px;background:#2a3038;border-radius:3px;overflow:hidden;margin-bottom:14px">
+      <i id="offBar" style="display:block;height:100%;background:#FFC107;width:${left / timeout * 100}%;transition:width 1s linear"></i>
+    </div>
+    <div class="drv">
+      <div class="av">${d.initial || '🚗'}</div>
+      <div><div class="nm">${esc(d.name || 'Conductor')}</div><div class="car2">${esc(d.vehicle || '')} · ${esc(d.plate || '')} ${d.color ? '· ' + esc(d.color) : ''}</div></div>
+      <div class="rate"><b>⭐ ${(d.rating || 5).toFixed(1)}</b><small>${d.trips || 0} viajes</small></div>
+    </div>
+    <div class="routeinfo">
+      <div class="chip"><div class="v">${eta}</div><div class="l">Llega en</div></div>
+      <div class="chip"><div class="v">${money(r.offered_price)}</div><div class="l">${r.payment_method === 'yape' ? 'Yape' : 'Efectivo'}</div></div>
+    </div>
+    <div class="acts">
+      <button class="btn ghost" id="btnOtro">Buscar otro</button>
+      <button class="btn" id="btnAceptar">Aceptar</button>
+    </div>
+    <div class="sub" style="text-align:center;margin:10px 0 0">Si no respondes a tiempo, buscaremos otro automáticamente.</div>`;
+  $('#btnAceptar').addEventListener('click', confirmOffer);
+  $('#btnOtro').addEventListener('click', rejectOffer);
+  clearInterval(offerTimer);
+  offerTimer = setInterval(() => {
+    left--;
+    const cd = $('#offCd'), bar = $('#offBar');
+    if (cd) cd.textContent = Math.max(0, left) + 's';
+    if (bar) bar.style.width = Math.max(0, left / timeout * 100) + '%';
+    if (left <= 0) clearInterval(offerTimer);
+  }, 1000);
+}
+
+async function confirmOffer() {
+  const b = $('#btnAceptar'); if (b) { b.disabled = true; b.innerHTML = '<span class="spin"></span>'; }
+  clearInterval(offerTimer);
+  try {
+    const r = await api('api/rides/confirm-driver', {});
+    offerKey = null;
+    if (r.ride) renderRide(r.ride);
+  } catch (e) { offerKey = null; toast(e.message || 'La oferta ya no está disponible.'); }
+}
+
+async function rejectOffer() {
+  clearInterval(offerTimer); offerKey = null;
+  const b = $('#btnOtro'); if (b) { b.disabled = true; b.textContent = 'Buscando…'; }
+  try {
+    const r = await api('api/rides/reject-driver', {});
+    toast('Buscando otro conductor…');
+    if (r.ride) renderRide(r.ride);
+  } catch (e) { toast(e.message || 'No se pudo.'); }
 }
 
 function renderSearching(r) {
@@ -402,6 +470,7 @@ async function cancelRide() {
 
 function resetAfterRide() {
   stopPolling();
+  clearInterval(offerTimer); offerKey = null;
   dest = null; quote = null; price = null;
   if (dMarker) { dMarker.remove(); dMarker = null; }
   if (routeLine) { routeLine.remove(); routeLine = null; }

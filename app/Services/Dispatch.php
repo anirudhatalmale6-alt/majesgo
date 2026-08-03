@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Driver;
+use App\Models\Ride;
 use App\Models\Setting;
 
 /**
@@ -13,8 +14,11 @@ use App\Models\Setting;
  */
 class Dispatch
 {
-    /** @return array<int,array{driver:Driver, distance_m:float}> ordenado por cercanía */
-    public static function eligibleDrivers(float $lat, float $lng, ?float $radiusKm = null): array
+    /**
+     * @param  array<int>  $excludeIds  conductores a excluir (p.ej. los que el pasajero ya rechazó)
+     * @return array<int,array{driver:Driver, distance_m:float}> ordenado por cercanía
+     */
+    public static function eligibleDrivers(float $lat, float $lng, ?float $radiusKm = null, array $excludeIds = []): array
     {
         $radiusKm ??= (float) Setting::get('dispatch_radius_km', 3.0);
         $commission = (float) Setting::get('commission_value', 0.50);
@@ -36,6 +40,9 @@ class Dispatch
 
         $out = [];
         foreach ($drivers as $d) {
+            if (in_array($d->id, $excludeIds, true)) {
+                continue;
+            }
             $dist = Routing::haversine($lat, $lng, (float) $d->lat, (float) $d->lng);
             if ($dist <= $radiusKm * 1000) {
                 $out[] = ['driver' => $d, 'distance_m' => $dist];
@@ -45,6 +52,48 @@ class Dispatch
         usort($out, fn ($a, $b) => $a['distance_m'] <=> $b['distance_m']);
 
         return $out;
+    }
+
+    /**
+     * Si una oferta ('ofrecido') pasó del tiempo límite sin respuesta del pasajero,
+     * se libera: vuelve a 'solicitando', se excluye a ese conductor y se le libera.
+     * @return bool true si se liberó por vencimiento
+     */
+    public static function releaseOfferIfExpired(Ride $ride): bool
+    {
+        if ($ride->status !== 'ofrecido' || ! $ride->offered_at) {
+            return false;
+        }
+        $timeout = (int) Setting::get('offer_timeout_s', 15);
+        if ((int) abs($ride->offered_at->diffInSeconds(now())) < $timeout) {
+            return false;
+        }
+        self::releaseOffer($ride);
+
+        return true;
+    }
+
+    /** Devuelve el viaje a búsqueda y excluye al conductor ofrecido (rechazo o vencimiento). */
+    public static function releaseOffer(Ride $ride): void
+    {
+        $driverId = $ride->driver_id;
+        $excluded = (array) $ride->excluded_driver_ids;
+        if ($driverId) {
+            $excluded[] = $driverId;
+        }
+
+        $ride->forceFill([
+            'status'              => 'solicitando',
+            'driver_id'           => null,
+            'excluded_driver_ids' => array_values(array_unique($excluded)),
+            'offered_at'          => null,
+            'route_to_pickup'     => null,
+            'is_demo'             => false,
+        ])->save();
+
+        if ($driverId && ($d = Driver::find($driverId)) && ! $d->activeRide()) {
+            $d->update(['status' => 'disponible']);
+        }
     }
 
     /**

@@ -105,31 +105,36 @@ class RideController extends Controller
             return response()->json(['ride' => null]);
         }
 
+        // Oferta esperando confirmación del pasajero (Aceptar conductor / Buscar otro)
+        if ($ride->status === 'ofrecido') {
+            if (! Dispatch::releaseOfferIfExpired($ride)) {
+                return response()->json(['ride' => $this->payload($ride->fresh('driver'), $this->driverPosArr($ride), $this->offerInfo($ride))]);
+            }
+            $ride->refresh(); // venció sin respuesta → volvió a 'solicitando', seguimos buscando abajo
+        }
+
         // Búsqueda de conductor
         if ($ride->status === 'solicitando') {
-            // ¿Hay conductores REALES conectados y elegibles para este viaje?
+            $excluded = (array) $ride->excluded_driver_ids;
+
+            // ¿Hay conductores REALES conectados y elegibles (no rechazados) para este viaje?
             $realOnline = false;
-            foreach (Dispatch::eligibleDrivers((float) $ride->origin_lat, (float) $ride->origin_lng) as $e) {
+            foreach (Dispatch::eligibleDrivers((float) $ride->origin_lat, (float) $ride->origin_lng, null, $excluded) as $e) {
                 if (! $e['driver']->is_demo) { $realOnline = true; break; }
             }
 
-            // Si hay conductores reales en línea, esperamos a que uno acepte desde su app.
+            // Si hay conductores reales en línea, esperamos a que uno ofrezca desde su app.
             if ($realOnline) {
                 return response()->json(['ride' => $this->payload($ride, null)]);
             }
 
-            // Si no hay conductores reales conectados, usamos el conductor de prueba
-            // para poder probar el recorrido sin necesitar dos personas.
+            // Sin conductores reales: conductor de prueba (si está habilitado). También pasa por confirmación.
             if ((string) Setting::get('demo_enabled', '1') === '1') {
                 $delay = (int) Setting::get('search_delay_s', 3);
                 $waited = now()->getTimestamp() - $ride->requested_at->getTimestamp();
 
-                if ($waited >= $delay) {
-                    $this->assignDemoDriver($ride);
-                    $driver = $ride->driver;
-                    return response()->json(['ride' => $this->payload($ride, [
-                        'lat' => (float) $driver->lat, 'lng' => (float) $driver->lng,
-                    ])]);
+                if ($waited >= $delay && $this->assignDemoDriver($ride)) {
+                    return response()->json(['ride' => $this->payload($ride->fresh('driver'), $this->driverPosArr($ride), $this->offerInfo($ride))]);
                 }
             }
 
@@ -147,20 +152,89 @@ class RideController extends Controller
         return response()->json(['ride' => $this->payload($ride->fresh('driver'), $pos)]);
     }
 
-    private function assignDemoDriver(Ride $ride): void
+    private function assignDemoDriver(Ride $ride): bool
     {
         $driver = Dispatch::demoDriver((float) $ride->origin_lat, (float) $ride->origin_lng);
+        if (in_array($driver->id, (array) $ride->excluded_driver_ids, true)) {
+            return false; // el pasajero ya rechazó al conductor de prueba
+        }
         $toPickup = Routing::route((float) $driver->lat, (float) $driver->lng, (float) $ride->origin_lat, (float) $ride->origin_lng);
 
         $ride->forceFill([
             'driver_id'       => $driver->id,
-            'status'          => 'aceptado',
+            'status'          => 'ofrecido',
+            'offered_at'      => now(),
             'accepted_at'     => now(),
             'route_to_pickup' => $toPickup['geometry'],
             'is_demo'         => true,
         ])->save();
 
         $driver->update(['status' => 'ocupado']);
+
+        return true;
+    }
+
+    /** El pasajero confirma al conductor ofrecido → el viaje queda en firme. */
+    public function confirmDriver(Request $request)
+    {
+        $passenger = $this->passenger($request);
+        $ride = $passenger->activeRide();
+
+        if (! $ride || $ride->status !== 'ofrecido') {
+            return response()->json(['message' => 'La oferta ya no está disponible.'], 422);
+        }
+        if (Dispatch::releaseOfferIfExpired($ride)) {
+            return response()->json(['message' => 'Se acabó el tiempo. Buscando otro conductor…'], 409);
+        }
+
+        $ride->forceFill(['status' => 'en_camino', 'offered_at' => null])->save();
+
+        return response()->json(['ok' => true, 'ride' => $this->payload($ride->fresh('driver'), $this->driverPosArr($ride))]);
+    }
+
+    /** El pasajero rechaza al conductor ofrecido → se busca a otro (se excluye a este). */
+    public function rejectDriver(Request $request)
+    {
+        $passenger = $this->passenger($request);
+        $ride = $passenger->activeRide();
+
+        if (! $ride || $ride->status !== 'ofrecido') {
+            return response()->json(['message' => 'No hay una oferta para rechazar.'], 422);
+        }
+
+        Dispatch::releaseOffer($ride);
+
+        return response()->json(['ok' => true, 'ride' => $this->payload($ride->fresh(), null)]);
+    }
+
+    /** Posición actual del conductor (para el mapa). */
+    private function driverPosArr(Ride $ride): ?array
+    {
+        $d = $ride->driver;
+        if (! $d || $d->lat === null) {
+            return null;
+        }
+        return ['lat' => (float) $d->lat, 'lng' => (float) $d->lng];
+    }
+
+    /** Datos de la oferta: segundos restantes + ETA al recojo. */
+    private function offerInfo(Ride $ride): array
+    {
+        $timeout = (int) Setting::get('offer_timeout_s', 15);
+        $elapsed = $ride->offered_at ? (int) abs($ride->offered_at->diffInSeconds(now())) : 0;
+        $d = $ride->driver;
+        $toPickup = null;
+        $eta = null;
+        if ($d && $d->lat !== null) {
+            $toPickup = Routing::haversine((float) $d->lat, (float) $d->lng, (float) $ride->origin_lat, (float) $ride->origin_lng);
+            $eta = max(1, (int) round($toPickup / 1000 / 22 * 60)); // ~22 km/h promedio urbano
+        }
+        return [
+            'seconds_left' => max(0, $timeout - $elapsed),
+            'timeout'      => $timeout,
+            'to_pickup_m'  => $toPickup !== null ? round($toPickup) : null,
+            'eta_min'      => $eta,
+        ];
     }
 
     public function cancel(Request $request)
@@ -242,7 +316,7 @@ class RideController extends Controller
         return response()->json(['rides' => $rides, 'currency' => Setting::get('currency', 'S/')]);
     }
 
-    private function payload(Ride $ride, ?array $pos): array
+    private function payload(Ride $ride, ?array $pos, ?array $offer = null): array
     {
         $cur = Setting::get('currency', 'S/');
         $driver = $ride->driver;
@@ -264,6 +338,7 @@ class RideController extends Controller
             'route_to_pickup' => $ride->route_to_pickup,
             'route_trip'   => $ride->route_trip,
             'driver_pos'   => $pos,
+            'offer'        => $offer,
             'driver'       => $driver ? [
                 'name'    => $driver->full_name,
                 'vehicle' => trim(($driver->vehicle_make . ' ' . $driver->vehicle_model)),

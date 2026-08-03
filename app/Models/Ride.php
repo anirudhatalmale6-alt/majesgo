@@ -15,8 +15,10 @@ class Ride extends Model
         'commission'       => 'decimal:2',
         'route_to_pickup'  => 'array',
         'route_trip'       => 'array',
+        'excluded_driver_ids' => 'array',
         'is_demo'          => 'boolean',
         'requested_at'     => 'datetime',
+        'offered_at'       => 'datetime',
         'accepted_at'      => 'datetime',
         'arrived_at'       => 'datetime',
         'started_at'       => 'datetime',
@@ -25,7 +27,7 @@ class Ride extends Model
     ];
 
     /** Estados en los que el viaje sigue "vivo" (uno activo por pasajero). */
-    public const ACTIVE_STATES = ['solicitando', 'aceptado', 'en_camino', 'llego', 'a_bordo'];
+    public const ACTIVE_STATES = ['solicitando', 'ofrecido', 'aceptado', 'en_camino', 'llego', 'a_bordo'];
 
     public function passenger()
     {
@@ -54,6 +56,7 @@ class Ride extends Model
     {
         return [
             'solicitando'  => 'Buscando conductor',
+            'ofrecido'     => 'Confirma tu conductor',
             'aceptado'     => 'Conductor asignado',
             'en_camino'    => 'El conductor va en camino',
             'llego'        => 'El conductor llegó',

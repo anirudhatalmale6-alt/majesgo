@@ -96,6 +96,10 @@ class RideController extends Controller
 
         $out = [];
         foreach ($rides as $ride) {
+            // no volver a ofrecer un viaje que el pasajero ya rechazó a este conductor
+            if (in_array($driver->id, (array) $ride->excluded_driver_ids, true)) {
+                continue;
+            }
             $toPickup = Routing::haversine((float) $driver->lat, (float) $driver->lng, (float) $ride->origin_lat, (float) $ride->origin_lng);
             if ($toPickup > $radiusKm * 1000) {
                 continue;
@@ -147,11 +151,18 @@ class RideController extends Controller
                 return null;
             }
 
+            // si el pasajero ya rechazó a este conductor para este viaje, no puede re-tomarlo
+            if (in_array($driver->id, (array) $ride->excluded_driver_ids, true)) {
+                return null;
+            }
+
             $toPickup = Routing::route((float) $driver->lat, (float) $driver->lng, (float) $ride->origin_lat, (float) $ride->origin_lng);
 
+            // El conductor "ofrece" el viaje; el pasajero debe confirmarlo (15s).
             $ride->forceFill([
                 'driver_id'       => $driver->id,
-                'status'          => 'en_camino',
+                'status'          => 'ofrecido',
+                'offered_at'      => now(),
                 'accepted_at'     => now(),
                 'route_to_pickup' => $toPickup['geometry'],
                 'is_demo'         => false,
@@ -188,6 +199,11 @@ class RideController extends Controller
     {
         $driver = $this->driver($request);
         $ride = $driver->activeRide();
+
+        // si ofreció un viaje y el pasajero no confirmó a tiempo, se libera y queda disponible
+        if ($ride && $ride->status === 'ofrecido' && Dispatch::releaseOfferIfExpired($ride)) {
+            $ride = $driver->fresh()->activeRide();
+        }
 
         if (! $ride) {
             // ¿Terminó recién? mostrar la pantalla de fin/calificación una vez

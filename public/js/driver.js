@@ -37,7 +37,7 @@ let reqCode = null, reqTimer = null, poll = null, lastPostAt = 0, commission = 0
 let navOpen = false, navMap = null, navCar = null, navLine = null, navPin = null;
 let navLastLL = null, navLastT = 0, navBearing = 0, navFollow = true, navCanRotate = false, navTargetLL = null;
 
-const ACTIVE = ['aceptado', 'en_camino', 'llego', 'a_bordo'];
+const ACTIVE = ['ofrecido', 'aceptado', 'en_camino', 'llego', 'a_bordo'];
 
 /* ---------- geo helpers ---------- */
 function haversineM(a, b, c, d) {
@@ -358,7 +358,16 @@ async function tick() {
 }
 
 function handleCurrent(r) {
-  if (!r) { return; }             // sin cambios relevantes
+  if (!r) {
+    // teníamos una oferta pendiente y ya no hay viaje → el pasajero eligió otro o no confirmó a tiempo
+    if (ride && ride.status === 'ofrecido') {
+      if (navOpen) closeNav();
+      ride = null; online = true; me.status = 'disponible';
+      toast('El pasajero eligió otro conductor o no confirmó a tiempo.');
+      renderHome();
+    }
+    return;
+  }
   if (r.status === 'cancelado') {
     if (navOpen) closeNav();
     ackRide(r); ride = null; toast('El pasajero canceló el viaje.');
@@ -427,7 +436,7 @@ async function acceptRequest(req) {
     const r = await api('api/accept', { code: req.code });
     hideRequest();
     ride = r.ride; online = true; me.status = 'ocupado';
-    toast('¡Viaje aceptado! Ve a recoger al pasajero.');
+    toast('Enviado. Esperando que el pasajero confirme…');
     renderRide(ride);
   } catch (e) {
     hideRequest();
@@ -447,6 +456,7 @@ async function rejectRequest(code, silent) {
 /* ================= VIAJE EN CURSO ================= */
 function renderRide(r) {
   $('#reqwrap').classList.add('hidden');
+  if (r.status === 'ofrecido') { renderWaitingConfirm(r); return; }
   // rutas
   if (r.status === 'a_bordo') drawRoute(r.route_trip, '#00C853');
   else drawRoute(r.route_to_pickup, '#FFC107');
@@ -491,6 +501,26 @@ function renderRide(r) {
   $('#btnNav').addEventListener('click', openNav);
   // (mantener referencia al destino externo por si se necesita)
   window._extNav = () => window.open('https://www.google.com/maps/dir/?api=1&destination=' + navTarget.lat + ',' + navTarget.lng + '&travelmode=driving', '_blank');
+}
+
+function renderWaitingConfirm(r) {
+  drawRoute(r.route_to_pickup, '#FFC107');
+  setPin('o', [r.origin.lat, r.origin.lng]);
+  setPin('d', [r.dest.lat, r.dest.lng]);
+  const pts = []; if (myPos) pts.push([myPos.lat, myPos.lng]); pts.push([r.origin.lat, r.origin.lng]);
+  if (pts.length > 1) map.fitBounds(L.latLngBounds(pts).pad(0.4), { paddingBottomRight: [0, 260] });
+  const p = r.passenger || {};
+  $('#sheetBody').innerHTML = `
+    <div style="text-align:center;padding:6px 0 2px">
+      <div class="spin" style="width:34px;height:34px;border-width:3px;border-top-color:var(--amarillo);margin:8px auto 12px"></div>
+      <h2>Esperando confirmación…</h2>
+      <div class="statesub" style="margin-top:4px">${esc(p.name || 'El pasajero')} está confirmando tu viaje. Un momento por favor.</div>
+    </div>
+    <div class="drv" style="margin-top:8px">
+      <div class="av">${p.initial || 'P'}</div>
+      <div><div class="nm">${esc(p.name || 'Pasajero')}</div><div class="car2">Recojo: ${esc(r.origin.address || 'Punto marcado')}</div></div>
+      <div class="rate"><b>${money(r.offered_price)}</b><small>${r.payment_method === 'yape' ? 'Yape' : 'efectivo'}</small></div>
+    </div>`;
 }
 
 async function act(path, msg) {
