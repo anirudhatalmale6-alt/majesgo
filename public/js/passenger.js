@@ -212,23 +212,59 @@ function setDest(p, address) {
       reverseGeocode(ll).then((a) => { dest.address = a; refreshQuote(); });
     });
   } else dMarker.setLatLng(p);
-  if (!address) reverseGeocode(p).then((a) => { dest.address = a; renderPlanning(); });
+  if (!address) reverseGeocode(p).then((a) => {
+    // en zonas sin calle mapeada dos puntos pueden dar el mismo nombre: lo diferenciamos por dirección
+    if (origin && origin.address && a && a.toLowerCase() === origin.address.toLowerCase()) {
+      a = a + ' (hacia el ' + compassEs(bearingP(origin, dest)) + ')';
+    }
+    dest.address = a;
+    renderPlanning();
+  });
   refreshQuote();
 }
 
 /* ============ Geocoding (Nominatim) ============ */
 async function reverseGeocode(p) {
   try {
-    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${p.lat}&lon=${p.lng}&format=json&zoom=17&accept-language=es`);
+    // zoom=18 + namedetails: nombre del punto/calle específico, no solo la zona general
+    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${p.lat}&lon=${p.lng}&format=jsonv2&zoom=18&addressdetails=1&namedetails=1&accept-language=es`);
     const d = await r.json();
-    return shortAddr(d.address) || 'Punto en el mapa';
+    return placeLabel(d) || 'Punto en el mapa';
   } catch (e) { return 'Punto en el mapa'; }
 }
-function shortAddr(a) {
-  if (!a) return null;
-  const road = a.road || a.pedestrian || a.neighbourhood || a.suburb;
-  const area = a.suburb || a.village || a.town || a.city || a.county;
-  return [road, area].filter(Boolean).slice(0, 2).join(', ') || null;
+
+/* Arma una etiqueta específica: POI/negocio + calle, o calle (+ número), o la zona. */
+function placeLabel(d) {
+  if (!d) return null;
+  const a = d.address || {};
+  const num  = a.house_number;
+  const road = a.road || a.pedestrian || a.footway || a.path || a.residential || a.cycleway;
+  const poi  = a.amenity || a.shop || a.tourism || a.leisure || a.office || a.building || a.craft || a.club;
+  const zone = a.neighbourhood || a.quarter || a.city_block || a.hamlet || a.suburb || a.village;
+
+  let primary = poi
+    || (road ? (num ? road + ' ' + num : road) : null)
+    || zone
+    || (d.namedetails && d.namedetails.name)
+    || a.town || a.city || null;
+
+  let secondary = poi ? (road || zone) : (zone || a.town || a.city || a.county);
+  if (secondary && primary && (secondary === primary || primary.includes(secondary))) secondary = null;
+
+  const label = [primary, secondary].filter(Boolean).slice(0, 2).join(', ');
+  if (label) return label;
+  return d.display_name ? d.display_name.split(',').slice(0, 2).join(',').trim() : null;
+}
+
+/* Rumbo entre dos puntos (grados) y su punto cardinal en español. */
+function bearingP(a, b) {
+  const r = Math.PI / 180;
+  const y = Math.sin((b.lng - a.lng) * r) * Math.cos(b.lat * r);
+  const x = Math.cos(a.lat * r) * Math.sin(b.lat * r) - Math.sin(a.lat * r) * Math.cos(b.lat * r) * Math.cos((b.lng - a.lng) * r);
+  return (Math.atan2(y, x) / r + 360) % 360;
+}
+function compassEs(brg) {
+  return ['norte', 'noreste', 'este', 'sureste', 'sur', 'suroeste', 'oeste', 'noroeste'][Math.round((brg % 360) / 45) % 8];
 }
 let searchT;
 async function searchPlaces(q, box) {
