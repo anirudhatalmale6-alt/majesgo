@@ -38,6 +38,9 @@
         .pin.o{background:var(--verde)} .pin.d{background:#ff5252}
         .car{font-size:30px;filter:drop-shadow(0 4px 6px rgba(0,0,0,.5));transition:transform .1s}
         .medot{width:16px;height:16px;background:#2b8fff;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 6px rgba(43,143,255,.25)}
+        .mapmode{position:absolute;top:calc(env(safe-area-inset-top) + 66px);left:14px;z-index:19;width:40px;height:40px;border-radius:50%;border:0;background:rgba(13,13,13,.72);backdrop-filter:blur(8px);font-size:17px;cursor:pointer;display:grid;place-items:center;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+        #app.lightmap #map{background:#e6e9e4}
+        #app.lightmap .leaflet-container{background:#e6e9e4}
 
         /* Topbar flotante */
         .topbar{position:absolute;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;justify-content:space-between;
@@ -178,6 +181,7 @@
 <body>
 <div id="app">
     <div id="map"></div>
+    <button class="mapmode" id="btnMapMode" title="Modo claro / oscuro" aria-label="Modo claro u oscuro">🌙</button>
 
     <div class="topbar">
         <div class="brand"><span style="font-size:18px">📍</span><b>Majes<span class="g">Go</span></b></div>
@@ -246,6 +250,6 @@ window.MG = {
     csrf: document.querySelector('meta[name=csrf-token]').content,
 };
 </script>
-<script src="/js/passenger.js?v=8"></script>
+<script src="/js/passenger.js?v=9"></script>
 </body>
 </html>

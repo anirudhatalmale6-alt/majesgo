@@ -37,8 +37,35 @@ let reqCode = null, reqTimer = null, poll = null, lastPostAt = 0, commission = 0
 let navOpen = false, navMap = null, navCar = null, navLine = null, navPin = null;
 let navLastLL = null, navLastT = 0, navBearing = 0, navFollow = true, navCanRotate = false, navTargetLL = null;
 let chatOpen = false, chatLastId = 0, chatSeenId = 0, chatPoll = null, rideLastMsgId = 0;
+let mapLight = false, baseTile = null, navTile = null, arrivedFor = null;
 
 const ACTIVE = ['ofrecido', 'aceptado', 'en_camino', 'llego', 'a_bordo'];
+const ARRIVE_M = 30; // metros para avisar "llegaste"
+
+/* ---------- modo del mapa (claro de día / oscuro de noche) ---------- */
+function tileUrl(light) {
+  return light
+    ? 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
+    : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+}
+function initialLight() {
+  const saved = localStorage.getItem('mg_map_mode');
+  if (saved === 'light') return true;
+  if (saved === 'dark') return false;
+  const h = new Date().getHours();
+  return h >= 6 && h < 18; // por defecto: claro de día, oscuro de noche
+}
+function applyMapMode() {
+  document.getElementById('app').classList.toggle('lightmap', mapLight);
+  const b = document.getElementById('btnMapMode'); if (b) b.textContent = mapLight ? '☀️' : '🌙';
+  if (baseTile) baseTile.setUrl(tileUrl(mapLight));
+  if (navTile) navTile.setUrl(tileUrl(mapLight));
+}
+function toggleMapMode() {
+  mapLight = !mapLight;
+  localStorage.setItem('mg_map_mode', mapLight ? 'light' : 'dark');
+  applyMapMode();
+}
 
 /* ---------- geo helpers ---------- */
 function haversineM(a, b, c, d) {
@@ -104,12 +131,15 @@ async function boot() {
 
 /* ================= MAPA ================= */
 function initMap() {
+  mapLight = initialLight();
   map = L.map('map', { zoomControl: false, attributionControl: true }).setView(MG.center, 15);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  baseTile = L.tileLayer(tileUrl(mapLight), {
     attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 20, subdomains: 'abcd',
   }).addTo(map);
   L.control.zoom({ position: 'bottomleft' }).addTo(map);
   $('#btnMenu').addEventListener('click', openDrawer);
+  const bm = $('#btnMapMode'); if (bm) bm.addEventListener('click', toggleMapMode);
+  applyMapMode();
 }
 function icon(cls, html, size, anchor) {
   return L.divIcon({ className: '', html: '<div class="' + cls + '">' + (html || '') + '</div>', iconSize: size, iconAnchor: anchor });
@@ -146,6 +176,7 @@ function startGeo() {
     if (!map._centeredOnce) { map.setView(myPos, 16); map._centeredOnce = true; }
     pushLocation();
     if (navOpen) navUpdate(pos);
+    checkArrival();
   }, () => {}, { enableHighAccuracy: true, maximumAge: 1000, timeout: 12000 });
 }
 
@@ -164,7 +195,7 @@ function initNavMap() {
     navMap = L.map('navmap', Object.assign({ rotate: true, bearing: 0, rotateControl: false, touchRotate: false, shiftKeyRotate: false }, base));
   } catch (e) { navMap = L.map('navmap', base); }
   navCanRotate = typeof navMap.setBearing === 'function';
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 20, subdomains: 'abcd' }).addTo(navMap);
+  navTile = L.tileLayer(tileUrl(mapLight), { maxZoom: 20, subdomains: 'abcd' }).addTo(navMap);
   navMap.setView(myPos ? [myPos.lat, myPos.lng] : MG.center, 17);
   navMap.on('dragstart', () => { navFollow = false; $('#navRecenter').classList.remove('hidden'); });
 }
@@ -294,7 +325,7 @@ function pushLocation() {
 /* ================= HOME (conectar/desconectar) ================= */
 function renderHome() {
   clearTrip();
-  closeChat(); chatLastId = 0; chatSeenId = 0; rideLastMsgId = 0;
+  closeChat(); chatLastId = 0; chatSeenId = 0; rideLastMsgId = 0; arrivedFor = null;
   const canR = me.can_receive;
   const lowSaldo = me.saldo < commission;
   const b = $('#sheetBody');
@@ -508,6 +539,7 @@ function renderRide(r) {
   $('#btnNav').addEventListener('click', openNav);
   // (mantener referencia al destino externo por si se necesita)
   window._extNav = () => window.open('https://www.google.com/maps/dir/?api=1&destination=' + navTarget.lat + ',' + navTarget.lng + '&travelmode=driving', '_blank');
+  checkArrival(); // reaplica el resaltado si ya está en el punto
 }
 
 function renderWaitingConfirm(r) {
@@ -528,6 +560,26 @@ function renderWaitingConfirm(r) {
       <div><div class="nm">${esc(p.name || 'Pasajero')}</div><div class="car2">Recojo: ${esc(r.origin.address || 'Punto marcado')}${r.reference ? ' · ' + esc(r.reference) : ''}</div></div>
       <div class="rate"><b>${money(r.offered_price)}</b><small>${r.payment_method === 'yape' ? 'Yape' : 'efectivo'}</small></div>
     </div>`;
+}
+
+/* Aviso de llegada: cuando el conductor está a <30 m del punto (recojo o destino),
+   avisa y resalta el botón de acción para que sea claro qué tocar. */
+function checkArrival() {
+  if (!ride || !myPos) return;
+  let target, label;
+  if (ride.status === 'en_camino' || ride.status === 'aceptado') { target = ride.origin; label = '¡Llegaste al punto de recojo!'; }
+  else if (ride.status === 'a_bordo') { target = ride.dest; label = '¡Llegaste al destino!'; }
+  else return;
+  if (!target) return;
+  const d = haversineM(myPos.lat, myPos.lng, target.lat, target.lng);
+  if (d <= ARRIVE_M) {
+    if (arrivedFor !== ride.status) {
+      arrivedFor = ride.status;
+      toast(label + ' Toca el botón para continuar.');
+      if (navigator.vibrate) { try { navigator.vibrate([130, 70, 130]); } catch (e) {} }
+    }
+    ['btnArrive', 'btnComplete', 'navPrimary'].forEach((id) => { const b = document.getElementById(id); if (b) b.classList.add('pulsebtn'); });
+  }
 }
 
 async function act(path, msg) {

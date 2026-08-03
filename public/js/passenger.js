@@ -33,6 +33,31 @@ let poll = false, pollTimer = null, lastStatus = null, carFrom = null;
 let offerTimer = null, offerKey = null;
 let meWatchId = null, followMe = true, originPinned = false, lastGeoAt = 0, lastMeLL = null;
 let chatOpen = false, chatLastId = 0, chatSeenId = 0, chatPoll = null, rideLastMsgId = 0;
+let mapLight = false, baseTile = null;
+
+/* ---------- modo del mapa (claro de día / oscuro de noche) ---------- */
+function tileUrl(light) {
+  return light
+    ? 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
+    : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+}
+function initialLight() {
+  const saved = localStorage.getItem('mg_map_mode');
+  if (saved === 'light') return true;
+  if (saved === 'dark') return false;
+  const h = new Date().getHours();
+  return h >= 6 && h < 18; // por defecto: claro de día, oscuro de noche
+}
+function applyMapMode() {
+  document.getElementById('app').classList.toggle('lightmap', mapLight);
+  const b = document.getElementById('btnMapMode'); if (b) b.textContent = mapLight ? '☀️' : '🌙';
+  if (baseTile) baseTile.setUrl(tileUrl(mapLight));
+}
+function toggleMapMode() {
+  mapLight = !mapLight;
+  localStorage.setItem('mg_map_mode', mapLight ? 'light' : 'dark');
+  applyMapMode();
+}
 
 /* ================= AUTH ================= */
 let authMode = 'login';
@@ -102,11 +127,14 @@ async function boot() {
 
 /* ================= MAPA ================= */
 function initMap() {
+  mapLight = initialLight();
   map = L.map('map', { zoomControl: false, attributionControl: true }).setView(MG.center, 15);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  baseTile = L.tileLayer(tileUrl(mapLight), {
     attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 20, subdomains: 'abcd',
   }).addTo(map);
   L.control.zoom({ position: 'bottomleft' }).addTo(map);
+  const bm = $('#btnMapMode'); if (bm) bm.addEventListener('click', toggleMapMode);
+  applyMapMode();
 
   map.on('click', (e) => {
     if (isRiding()) return;
