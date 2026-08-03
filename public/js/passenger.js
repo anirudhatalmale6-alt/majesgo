@@ -301,6 +301,10 @@ function compassEs(brg) {
   return ['norte', 'noreste', 'este', 'sureste', 'sur', 'suroeste', 'oeste', 'noroeste'][Math.round((brg % 360) / 45) % 8];
 }
 function renderSearchResults(box, items) {
+  if (!items.length) {
+    box.innerHTML = '<div class="nohit">No encontramos ese lugar. Toca el punto en el mapa 👆 y lo marcamos exacto.</div>';
+    return;
+  }
   box.innerHTML = items.map((x) => `<div data-lat="${x.lat}" data-lon="${x.lng}"><div class="t">${esc(x.title)}</div><div class="s">${esc(x.sub || '')}</div></div>`).join('');
   box.querySelectorAll('div[data-lat]').forEach((el) => el.addEventListener('click', () => {
     const p = { lat: +el.dataset.lat, lng: +el.dataset.lon };
@@ -310,28 +314,45 @@ function renderSearchResults(box, items) {
   }));
 }
 
-let searchT;
+// Un solo query a Nominatim (OSM). bias = usar el recuadro solo como preferencia (no recorta).
+async function nominatim(q, biasOnly) {
+  const vb = `${MG.center[1] - 0.16},${MG.center[0] + 0.13},${MG.center[1] + 0.16},${MG.center[0] - 0.13}`;
+  const bounded = biasOnly ? '0' : '1';
+  const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=8&addressdetails=1&accept-language=es&countrycodes=pe&viewbox=${vb}&bounded=${bounded}`);
+  return r.ok ? await r.json() : [];
+}
+
+let searchT, searchSeq = 0;
 async function searchPlaces(q, box) {
   clearTimeout(searchT);
   if (q.length < 3) { box.innerHTML = ''; return; }
+  const seq = ++searchSeq;
   searchT = setTimeout(async () => {
-    // 1) proxy (Google): mejores resultados en Perú
+    box.innerHTML = '<div class="nohit">Buscando “' + esc(q) + '”…</div>';
+    // 1) proxy (Google): mejores resultados en Perú (cuando la facturación esté activa)
     try {
       const g = await api('api/geocode/search?q=' + encodeURIComponent(q));
+      if (seq !== searchSeq) return;
       if (g && g.results && g.results.length) {
         renderSearchResults(box, g.results.map((x) => ({ lat: x.lat, lng: x.lng, title: x.label, sub: x.full })));
         return;
       }
     } catch (e) { /* sin proxy → respaldo */ }
-    // 2) respaldo Nominatim (OSM)
+    // 2) respaldo Nominatim (OSM): local estricto → luego ampliado con contexto, y unimos.
     try {
-      const vb = `${MG.center[1] - 0.15},${MG.center[0] + 0.12},${MG.center[1] + 0.15},${MG.center[0] - 0.12}`;
-      const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=6&accept-language=es&viewbox=${vb}&bounded=1`);
-      let d = await r.json();
-      if (!d.length) { const r2 = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q + ', Arequipa, Peru')}&format=json&limit=6&accept-language=es`); d = await r2.json(); }
-      renderSearchResults(box, d.map((x) => ({ lat: +x.lat, lng: +x.lon, title: (x.display_name || '').split(',')[0], sub: (x.display_name || '').split(',').slice(1, 3).join(',') })));
-    } catch (e) { box.innerHTML = ''; }
-  }, 450);
+      const seen = new Set(); const items = [];
+      const push = (arr) => arr.forEach((x) => {
+        const k = (+x.lat).toFixed(4) + ',' + (+x.lon).toFixed(4);
+        if (seen.has(k)) return; seen.add(k);
+        const parts = (x.display_name || '').split(',').map((s) => s.trim());
+        items.push({ lat: +x.lat, lng: +x.lon, title: parts[0] || 'Lugar', sub: parts.slice(1, 3).join(', ') });
+      });
+      push(await nominatim(q, false));                                   // estricto dentro de Majes
+      if (items.length < 4) push(await nominatim(q + ', Majes, Arequipa', true)); // ampliado con contexto (bias)
+      if (seq !== searchSeq) return;
+      renderSearchResults(box, items.slice(0, 8));
+    } catch (e) { if (seq === searchSeq) renderSearchResults(box, []); }
+  }, 400);
 }
 
 /* ============ Cotización ============ */

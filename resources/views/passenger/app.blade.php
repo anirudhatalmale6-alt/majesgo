@@ -77,6 +77,7 @@
         .suggbox div{padding:11px 14px;border-bottom:1px solid var(--line);font-size:13.5px;cursor:pointer}
         .suggbox div:hover{background:#232830}
         .suggbox .t{font-weight:600}.suggbox .s{color:var(--muted);font-size:11.5px}
+        .suggbox .nohit{color:var(--muted);font-size:12.5px;cursor:default;border-bottom:none;line-height:1.4}
 
         .routeinfo{display:flex;gap:10px;margin:4px 0 14px}
         .chip{flex:1;background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:10px;text-align:center}
@@ -250,6 +251,6 @@ window.MG = {
     csrf: document.querySelector('meta[name=csrf-token]').content,
 };
 </script>
-<script src="/js/passenger.js?v=9"></script>
+<script src="/js/passenger.js?v=10"></script>
 </body>
 </html>
