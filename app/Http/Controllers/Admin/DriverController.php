@@ -148,8 +148,11 @@ class DriverController extends Controller
 
     private function nextCode(): string
     {
-        $last = Driver::orderByDesc('id')->value('code');
-        $n = $last ? ((int) Str::afterLast($last, '-')) + 1 : 1;
-        return 'MG-' . str_pad($n, 4, '0', STR_PAD_LEFT);
+        // mayor sufijo numérico entre los códigos con forma MG-#### (ignora MG-DEMO u otros no numéricos)
+        $max = Driver::pluck('code')
+            ->filter(fn ($c) => preg_match('/^MG-\d+$/', (string) $c))
+            ->map(fn ($c) => (int) Str::afterLast($c, '-'))
+            ->max() ?? 0;
+        return 'MG-' . str_pad($max + 1, 4, '0', STR_PAD_LEFT);
     }
 }
