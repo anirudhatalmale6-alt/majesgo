@@ -32,6 +32,7 @@ let quote = null, price = null, method = 'efectivo';
 let poll = false, pollTimer = null, lastStatus = null, carFrom = null;
 let offerTimer = null, offerKey = null;
 let meWatchId = null, followMe = true, originPinned = false, lastGeoAt = 0, lastMeLL = null;
+let chatOpen = false, chatLastId = 0, chatSeenId = 0, chatPoll = null, rideLastMsgId = 0;
 
 /* ================= AUTH ================= */
 let authMode = 'login';
@@ -423,6 +424,7 @@ async function tick() {
 }
 
 function renderRide(r) {
+  if (typeof r.last_message_id === 'number') rideLastMsgId = r.last_message_id;
   // dibujar rutas
   if (r.status === 'ofrecido' || r.status === 'aceptado' || r.status === 'en_camino' || r.status === 'llego') {
     if (r.route_to_pickup) drawRoute(r.route_to_pickup, '#FFC107');
@@ -546,11 +548,11 @@ function renderAssigned(r) {
       <div class="chip"><div class="v">${(r.distance_m / 1000).toFixed(1)} km</div><div class="l">al destino</div></div>
     </div>
     <div class="acts">
-      <button class="btn ghost" id="btnCallish">💬 Contactar</button>
+      <button class="btn ghost" id="btnChat">💬 Chat${(rideLastMsgId > chatSeenId && !chatOpen) ? ' <span class="undot"></span>' : ''}</button>
       ${canCancel ? '<button class="btn danger" id="btnCancel">Cancelar</button>' : ''}
     </div>`;
   const c = $('#btnCancel'); if (c) c.addEventListener('click', cancelRide);
-  $('#btnCallish').addEventListener('click', () => toast('En la app real: llamada o chat con el conductor (Hito 4).'));
+  $('#btnChat').addEventListener('click', () => openChat(d.name));
 }
 
 function renderCompleted(r) {
@@ -581,6 +583,7 @@ async function cancelRide() {
 function resetAfterRide() {
   stopPolling();
   clearInterval(offerTimer); offerKey = null;
+  closeChat(); chatLastId = 0; chatSeenId = 0; rideLastMsgId = 0;
   dest = null; quote = null; price = null; reference = '';
   if (dMarker) { dMarker.remove(); dMarker = null; }
   if (routeLine) { routeLine.remove(); routeLine = null; }
@@ -629,6 +632,62 @@ $('#btnLogout').addEventListener('click', async () => {
   try { await api('api/logout', {}); } catch (e) {}
   location.reload();
 });
+
+/* ================= CHAT con el conductor ================= */
+function openChat(name) {
+  chatOpen = true;
+  $('#chat').classList.add('open');
+  if (name) $('#chatSub').textContent = name;
+  chatSeenId = rideLastMsgId;
+  loadChat(true);
+  clearInterval(chatPoll);
+  chatPoll = setInterval(() => loadChat(false), 3000);
+  setTimeout(() => { const i = $('#chatIn'); if (i) i.focus(); }, 250);
+}
+function closeChat() {
+  chatOpen = false;
+  $('#chat').classList.remove('open');
+  clearInterval(chatPoll); chatPoll = null;
+}
+async function loadChat(reset) {
+  if (reset) { chatLastId = 0; $('#chatBody').innerHTML = ''; }
+  let data;
+  try { data = await api('api/rides/messages?after=' + chatLastId); } catch (e) { return; }
+  const msgs = data.messages || [];
+  if (reset && !msgs.length) {
+    $('#chatBody').innerHTML = '<div class="cempty">Escríbele a tu conductor: dale una referencia, avísale que ya sales, etc.</div>';
+  }
+  appendChat(msgs);
+}
+function appendChat(msgs) {
+  if (!msgs.length) return;
+  const body = $('#chatBody');
+  const empty = body.querySelector('.cempty'); if (empty) empty.remove();
+  const atBottom = body.scrollHeight - body.scrollTop - body.clientHeight < 60;
+  msgs.forEach((m) => {
+    if (m.id > chatLastId) chatLastId = m.id;
+    if (m.id > chatSeenId) chatSeenId = m.id;
+    const div = document.createElement('div');
+    div.className = 'bub ' + (m.mine ? 'me' : 'them');
+    div.innerHTML = esc(m.body) + '<span class="tm">' + esc(m.time) + '</span>';
+    body.appendChild(div);
+  });
+  rideLastMsgId = Math.max(rideLastMsgId, chatLastId);
+  if (atBottom) body.scrollTop = body.scrollHeight;
+}
+async function sendChat() {
+  const inp = $('#chatIn'); const body = inp.value.trim();
+  if (!body) return;
+  inp.value = '';
+  try {
+    const r = await api('api/rides/messages', { body });
+    if (r && r.msg) appendChat([r.msg]);
+    $('#chatBody').scrollTop = $('#chatBody').scrollHeight;
+  } catch (e) { toast(e.message || 'No se pudo enviar.'); inp.value = body; }
+}
+$('#chatBack').addEventListener('click', closeChat);
+$('#chatSend').addEventListener('click', sendChat);
+$('#chatIn').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
 
 /* ================= PWA ================= */
 if ('serviceWorker' in navigator) {

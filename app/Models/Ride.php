@@ -39,6 +39,11 @@ class Ride extends Model
         return $this->belongsTo(Driver::class);
     }
 
+    public function messages()
+    {
+        return $this->hasMany(RideMessage::class);
+    }
+
     /* ---- Helpers ---- */
 
     public static function makeCode(): string

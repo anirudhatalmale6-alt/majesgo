@@ -184,6 +184,24 @@
         .navmeta{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:12.5px;color:#cdd4dc}
         .navmeta b{color:#fff}
 
+        /* ===== Chat ===== */
+        .chat{position:absolute;inset:0;z-index:50;background:var(--negro);transform:translateX(100%);transition:transform .25s;display:flex;flex-direction:column}
+        .chat.open{transform:none}
+        .chead{display:flex;align-items:center;gap:12px;padding:calc(env(safe-area-inset-top) + 14px) 16px 14px;border-bottom:1px solid var(--line);background:var(--panel)}
+        .chead .ctitle{font-weight:700;font-size:16px}
+        .chead .csub{font-size:11.5px;color:var(--muted)}
+        .cbody{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:8px}
+        .bub{max-width:78%;padding:9px 13px;border-radius:15px;font-size:14px;line-height:1.35;word-wrap:break-word;overflow-wrap:anywhere}
+        .bub .tm{display:block;font-size:9.5px;opacity:.6;margin-top:3px;text-align:right}
+        .bub.me{align-self:flex-end;background:var(--amarillo);color:#3a2e00;border-bottom-right-radius:5px}
+        .bub.them{align-self:flex-start;background:var(--panel-2);color:var(--text);border-bottom-left-radius:5px}
+        .cempty{margin:auto;color:var(--muted);font-size:13px;text-align:center;padding:0 30px}
+        .cinput{display:flex;gap:9px;padding:12px 14px calc(env(safe-area-inset-bottom) + 12px);border-top:1px solid var(--line);background:var(--panel)}
+        .cinput input{flex:1;padding:12px 14px;border-radius:22px;border:1px solid var(--line);background:var(--panel-2);color:#fff;font-family:inherit;font-size:14px}
+        .cinput input:focus{outline:0;border-color:var(--amarillo)}
+        .cinput button{width:46px;height:46px;border-radius:50%;border:0;background:var(--amarillo);color:#3a2e00;font-size:18px;cursor:pointer;flex:none}
+        .undot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#ff5252;margin-left:5px;vertical-align:middle}
+
         .toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 20px);transform:translateX(-50%);z-index:60;background:#fff;color:#111;padding:12px 18px;border-radius:12px;font-weight:600;font-size:14px;box-shadow:0 10px 30px rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:.2s;max-width:88%;text-align:center}
         .toast.show{opacity:1}
         .hidden{display:none !important}
@@ -255,6 +273,16 @@
         <div class="dbody" id="drawerBody"><p class="sub" style="text-align:center;color:var(--muted)">Cargando…</p></div>
     </div>
 
+    <!-- Chat con el pasajero -->
+    <div class="chat" id="chat">
+        <div class="chead">
+            <button class="iconbtn" id="chatBack" style="background:#1c2026"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+            <div><div class="ctitle" id="chatTitle">Chat con el pasajero</div><div class="csub" id="chatSub"></div></div>
+        </div>
+        <div class="cbody" id="chatBody"></div>
+        <div class="cinput"><input id="chatIn" placeholder="Escribe un mensaje…" maxlength="500" autocomplete="off"><button id="chatSend" aria-label="Enviar">➤</button></div>
+    </div>
+
     <div class="toast" id="toast"></div>
 </div>
 
@@ -267,6 +295,6 @@ window.MG = {
     csrf: document.querySelector('meta[name=csrf-token]').content,
 };
 </script>
-<script src="/js/driver.js?v=5"></script>
+<script src="/js/driver.js?v=6"></script>
 </body>
 </html>

@@ -36,6 +36,7 @@ let reqCode = null, reqTimer = null, poll = null, lastPostAt = 0, commission = 0
 // ---- modo navegación (pantalla completa tipo GPS) ----
 let navOpen = false, navMap = null, navCar = null, navLine = null, navPin = null;
 let navLastLL = null, navLastT = 0, navBearing = 0, navFollow = true, navCanRotate = false, navTargetLL = null;
+let chatOpen = false, chatLastId = 0, chatSeenId = 0, chatPoll = null, rideLastMsgId = 0;
 
 const ACTIVE = ['ofrecido', 'aceptado', 'en_camino', 'llego', 'a_bordo'];
 
@@ -293,6 +294,7 @@ function pushLocation() {
 /* ================= HOME (conectar/desconectar) ================= */
 function renderHome() {
   clearTrip();
+  closeChat(); chatLastId = 0; chatSeenId = 0; rideLastMsgId = 0;
   const canR = me.can_receive;
   const lowSaldo = me.saldo < commission;
   const b = $('#sheetBody');
@@ -457,6 +459,7 @@ async function rejectRequest(code, silent) {
 /* ================= VIAJE EN CURSO ================= */
 function renderRide(r) {
   $('#reqwrap').classList.add('hidden');
+  if (typeof r.last_message_id === 'number') rideLastMsgId = r.last_message_id;
   if (r.status === 'ofrecido') { renderWaitingConfirm(r); return; }
   // rutas
   if (r.status === 'a_bordo') drawRoute(r.route_trip, '#00C853');
@@ -492,6 +495,7 @@ function renderRide(r) {
     <div class="addr"><span class="dot d"></span><div class="tx">${esc(r.dest.address || 'Destino')}<small>Destino · ${km(r.distance_m)} · ${money(r.offered_price)} ${r.payment_method === 'yape' ? '(Yape)' : '(efectivo)'}</small></div></div>
     ${primary}
     <div class="acts">
+      <button class="btn ghost" id="btnChat">💬 Chat${(rideLastMsgId > chatSeenId && !chatOpen) ? ' <span class="undot"></span>' : ''}</button>
       <button class="btn ghost" id="btnNav">🧭 Navegar</button>
       ${goingToDest ? '' : '<button class="btn danger" id="btnCancel">Cancelar</button>'}
     </div>`;
@@ -500,6 +504,7 @@ function renderRide(r) {
   const s = $('#btnStart'); if (s) s.addEventListener('click', () => act('api/start', 'Viaje iniciado. Buen camino.'));
   const c = $('#btnComplete'); if (c) c.addEventListener('click', completeRide);
   const cc = $('#btnCancel'); if (cc) cc.addEventListener('click', cancelRide);
+  const bch = $('#btnChat'); if (bch) bch.addEventListener('click', () => openChat(p.name));
   $('#btnNav').addEventListener('click', openNav);
   // (mantener referencia al destino externo por si se necesita)
   window._extNav = () => window.open('https://www.google.com/maps/dir/?api=1&destination=' + navTarget.lat + ',' + navTarget.lng + '&travelmode=driving', '_blank');
@@ -673,6 +678,62 @@ $('#btnLogout').addEventListener('click', async () => {
   try { await api('api/logout', {}); } catch (e) {}
   location.reload();
 });
+
+/* ================= CHAT con el pasajero ================= */
+function openChat(name) {
+  chatOpen = true;
+  $('#chat').classList.add('open');
+  if (name) $('#chatSub').textContent = name;
+  chatSeenId = rideLastMsgId;
+  loadChat(true);
+  clearInterval(chatPoll);
+  chatPoll = setInterval(() => loadChat(false), 3000);
+  setTimeout(() => { const i = $('#chatIn'); if (i) i.focus(); }, 250);
+}
+function closeChat() {
+  chatOpen = false;
+  const c = $('#chat'); if (c) c.classList.remove('open');
+  clearInterval(chatPoll); chatPoll = null;
+}
+async function loadChat(reset) {
+  if (reset) { chatLastId = 0; $('#chatBody').innerHTML = ''; }
+  let data;
+  try { data = await api('api/messages?after=' + chatLastId); } catch (e) { return; }
+  const msgs = data.messages || [];
+  if (reset && !msgs.length) {
+    $('#chatBody').innerHTML = '<div class="cempty">Coordina con el pasajero: confirma el punto de recojo, avísale que ya llegas, etc.</div>';
+  }
+  appendChat(msgs);
+}
+function appendChat(msgs) {
+  if (!msgs.length) return;
+  const body = $('#chatBody');
+  const empty = body.querySelector('.cempty'); if (empty) empty.remove();
+  const atBottom = body.scrollHeight - body.scrollTop - body.clientHeight < 60;
+  msgs.forEach((m) => {
+    if (m.id > chatLastId) chatLastId = m.id;
+    if (m.id > chatSeenId) chatSeenId = m.id;
+    const div = document.createElement('div');
+    div.className = 'bub ' + (m.mine ? 'me' : 'them');
+    div.innerHTML = esc(m.body) + '<span class="tm">' + esc(m.time) + '</span>';
+    body.appendChild(div);
+  });
+  rideLastMsgId = Math.max(rideLastMsgId, chatLastId);
+  if (atBottom) body.scrollTop = body.scrollHeight;
+}
+async function sendChat() {
+  const inp = $('#chatIn'); const body = inp.value.trim();
+  if (!body) return;
+  inp.value = '';
+  try {
+    const r = await api('api/messages', { body });
+    if (r && r.msg) appendChat([r.msg]);
+    $('#chatBody').scrollTop = $('#chatBody').scrollHeight;
+  } catch (e) { toast(e.message || 'No se pudo enviar.'); inp.value = body; }
+}
+$('#chatBack').addEventListener('click', closeChat);
+$('#chatSend').addEventListener('click', sendChat);
+$('#chatIn').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
 
 /* ================= PWA ================= */
 if ('serviceWorker' in navigator) {

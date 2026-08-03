@@ -228,6 +228,39 @@ class RideController extends Controller
         return response()->json(['ok' => true]);
     }
 
+    /* ============ Chat con el pasajero ============ */
+
+    private function chatRide(Driver $driver): ?Ride
+    {
+        $ride = $driver->activeRide();
+        return ($ride && in_array($ride->status, ['aceptado', 'en_camino', 'llego', 'a_bordo'], true)) ? $ride : null;
+    }
+
+    public function messages(Request $request)
+    {
+        $ride = $this->chatRide($this->driver($request));
+        if (! $ride) {
+            return response()->json(['messages' => []]);
+        }
+        $after = (int) $request->query('after', 0);
+        $msgs = $ride->messages()->where('id', '>', $after)->orderBy('id')->get()
+            ->map(fn ($m) => ['id' => $m->id, 'body' => $m->body, 'mine' => $m->sender === 'conductor', 'time' => $m->created_at->format('H:i')]);
+
+        return response()->json(['messages' => $msgs]);
+    }
+
+    public function sendMessage(Request $request)
+    {
+        $ride = $this->chatRide($this->driver($request));
+        if (! $ride) {
+            return response()->json(['message' => 'No hay un viaje activo con pasajero.'], 422);
+        }
+        $d = $request->validate(['body' => ['required', 'string', 'max:500']]);
+        $m = $ride->messages()->create(['sender' => 'conductor', 'body' => trim($d['body'])]);
+
+        return response()->json(['ok' => true, 'msg' => ['id' => $m->id, 'body' => $m->body, 'mine' => true, 'time' => $m->created_at->format('H:i')]]);
+    }
+
     public function arrive(Request $request)
     {
         $ride = $this->requireActive($request, ['en_camino', 'aceptado']);
@@ -458,6 +491,7 @@ class RideController extends Controller
             'reference'    => $ride->reference,
             'route_to_pickup' => $ride->route_to_pickup,
             'route_trip'   => $ride->route_trip,
+            'last_message_id' => (int) $ride->messages()->max('id'),
             'passenger'    => $this->passengerCard($ride),
             'currency'     => Setting::get('currency', 'S/'),
         ];

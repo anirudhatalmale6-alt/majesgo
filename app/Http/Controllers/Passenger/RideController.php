@@ -301,6 +301,39 @@ class RideController extends Controller
         return response()->json(['ok' => true]);
     }
 
+    /* ============ Chat con el conductor ============ */
+
+    private function chatRide(Passenger $passenger): ?Ride
+    {
+        $ride = $passenger->activeRide();
+        return ($ride && $ride->driver_id && in_array($ride->status, ['aceptado', 'en_camino', 'llego', 'a_bordo'], true)) ? $ride : null;
+    }
+
+    public function messages(Request $request)
+    {
+        $ride = $this->chatRide($this->passenger($request));
+        if (! $ride) {
+            return response()->json(['messages' => []]);
+        }
+        $after = (int) $request->query('after', 0);
+        $msgs = $ride->messages()->where('id', '>', $after)->orderBy('id')->get()
+            ->map(fn ($m) => ['id' => $m->id, 'body' => $m->body, 'mine' => $m->sender === 'pasajero', 'time' => $m->created_at->format('H:i')]);
+
+        return response()->json(['messages' => $msgs]);
+    }
+
+    public function sendMessage(Request $request)
+    {
+        $ride = $this->chatRide($this->passenger($request));
+        if (! $ride) {
+            return response()->json(['message' => 'No hay un viaje activo con conductor.'], 422);
+        }
+        $d = $request->validate(['body' => ['required', 'string', 'max:500']]);
+        $m = $ride->messages()->create(['sender' => 'pasajero', 'body' => trim($d['body'])]);
+
+        return response()->json(['ok' => true, 'msg' => ['id' => $m->id, 'body' => $m->body, 'mine' => true, 'time' => $m->created_at->format('H:i')]]);
+    }
+
     public function history(Request $request)
     {
         $passenger = $this->passenger($request);
@@ -341,6 +374,7 @@ class RideController extends Controller
             'route_trip'   => $ride->route_trip,
             'driver_pos'   => $pos,
             'offer'        => $offer,
+            'last_message_id' => $ride->driver_id ? (int) $ride->messages()->max('id') : 0,
             'driver'       => $driver ? [
                 'name'    => $driver->full_name,
                 'vehicle' => trim(($driver->vehicle_make . ' ' . $driver->vehicle_model)),

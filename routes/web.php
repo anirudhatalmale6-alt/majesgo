@@ -37,6 +37,8 @@ Route::prefix('app')->name('app.')->group(function () {
         Route::get('api/rides/current', [PassengerRide::class, 'current']);
         Route::post('api/rides/confirm-driver', [PassengerRide::class, 'confirmDriver']);
         Route::post('api/rides/reject-driver', [PassengerRide::class, 'rejectDriver']);
+        Route::get('api/rides/messages', [PassengerRide::class, 'messages']);
+        Route::post('api/rides/messages', [PassengerRide::class, 'sendMessage']);
         Route::post('api/rides/cancel', [PassengerRide::class, 'cancel']);
         Route::post('api/rides/rate', [PassengerRide::class, 'rate']);
         Route::post('api/rides/ack', [PassengerRide::class, 'ack']);
@@ -67,6 +69,8 @@ Route::prefix('conductor')->name('driver.')->group(function () {
 
         // Viaje en curso
         Route::get('api/current', [DriverRide::class, 'current']);
+        Route::get('api/messages', [DriverRide::class, 'messages']);
+        Route::post('api/messages', [DriverRide::class, 'sendMessage']);
         Route::post('api/arrive', [DriverRide::class, 'arrive']);
         Route::post('api/start', [DriverRide::class, 'start']);
         Route::post('api/complete', [DriverRide::class, 'complete']);
