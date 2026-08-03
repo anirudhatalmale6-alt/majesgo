@@ -33,7 +33,25 @@ let map, meMarker, oMarker, dMarker, routeLine;
 let me = null, online = false, ride = null, myPos = null;
 let reqCode = null, reqTimer = null, poll = null, lastPostAt = 0, commission = 0.5;
 
+// ---- modo navegación (pantalla completa tipo GPS) ----
+let navOpen = false, navMap = null, navCar = null, navLine = null, navPin = null;
+let navLastLL = null, navLastT = 0, navBearing = 0, navFollow = true, navCanRotate = false, navTargetLL = null;
+
 const ACTIVE = ['aceptado', 'en_camino', 'llego', 'a_bordo'];
+
+/* ---------- geo helpers ---------- */
+function haversineM(a, b, c, d) {
+  const R = 6371000, r = Math.PI / 180;
+  const dLat = (c - a) * r, dLng = (d - b) * r;
+  const x = Math.sin(dLat / 2) ** 2 + Math.cos(a * r) * Math.cos(c * r) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(x));
+}
+function bearingDeg(a, b, c, d) {
+  const r = Math.PI / 180;
+  const y = Math.sin((d - b) * r) * Math.cos(c * r);
+  const x = Math.cos(a * r) * Math.sin(c * r) - Math.sin(a * r) * Math.cos(c * r) * Math.cos((d - b) * r);
+  return (Math.atan2(y, x) / r + 360) % 360;
+}
 
 /* ================= AUTH ================= */
 $('#btnAuth').addEventListener('click', doAuth);
@@ -126,7 +144,137 @@ function startGeo() {
     // primera vez, centrar
     if (!map._centeredOnce) { map.setView(myPos, 16); map._centeredOnce = true; }
     pushLocation();
+    if (navOpen) navUpdate(pos);
   }, () => {}, { enableHighAccuracy: true, maximumAge: 1000, timeout: 12000 });
+}
+
+/* ================= MODO NAVEGACIÓN ================= */
+function navArrowIcon() {
+  return L.divIcon({
+    className: '',
+    html: '<svg class="navarrow" id="navArrowSvg" viewBox="0 0 24 24"><path d="M12 2.5l7.5 18-7.5-4.3-7.5 4.3z" fill="#FFC107" stroke="#0d0d0d" stroke-width="1.3" stroke-linejoin="round"/></svg>',
+    iconSize: [44, 44], iconAnchor: [22, 22],
+  });
+}
+
+function initNavMap() {
+  const base = { zoomControl: false, attributionControl: false };
+  try {
+    navMap = L.map('navmap', Object.assign({ rotate: true, bearing: 0, rotateControl: false, touchRotate: false, shiftKeyRotate: false }, base));
+  } catch (e) { navMap = L.map('navmap', base); }
+  navCanRotate = typeof navMap.setBearing === 'function';
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 20, subdomains: 'abcd' }).addTo(navMap);
+  navMap.setView(myPos ? [myPos.lat, myPos.lng] : MG.center, 17);
+  navMap.on('dragstart', () => { navFollow = false; $('#navRecenter').classList.remove('hidden'); });
+}
+
+function drawNavRoute(r) {
+  const toDest = r.status === 'a_bordo';
+  const coords = toDest ? r.route_trip : r.route_to_pickup;
+  navTargetLL = toDest ? [r.dest.lat, r.dest.lng] : [r.origin.lat, r.origin.lng];
+  if (navLine) { navLine.remove(); navLine = null; }
+  if (coords && coords.length) navLine = L.polyline(coords, { color: toDest ? '#00C853' : '#FFC107', weight: 6, opacity: .9 }).addTo(navMap);
+  if (!navPin) navPin = L.marker(navTargetLL, { icon: icon(toDest ? 'pin d' : 'pin o', '', [24, 24], [12, 24]), interactive: false }).addTo(navMap);
+  else navPin.setLatLng(navTargetLL).setIcon(icon(toDest ? 'pin d' : 'pin o', '', [24, 24], [12, 24]));
+  $('#navTo').textContent = toDest ? 'Hacia el destino' : 'Hacia el pasajero';
+}
+
+function placeNavCar(p) {
+  const ll = [p.lat, p.lng];
+  if (!navCar) navCar = L.marker(ll, { icon: navArrowIcon(), interactive: false, zIndexOffset: 1200 }).addTo(navMap);
+  else navCar.setLatLng(ll);
+}
+
+function navUpdate(pos) {
+  if (!navMap) return;
+  const cur = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+  const gh = pos.coords.heading, sp = pos.coords.speed;
+
+  // rumbo: usar el del GPS si es fiable (con velocidad); si no, calcularlo del desplazamiento
+  let h = navBearing;
+  if (gh !== null && gh !== undefined && !isNaN(gh) && sp !== null && sp > 0.7) {
+    h = gh;
+  } else if (navLastLL) {
+    const moved = haversineM(navLastLL.lat, navLastLL.lng, cur.lat, cur.lng);
+    if (moved > 3) h = bearingDeg(navLastLL.lat, navLastLL.lng, cur.lat, cur.lng);
+  }
+  navBearing = h;
+
+  // velocidad (km/h)
+  let kmh = 0;
+  if (sp !== null && sp !== undefined && !isNaN(sp) && sp >= 0) kmh = sp * 3.6;
+  else if (navLastLL && navLastT) {
+    const dt = (pos.timestamp - navLastT) / 1000;
+    if (dt > 0) kmh = haversineM(navLastLL.lat, navLastLL.lng, cur.lat, cur.lng) / dt * 3.6;
+  }
+  $('#navKmh').textContent = Math.round(Math.max(0, Math.min(kmh, 200)));
+
+  placeNavCar(cur);
+
+  // rotar el mapa hacia el sentido de marcha (marcha = hacia arriba). Si el plugin no está, rotamos la flecha.
+  const arrow = document.getElementById('navArrowSvg');
+  if (navCanRotate) {
+    navMap.setBearing(-h);
+    if (arrow) arrow.style.transform = 'rotate(0deg)';
+  } else if (arrow) {
+    arrow.style.transform = 'rotate(' + h + 'deg)';
+  }
+
+  // zoom según velocidad
+  const z = kmh > 55 ? 15 : kmh > 30 ? 16 : kmh > 12 ? 17 : 18;
+  if (navFollow) navMap.setView([cur.lat, cur.lng], z, { animate: true, duration: 0.55 });
+
+  // distancia al objetivo
+  if (navTargetLL) {
+    const d = haversineM(cur.lat, cur.lng, navTargetLL[0], navTargetLL[1]);
+    $('#navDist').textContent = d >= 1000 ? (d / 1000).toFixed(1) + ' km' : Math.round(d) + ' m';
+  }
+
+  navLastLL = cur; navLastT = pos.timestamp;
+}
+
+function renderNavAction() {
+  const r = ride; if (!r) { $('#navAction').innerHTML = ''; return; }
+  const p = r.passenger || {};
+  const earn = r.offered_price - (r.commission || commission);
+  $('#navPax').innerHTML = '👤 <b>' + esc(p.name || 'Pasajero') + '</b>';
+  $('#navFare').innerHTML = 'Recibes <b>' + money(earn) + '</b>';
+  let html = '';
+  if (r.status === 'en_camino' || r.status === 'aceptado') html = '<button class="btn amber" id="navPrimary">Llegué al punto</button>';
+  else if (r.status === 'llego') html = '<button class="btn" id="navPrimary">Iniciar viaje</button>';
+  else if (r.status === 'a_bordo') html = '<button class="btn" id="navPrimary">Finalizar viaje</button>';
+  $('#navAction').innerHTML = html;
+  const b = $('#navPrimary');
+  if (b) b.addEventListener('click', async () => {
+    const st = r.status;
+    if (st === 'llego') await act('api/start', 'Viaje iniciado. Buen camino.');
+    else if (st === 'a_bordo') await completeRide();
+    else await act('api/arrive', 'Marcado: llegaste al punto.');
+    // el viaje pudo cambiar de estado o terminar
+    if (navOpen && ride && ACTIVE.includes(ride.status)) { drawNavRoute(ride); renderNavAction(); if (myPos) navUpdateFromMyPos(); }
+    else closeNav();
+  });
+}
+
+function navUpdateFromMyPos() {
+  if (myPos) navUpdate({ coords: { latitude: myPos.lat, longitude: myPos.lng, heading: null, speed: null }, timestamp: Date.now() });
+}
+
+function openNav() {
+  if (!ride || !ACTIVE.includes(ride.status)) { toast('No hay un viaje activo para navegar.'); return; }
+  navOpen = true; navFollow = true; navLastLL = null; navLastT = 0;
+  $('#navmode').classList.remove('hidden');
+  $('#navRecenter').classList.add('hidden');
+  if (!navMap) initNavMap();
+  setTimeout(() => { if (navMap) navMap.invalidateSize(); }, 80);
+  drawNavRoute(ride);
+  renderNavAction();
+  navUpdateFromMyPos();
+}
+
+function closeNav() {
+  navOpen = false;
+  $('#navmode').classList.add('hidden');
 }
 function pushLocation() {
   if (!myPos) return;
@@ -212,11 +360,18 @@ async function tick() {
 function handleCurrent(r) {
   if (!r) { return; }             // sin cambios relevantes
   if (r.status === 'cancelado') {
+    if (navOpen) closeNav();
     ackRide(r); ride = null; toast('El pasajero canceló el viaje.');
     online = true; me.status = 'disponible'; renderHome(); return;
   }
-  if (r.status === 'completado') { ride = r; renderCompleted(r); return; }
+  if (r.status === 'completado') { if (navOpen) closeNav(); ride = r; renderCompleted(r); return; }
+  const prevStatus = ride && ride.status;
   ride = r; renderRide(r);
+  // si el modo navegación está abierto, mantenerlo sincronizado con el nuevo estado
+  if (navOpen && ACTIVE.includes(r.status)) {
+    drawNavRoute(r);
+    if (prevStatus !== r.status) renderNavAction();
+  }
 }
 
 /* ================= SOLICITUD ENTRANTE ================= */
@@ -333,9 +488,9 @@ function renderRide(r) {
   const s = $('#btnStart'); if (s) s.addEventListener('click', () => act('api/start', 'Viaje iniciado. Buen camino.'));
   const c = $('#btnComplete'); if (c) c.addEventListener('click', completeRide);
   const cc = $('#btnCancel'); if (cc) cc.addEventListener('click', cancelRide);
-  $('#btnNav').addEventListener('click', () => {
-    window.open('https://www.google.com/maps/dir/?api=1&destination=' + navTarget.lat + ',' + navTarget.lng + '&travelmode=driving', '_blank');
-  });
+  $('#btnNav').addEventListener('click', openNav);
+  // (mantener referencia al destino externo por si se necesita)
+  window._extNav = () => window.open('https://www.google.com/maps/dir/?api=1&destination=' + navTarget.lat + ',' + navTarget.lng + '&travelmode=driving', '_blank');
 }
 
 async function act(path, msg) {
@@ -473,6 +628,13 @@ async function doRecharge() {
     openDrawer();
   } catch (e) { toast(e.message); btn.disabled = false; btn.textContent = 'Enviar recarga'; }
 }
+
+$('#navClose').addEventListener('click', closeNav);
+$('#navRecenter').addEventListener('click', () => {
+  navFollow = true;
+  $('#navRecenter').classList.add('hidden');
+  if (navMap && myPos) navMap.setView([myPos.lat, myPos.lng], navMap.getZoom() || 17, { animate: true });
+});
 
 $('#btnBack').addEventListener('click', () => $('#drawer').classList.remove('open'));
 $('#btnLogout').addEventListener('click', async () => {

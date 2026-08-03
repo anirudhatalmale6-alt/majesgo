@@ -167,6 +167,23 @@
         .hitem .pr{font-weight:700;color:var(--amarillo)}
         .pend{background:rgba(255,193,7,.08);border:1px dashed rgba(255,193,7,.4);border-radius:12px;padding:10px 13px;font-size:12.5px;color:#ffd98a;margin-bottom:10px}
 
+        /* ===== Modo navegación ===== */
+        .navmode{position:absolute;inset:0;z-index:44;background:#0b1a10}
+        #navmap{position:absolute;inset:0;z-index:1;background:#0b1a10}
+        .navtop{position:absolute;top:0;left:0;right:0;z-index:6;display:flex;align-items:stretch;gap:9px;padding:calc(env(safe-area-inset-top) + 10px) 12px 10px}
+        .navinstr{flex:1;background:rgba(13,13,13,.85);backdrop-filter:blur(8px);border-radius:16px;padding:11px 16px;display:flex;flex-direction:column;justify-content:center;min-width:0}
+        .navinstr .d{font-size:25px;font-weight:800;line-height:1.05}
+        .navinstr .t{font-size:12px;color:var(--muted);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .navclose{width:46px;border:0;border-radius:16px;background:rgba(13,13,13,.85);backdrop-filter:blur(8px);color:#fff;font-size:19px;cursor:pointer;flex:none}
+        .navspeed{width:64px;flex:none;background:rgba(13,13,13,.85);backdrop-filter:blur(8px);border-radius:16px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+        .navspeed b{font-size:21px;font-weight:800;line-height:1;color:var(--amarillo)}
+        .navspeed small{font-size:9px;color:var(--muted);margin-top:1px}
+        .navarrow{width:44px;height:44px;transform-origin:50% 50%;transition:transform .3s ease;will-change:transform}
+        .navrecenter{position:absolute;right:14px;bottom:104px;z-index:6;width:50px;height:50px;border-radius:50%;border:0;background:rgba(13,13,13,.88);color:var(--amarillo);font-size:23px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.4)}
+        .navbottom{position:absolute;left:0;right:0;bottom:0;z-index:6;padding:14px 16px calc(env(safe-area-inset-bottom) + 16px);background:linear-gradient(to top,rgba(11,26,16,.96) 55%,transparent)}
+        .navmeta{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:12.5px;color:#cdd4dc}
+        .navmeta b{color:#fff}
+
         .toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 20px);transform:translateX(-50%);z-index:60;background:#fff;color:#111;padding:12px 18px;border-radius:12px;font-weight:600;font-size:14px;box-shadow:0 10px 30px rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:.2s;max-width:88%;text-align:center}
         .toast.show{opacity:1}
         .hidden{display:none !important}
@@ -213,6 +230,21 @@
         </div>
     </div>
 
+    <!-- Modo navegación (pantalla completa) -->
+    <div class="navmode hidden" id="navmode">
+        <div id="navmap"></div>
+        <div class="navtop">
+            <button class="navclose" id="navClose" aria-label="Cerrar navegación">✕</button>
+            <div class="navinstr"><div class="d" id="navDist">—</div><div class="t" id="navTo">Hacia el pasajero</div></div>
+            <div class="navspeed"><b id="navKmh">0</b><small>km/h</small></div>
+        </div>
+        <button class="navrecenter hidden" id="navRecenter" aria-label="Centrar mapa">◎</button>
+        <div class="navbottom">
+            <div class="navmeta"><span id="navPax">—</span><span id="navFare"></span></div>
+            <div id="navAction"></div>
+        </div>
+    </div>
+
     <!-- Drawer: saldo, recargas, historial -->
     <div class="drawer" id="drawer">
         <div class="dhead">
@@ -227,6 +259,7 @@
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate-src.js"></script>
 <script>
 window.MG = {
     center: [{{ $centerLat }}, {{ $centerLng }}],
@@ -234,6 +267,6 @@ window.MG = {
     csrf: document.querySelector('meta[name=csrf-token]').content,
 };
 </script>
-<script src="/js/driver.js?v=2"></script>
+<script src="/js/driver.js?v=3"></script>
 </body>
 </html>
