@@ -223,10 +223,15 @@ function setDest(p, address) {
   refreshQuote();
 }
 
-/* ============ Geocoding (Nominatim) ============ */
+/* ============ Geocoding: proxy (Google) con respaldo Nominatim (OSM) ============ */
 async function reverseGeocode(p) {
+  // 1) nuestro proxy (usa Google si la clave está activa)
   try {
-    // zoom=18 + namedetails: nombre del punto/calle específico, no solo la zona general
+    const g = await api('api/geocode/reverse?lat=' + p.lat + '&lng=' + p.lng);
+    if (g && g.label) return g.label;
+  } catch (e) { /* sin proxy → respaldo */ }
+  // 2) respaldo Nominatim (OSM): zoom=18 + namedetails para el punto específico
+  try {
     const r = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${p.lat}&lon=${p.lng}&format=jsonv2&zoom=18&addressdetails=1&namedetails=1&accept-language=es`);
     const d = await r.json();
     return placeLabel(d) || 'Punto en el mapa';
@@ -266,23 +271,36 @@ function bearingP(a, b) {
 function compassEs(brg) {
   return ['norte', 'noreste', 'este', 'sureste', 'sur', 'suroeste', 'oeste', 'noroeste'][Math.round((brg % 360) / 45) % 8];
 }
+function renderSearchResults(box, items) {
+  box.innerHTML = items.map((x) => `<div data-lat="${x.lat}" data-lon="${x.lng}"><div class="t">${esc(x.title)}</div><div class="s">${esc(x.sub || '')}</div></div>`).join('');
+  box.querySelectorAll('div[data-lat]').forEach((el) => el.addEventListener('click', () => {
+    const p = { lat: +el.dataset.lat, lng: +el.dataset.lon };
+    setDest(p, el.querySelector('.t').textContent);
+    map.setView([p.lat, p.lng], 16); box.innerHTML = '';
+    if (origin) map.fitBounds(L.latLngBounds([[origin.lat, origin.lng], [p.lat, p.lng]]).pad(0.3));
+  }));
+}
+
 let searchT;
 async function searchPlaces(q, box) {
   clearTimeout(searchT);
   if (q.length < 3) { box.innerHTML = ''; return; }
   searchT = setTimeout(async () => {
+    // 1) proxy (Google): mejores resultados en Perú
+    try {
+      const g = await api('api/geocode/search?q=' + encodeURIComponent(q));
+      if (g && g.results && g.results.length) {
+        renderSearchResults(box, g.results.map((x) => ({ lat: x.lat, lng: x.lng, title: x.label, sub: x.full })));
+        return;
+      }
+    } catch (e) { /* sin proxy → respaldo */ }
+    // 2) respaldo Nominatim (OSM)
     try {
       const vb = `${MG.center[1] - 0.15},${MG.center[0] + 0.12},${MG.center[1] + 0.15},${MG.center[0] - 0.12}`;
       const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=6&accept-language=es&viewbox=${vb}&bounded=1`);
       let d = await r.json();
       if (!d.length) { const r2 = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q + ', Arequipa, Peru')}&format=json&limit=6&accept-language=es`); d = await r2.json(); }
-      box.innerHTML = d.map((x) => `<div data-lat="${x.lat}" data-lon="${x.lon}"><div class="t">${(x.display_name || '').split(',')[0]}</div><div class="s">${(x.display_name || '').split(',').slice(1, 3).join(',')}</div></div>`).join('');
-      box.querySelectorAll('div[data-lat]').forEach((el) => el.addEventListener('click', () => {
-        const p = { lat: +el.dataset.lat, lng: +el.dataset.lon };
-        setDest(p, el.querySelector('.t').textContent);
-        map.setView(p, 16); box.innerHTML = '';
-        if (origin) map.fitBounds(L.latLngBounds([origin, p]).pad(0.3));
-      }));
+      renderSearchResults(box, d.map((x) => ({ lat: +x.lat, lng: +x.lon, title: (x.display_name || '').split(',')[0], sub: (x.display_name || '').split(',').slice(1, 3).join(',') })));
     } catch (e) { box.innerHTML = ''; }
   }, 450);
 }

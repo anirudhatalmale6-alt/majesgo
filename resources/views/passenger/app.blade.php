@@ -218,6 +218,6 @@ window.MG = {
     csrf: document.querySelector('meta[name=csrf-token]').content,
 };
 </script>
-<script src="/js/passenger.js?v=6"></script>
+<script src="/js/passenger.js?v=7"></script>
 </body>
 </html>

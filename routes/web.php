@@ -11,6 +11,7 @@ use App\Http\Controllers\Passenger\RideController as PassengerRide;
 use App\Http\Controllers\Driver\AuthController as DriverAuth;
 use App\Http\Controllers\Driver\PageController as DriverPage;
 use App\Http\Controllers\Driver\RideController as DriverRide;
+use App\Http\Controllers\GeocodeController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', fn () => redirect()->route('admin.login'));
@@ -29,6 +30,8 @@ Route::prefix('app')->name('app.')->group(function () {
 
     // Viajes (requieren pasajero autenticado)
     Route::middleware('passenger')->group(function () {
+        Route::get('api/geocode/reverse', [GeocodeController::class, 'reverse']);
+        Route::get('api/geocode/search', [GeocodeController::class, 'search']);
         Route::post('api/quote', [PassengerRide::class, 'quote']);
         Route::post('api/rides', [PassengerRide::class, 'store']);
         Route::get('api/rides/current', [PassengerRide::class, 'current']);
