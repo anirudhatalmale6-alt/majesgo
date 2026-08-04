@@ -301,6 +301,6 @@ window.MG = {
     csrf: document.querySelector('meta[name=csrf-token]').content,
 };
 </script>
-<script src="/js/driver.js?v=7"></script>
+<script src="/js/driver.js?v=8"></script>
 </body>
 </html>

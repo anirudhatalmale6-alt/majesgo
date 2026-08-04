@@ -34,6 +34,8 @@ let offerTimer = null, offerKey = null;
 let meWatchId = null, followMe = true, originPinned = false, lastGeoAt = 0, lastMeLL = null;
 let chatOpen = false, chatLastId = 0, chatSeenId = 0, chatPoll = null, rideLastMsgId = 0;
 let mapLight = false, baseTile = null;
+let sheetState = 'open', sheetDragging = false;
+const SHEET_PEEK = 78; // px visibles cuando el panel está colapsado (se ve el mapa)
 
 /* ---------- modo del mapa (claro de día / oscuro de noche) ---------- */
 function tileUrl(light) {
@@ -143,14 +145,51 @@ function initMap() {
   // si el usuario mueve el mapa a mano, dejamos de recentrar automáticamente
   map.on('dragstart', () => { followMe = false; });
 
-  const ro = new ResizeObserver((en) => {
-    const h = en[0].contentRect.height;
-    document.documentElement.style.setProperty('--sheet-h', h + 'px');
-  });
+  const ro = new ResizeObserver(() => { if (!sheetDragging) applySheetSnap(false); });
   ro.observe($('#sheet'));
+  setupSheetDrag();
 
   $('#btnLoc').addEventListener('click', () => locate(true));
   $('#btnMenu').addEventListener('click', openHistory);
+}
+
+/* ====== Panel inferior arrastrable (colapsa a una barrita para ver el mapa) ====== */
+function applySheetSnap(animate) {
+  const s = $('#sheet');
+  if (!s || s.classList.contains('hidden')) return;
+  s.style.transition = (animate === false) ? 'none' : '';
+  const h = s.offsetHeight;
+  const off = sheetState === 'peek' ? Math.max(0, h - SHEET_PEEK) : 0;
+  s.style.transform = 'translateY(' + off + 'px)';
+  document.documentElement.style.setProperty('--sheet-h', (h - off) + 'px');
+}
+function setupSheetDrag() {
+  const s = $('#sheet');
+  const grab = s.querySelector('.grab');
+  if (!grab) return;
+  let startY = 0, startOff = 0, h = 0, moved = 0;
+  grab.addEventListener('pointerdown', (e) => {
+    sheetDragging = true; moved = 0; h = s.offsetHeight;
+    startY = e.clientY;
+    startOff = sheetState === 'peek' ? Math.max(0, h - SHEET_PEEK) : 0;
+    s.style.transition = 'none';
+    try { grab.setPointerCapture(e.pointerId); } catch (_) {}
+  });
+  grab.addEventListener('pointermove', (e) => {
+    if (!sheetDragging) return;
+    const dy = e.clientY - startY; moved = Math.max(moved, Math.abs(dy));
+    let off = startOff + dy; off = Math.max(0, Math.min(off, h - SHEET_PEEK));
+    s.style.transform = 'translateY(' + off + 'px)';
+    document.documentElement.style.setProperty('--sheet-h', (h - off) + 'px');
+  });
+  const end = (e) => {
+    if (!sheetDragging) return; sheetDragging = false;
+    if (moved < 6) { sheetState = (sheetState === 'peek') ? 'open' : 'peek'; }         // toque = alternar
+    else { const off = startOff + (e.clientY - startY); sheetState = off > (h - SHEET_PEEK) / 2 ? 'peek' : 'open'; }
+    applySheetSnap(true);
+  };
+  grab.addEventListener('pointerup', end);
+  grab.addEventListener('pointercancel', end);
 }
 
 function icon(cls, html, size, anchor) {

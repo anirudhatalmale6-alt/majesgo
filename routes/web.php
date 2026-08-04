@@ -61,6 +61,7 @@ Route::prefix('conductor')->name('driver.')->group(function () {
         // Conexión y ubicación
         Route::post('api/connect', [DriverRide::class, 'connect']);
         Route::post('api/location', [DriverRide::class, 'location']);
+        Route::post('api/reroute', [DriverRide::class, 'reroute']);
 
         // Solicitudes entrantes
         Route::get('api/pending', [DriverRide::class, 'pending']);

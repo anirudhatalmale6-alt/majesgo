@@ -66,6 +66,39 @@ class RideController extends Controller
         return response()->json(['ok' => true, 'saldo' => (float) $driver->saldo, 'can_receive' => $driver->canReceiveRides()]);
     }
 
+    /**
+     * Recalcular la ruta desde la posición actual del conductor hacia el objetivo del tramo
+     * (recojo si va a buscar al pasajero; destino si ya lo lleva a bordo). Se usa cuando el
+     * conductor se desvía de la línea trazada. Reutiliza OSRM (con respaldo) del servidor.
+     */
+    public function reroute(Request $request)
+    {
+        $driver = $this->driver($request);
+        $d = $request->validate([
+            'lat' => ['required', 'numeric'],
+            'lng' => ['required', 'numeric'],
+        ]);
+
+        $ride = $driver->activeRide();
+        if (! $ride || ! in_array($ride->status, ['aceptado', 'en_camino', 'llego', 'a_bordo'], true)) {
+            return response()->json(['ok' => false], 409);
+        }
+
+        $toDest = $ride->status === 'a_bordo';
+        $tLat = $toDest ? (float) $ride->dest_lat : (float) $ride->origin_lat;
+        $tLng = $toDest ? (float) $ride->dest_lng : (float) $ride->origin_lng;
+
+        $route = Routing::route((float) $d['lat'], (float) $d['lng'], $tLat, $tLng);
+
+        return response()->json([
+            'ok'         => true,
+            'leg'        => $toDest ? 'trip' : 'pickup',
+            'geometry'   => $route['geometry'],
+            'distance_m' => $route['distance_m'],
+            'duration_s' => $route['duration_s'],
+        ]);
+    }
+
     /* ============ Solicitudes entrantes ============ */
 
     /** Viajes cercanos esperando conductor (los que el conductor puede aceptar). */

@@ -42,6 +42,84 @@ let mapLight = false, baseTile = null, navTile = null, arrivedFor = null;
 const ACTIVE = ['ofrecido', 'aceptado', 'en_camino', 'llego', 'a_bordo'];
 const ARRIVE_M = 30; // metros para avisar "llegaste"
 
+// ---- recálculo de ruta (rerouting) cuando el conductor se desvía ----
+let activeRoute = null;                 // tramo actual: { coords:[[lat,lng],...], target:[lat,lng], toDest }
+let offRouteSince = 0, lastRerouteAt = 0, rerouting = false;
+const OFFROUTE_M = 45;                   // metros de desvío para considerar "fuera de ruta"
+const OFFROUTE_MS = 4500;                // debe estar desviado este tiempo (evita falsos por salto de GPS)
+const REROUTE_COOLDOWN_MS = 12000;       // no recalcular más seguido que esto
+
+/** Fija la ruta del tramo actual desde el servidor solo si cambió el tramo (recojo<->destino). */
+function syncActiveRoute(r) {
+  const toDest = r.status === 'a_bordo';
+  // reinicia si es otro viaje o cambió el tramo (recojo<->destino)
+  if (!activeRoute || activeRoute.rideId !== r.id || activeRoute.toDest !== toDest) {
+    const coords = (toDest ? r.route_trip : r.route_to_pickup) || [];
+    activeRoute = {
+      rideId: r.id,
+      coords: coords.slice(),
+      target: toDest ? [r.dest.lat, r.dest.lng] : [r.origin.lat, r.origin.lng],
+      toDest: toDest,
+    };
+    offRouteSince = 0;
+  }
+}
+
+/** Distancia (m) de un punto al segmento a-b, en plano local equirectangular. */
+function segDistM(plat, plng, alat, alng, blat, blng) {
+  const latR = plat * Math.PI / 180;
+  const mLat = 111320, mLng = 111320 * Math.cos(latR);
+  const px = 0, py = 0;
+  const ax = (alng - plng) * mLng, ay = (alat - plat) * mLat;
+  const bx = (blng - plng) * mLng, by = (blat - plat) * mLat;
+  const dx = bx - ax, dy = by - ay;
+  if (dx === 0 && dy === 0) return Math.hypot(px - ax, py - ay);
+  let t = ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy);
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+}
+/** Distancia mínima (m) de un punto a la polilínea de la ruta. */
+function distToPathM(lat, lng, path) {
+  let min = Infinity;
+  for (let i = 0; i < path.length - 1; i++) {
+    const d = segDistM(lat, lng, path[i][0], path[i][1], path[i + 1][0], path[i + 1][1]);
+    if (d < min) min = d;
+  }
+  return min;
+}
+
+/** Si el conductor se desvía de la ruta de forma sostenida, pide una ruta nueva y la redibuja. */
+function checkReroute() {
+  if (!myPos || !ride || rerouting) return;
+  if (!['aceptado', 'en_camino', 'llego', 'a_bordo'].includes(ride.status)) return;
+  if (!activeRoute || activeRoute.coords.length < 2) return;
+  const now = Date.now();
+  const d = distToPathM(myPos.lat, myPos.lng, activeRoute.coords);
+  if (d <= OFFROUTE_M) { offRouteSince = 0; return; }
+  if (!offRouteSince) offRouteSince = now;
+  if (now - offRouteSince < OFFROUTE_MS) return;      // desvío aún no sostenido
+  if (now - lastRerouteAt < REROUTE_COOLDOWN_MS) return;
+  doReroute();
+}
+async function doReroute() {
+  rerouting = true; lastRerouteAt = Date.now();
+  try {
+    const r = await api('api/reroute', { lat: myPos.lat, lng: myPos.lng });
+    if (r && r.geometry && r.geometry.length >= 2 && activeRoute) {
+      activeRoute.coords = r.geometry;
+      offRouteSince = 0;
+      const color = activeRoute.toDest ? '#00C853' : '#FFC107';
+      drawRoute(activeRoute.coords, color);
+      if (navOpen && navMap) {
+        if (navLine) navLine.setLatLngs(activeRoute.coords);
+        else navLine = L.polyline(activeRoute.coords, { color: color, weight: 6, opacity: .9 }).addTo(navMap);
+      }
+      toast('Ruta recalculada');
+    }
+  } catch (e) { /* si falla el recálculo, mantenemos la ruta anterior */ }
+  finally { rerouting = false; lastRerouteAt = Date.now(); }
+}
+
 /* ---------- modo del mapa (claro de día / oscuro de noche) ---------- */
 function tileUrl(light) {
   return light
@@ -177,6 +255,7 @@ function startGeo() {
     pushLocation();
     if (navOpen) navUpdate(pos);
     checkArrival();
+    checkReroute();
   }, () => {}, { enableHighAccuracy: true, maximumAge: 1000, timeout: 12000 });
 }
 
@@ -201,9 +280,10 @@ function initNavMap() {
 }
 
 function drawNavRoute(r) {
-  const toDest = r.status === 'a_bordo';
-  const coords = toDest ? r.route_trip : r.route_to_pickup;
-  navTargetLL = toDest ? [r.dest.lat, r.dest.lng] : [r.origin.lat, r.origin.lng];
+  syncActiveRoute(r);
+  const toDest = activeRoute.toDest;
+  const coords = activeRoute.coords;
+  navTargetLL = activeRoute.target;
   if (navLine) { navLine.remove(); navLine = null; }
   if (coords && coords.length) navLine = L.polyline(coords, { color: toDest ? '#00C853' : '#FFC107', weight: 6, opacity: .9 }).addTo(navMap);
   if (!navPin) navPin = L.marker(navTargetLL, { icon: icon(toDest ? 'pin d' : 'pin o', '', [24, 24], [12, 24]), interactive: false }).addTo(navMap);
@@ -492,9 +572,9 @@ function renderRide(r) {
   $('#reqwrap').classList.add('hidden');
   if (typeof r.last_message_id === 'number') rideLastMsgId = r.last_message_id;
   if (r.status === 'ofrecido') { renderWaitingConfirm(r); return; }
-  // rutas
-  if (r.status === 'a_bordo') drawRoute(r.route_trip, '#00C853');
-  else drawRoute(r.route_to_pickup, '#FFC107');
+  // rutas (usa la ruta activa: recalculada si el conductor se desvió)
+  syncActiveRoute(r);
+  drawRoute(activeRoute.coords, activeRoute.toDest ? '#00C853' : '#FFC107');
   // pines
   setPin('o', [r.origin.lat, r.origin.lng]);
   setPin('d', [r.dest.lat, r.dest.lng]);

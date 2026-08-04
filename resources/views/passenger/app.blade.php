@@ -60,8 +60,11 @@
         /* Bottom sheet */
         .sheet{position:absolute;left:0;right:0;bottom:0;z-index:22;background:var(--panel);
             border-radius:22px 22px 0 0;box-shadow:0 -10px 40px rgba(0,0,0,.5);
-            padding:8px 18px calc(env(safe-area-inset-bottom) + 18px);max-height:82dvh;overflow-y:auto}
-        .grab{width:42px;height:5px;border-radius:3px;background:#3a414a;margin:6px auto 12px}
+            padding:0 18px calc(env(safe-area-inset-bottom) + 18px);max-height:82dvh;overflow-y:auto;
+            transition:transform .28s cubic-bezier(.4,0,.2,1);will-change:transform}
+        .grab{width:100%;height:30px;margin:0 0 4px;cursor:grab;touch-action:none;position:relative;display:block;
+            position:sticky;top:0;background:var(--panel);z-index:3}
+        .grab::after{content:"";position:absolute;left:50%;top:12px;transform:translateX(-50%);width:42px;height:5px;border-radius:3px;background:#3a414a}
         .sheet h2{margin:0 0 3px;font-size:19px}
         .sheet .sub{color:var(--muted);font-size:13px;margin-bottom:14px}
 
@@ -251,6 +254,6 @@ window.MG = {
     csrf: document.querySelector('meta[name=csrf-token]').content,
 };
 </script>
-<script src="/js/passenger.js?v=10"></script>
+<script src="/js/passenger.js?v=11"></script>
 </body>
 </html>
