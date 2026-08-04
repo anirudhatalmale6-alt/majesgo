@@ -120,8 +120,11 @@ class RideController extends Controller
             $excluded = (array) $ride->excluded_driver_ids;
 
             // ¿Hay conductores REALES conectados y elegibles (no rechazados) para este viaje?
+            // Mismo radio expansivo que usa la app del conductor (coherencia).
+            $waited = max(0, now()->getTimestamp() - $ride->requested_at->getTimestamp());
+            $radius = Dispatch::radiusForWait($waited);
             $realOnline = false;
-            foreach (Dispatch::eligibleDrivers((float) $ride->origin_lat, (float) $ride->origin_lng, null, $excluded) as $e) {
+            foreach (Dispatch::eligibleDrivers((float) $ride->origin_lat, (float) $ride->origin_lng, $radius, $excluded) as $e) {
                 if (! $e['driver']->is_demo) { $realOnline = true; break; }
             }
 

@@ -18,9 +18,24 @@ class Dispatch
      * @param  array<int>  $excludeIds  conductores a excluir (p.ej. los que el pasajero ya rechazó)
      * @return array<int,array{driver:Driver, distance_m:float}> ordenado por cercanía
      */
+    /**
+     * Radio de búsqueda que se EXPANDE solo con la espera: arranca en la base y crece
+     * por pasos hasta un máximo, para encontrar conductores algo más lejos si no hay cerca.
+     */
+    public static function radiusForWait(int $waitedS): float
+    {
+        $base  = (float) Setting::get('dispatch_radius_km', 5.0);
+        $max   = (float) Setting::get('dispatch_radius_max_km', 10.0);
+        $step  = (float) Setting::get('dispatch_radius_step_km', 1.0);
+        $every = max(1, (int) Setting::get('dispatch_radius_step_s', 12));
+        $r = $base + floor(max(0, $waitedS) / $every) * $step;
+
+        return min($r, max($base, $max));
+    }
+
     public static function eligibleDrivers(float $lat, float $lng, ?float $radiusKm = null, array $excludeIds = []): array
     {
-        $radiusKm ??= (float) Setting::get('dispatch_radius_km', 3.0);
+        $radiusKm ??= (float) Setting::get('dispatch_radius_km', 5.0);
         $commission = (float) Setting::get('commission_value', 0.50);
         $staleS = (int) Setting::get('driver_stale_s', 60);
 
@@ -89,6 +104,9 @@ class Dispatch
             'offered_at'          => null,
             'route_to_pickup'     => null,
             'is_demo'             => false,
+            // Re-emisión "fresca": renueva la ventana de búsqueda y hace que las omisiones
+            // (descartes por tiempo) previas de OTROS conductores ya no cuenten → vuelve a sonar.
+            'requested_at'        => now(),
         ])->save();
 
         if ($driverId && ($d = Driver::find($driverId)) && ! $d->activeRide()) {

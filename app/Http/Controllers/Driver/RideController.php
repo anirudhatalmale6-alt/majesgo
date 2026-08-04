@@ -116,23 +116,32 @@ class RideController extends Controller
             return response()->json(['requests' => []]);
         }
 
-        $radiusKm  = (float) Setting::get('dispatch_radius_km', 3.0);
-        $dismissed = (array) $request->session()->get('dismissed_rides', []);
+        // Omisiones TEMPORALES por conductor: mapa [ride_id => epoch en que lo descartó].
+        // Una omisión solo cuenta si ocurrió DESPUÉS de la última (re)emisión del viaje,
+        // así un viaje reasignado (el pasajero rechazó a otro chofer) vuelve a sonarle.
+        $dismissed = (array) $request->session()->get('dismissed_map', []);
 
         $rides = Ride::where('status', 'solicitando')
             ->whereNull('driver_id')
             ->where('is_demo', false)
-            ->whereNotIn('id', $dismissed)
             ->where('requested_at', '>=', now()->subMinutes(3))
             ->latest('id')
             ->get();
 
         $out = [];
         foreach ($rides as $ride) {
-            // no volver a ofrecer un viaje que el pasajero ya rechazó a este conductor
+            // no volver a ofrecer un viaje que el pasajero ya rechazó a este conductor (permanente)
             if (in_array($driver->id, (array) $ride->excluded_driver_ids, true)) {
                 continue;
             }
+            // omisión temporal: solo si descartó tras la última (re)emisión de este viaje
+            $dAt = $dismissed[$ride->id] ?? null;
+            if ($dAt !== null && $dAt >= $ride->requested_at->timestamp) {
+                continue;
+            }
+            // radio que se expande con la espera (5 km base → hasta 10 km)
+            $waited = max(0, now()->timestamp - $ride->requested_at->timestamp);
+            $radiusKm = Dispatch::radiusForWait($waited);
             $toPickup = Routing::haversine((float) $driver->lat, (float) $driver->lng, (float) $ride->origin_lat, (float) $ride->origin_lng);
             if ($toPickup > $radiusKm * 1000) {
                 continue;
@@ -220,9 +229,14 @@ class RideController extends Controller
         $data = $request->validate(['code' => ['required', 'string']]);
         $ride = Ride::where('code', $data['code'])->first();
         if ($ride) {
-            $dismissed = (array) $request->session()->get('dismissed_rides', []);
-            $dismissed[] = $ride->id;
-            $request->session()->put('dismissed_rides', array_slice(array_unique($dismissed), -50));
+            // omisión temporal con marca de tiempo (ver pending): no es permanente,
+            // si el viaje se re-emite más tarde volverá a aparecerle.
+            $dismissed = (array) $request->session()->get('dismissed_map', []);
+            $dismissed[$ride->id] = now()->timestamp;
+            if (count($dismissed) > 60) {
+                $dismissed = array_slice($dismissed, -60, null, true);
+            }
+            $request->session()->put('dismissed_map', $dismissed);
         }
         return response()->json(['ok' => true]);
     }
