@@ -38,6 +38,9 @@
         .pin.o{background:var(--verde)} .pin.d{background:#ff5252}
         .car{font-size:30px;filter:drop-shadow(0 4px 6px rgba(0,0,0,.5));transition:transform .1s}
         .medot{width:16px;height:16px;background:#2b8fff;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 6px rgba(43,143,255,.25)}
+        .taxicar{font-size:22px;filter:drop-shadow(0 3px 4px rgba(0,0,0,.45))}
+        .nearbypill{position:absolute;top:calc(env(safe-area-inset-top) + 62px);left:50%;transform:translateX(-50%);z-index:19;background:rgba(13,13,13,.80);backdrop-filter:blur(8px);color:#fff;font-size:12.5px;font-weight:600;padding:7px 14px;border-radius:20px;box-shadow:0 2px 10px rgba(0,0,0,.35);white-space:nowrap;pointer-events:none;max-width:88vw;overflow:hidden;text-overflow:ellipsis}
+        #app.lightmap .nearbypill{background:rgba(255,255,255,.92);color:#14181c}
         .mapmode{position:absolute;top:calc(env(safe-area-inset-top) + 66px);left:14px;z-index:19;width:40px;height:40px;border-radius:50%;border:0;background:rgba(13,13,13,.72);backdrop-filter:blur(8px);font-size:17px;cursor:pointer;display:grid;place-items:center;box-shadow:0 2px 8px rgba(0,0,0,.3)}
         #app.lightmap #map{background:#e6e9e4}
         #app.lightmap .leaflet-container{background:#e6e9e4}
@@ -194,6 +197,8 @@
         </button>
     </div>
 
+    <div class="nearbypill hidden" id="nearbyPill"></div>
+
     <button class="locbtn hidden" id="btnLoc" title="Mi ubicación">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8.5"/></svg>
     </button>
@@ -254,6 +259,6 @@ window.MG = {
     csrf: document.querySelector('meta[name=csrf-token]').content,
 };
 </script>
-<script src="/js/passenger.js?v=11"></script>
+<script src="/js/passenger.js?v=12"></script>
 </body>
 </html>

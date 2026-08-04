@@ -36,6 +36,7 @@ let chatOpen = false, chatLastId = 0, chatSeenId = 0, chatPoll = null, rideLastM
 let mapLight = false, baseTile = null;
 let sheetState = 'open', sheetDragging = false;
 const SHEET_PEEK = 78; // px visibles cuando el panel está colapsado (se ve el mapa)
+let nearbyMarkers = {}, nearbyTimer = null; // carritos de taxis disponibles en el mapa
 
 /* ---------- modo del mapa (claro de día / oscuro de noche) ---------- */
 function tileUrl(light) {
@@ -125,6 +126,57 @@ async function boot() {
   const cur = await api('api/rides/current').catch(() => ({ ride: null }));
   if (cur.ride) { startPolling(); }
   else { setDefaultOrigin(); renderPlanning(); }
+  startNearby(); // mostrar taxis disponibles cerca en el mapa (se ocultan durante el viaje)
+}
+
+/* ============ Taxis disponibles cerca (tiempo real) ============ */
+function startNearby() {
+  if (nearbyTimer) return;
+  loadNearby();
+  nearbyTimer = setInterval(loadNearby, 5000);
+}
+async function loadNearby() {
+  if (isRiding()) { clearNearby(); return; } // en viaje ya se muestra el conductor asignado
+  const c = origin ? { lat: origin.lat, lng: origin.lng } : (map ? map.getCenter() : null);
+  if (!c) return;
+  let d;
+  try { d = await api('api/drivers/nearby?lat=' + c.lat + '&lng=' + c.lng); } catch (e) { return; }
+  if (isRiding()) { clearNearby(); return; }
+  const present = {};
+  (d.drivers || []).forEach((v) => {
+    present[v.id] = 1;
+    const ll = [v.lat, v.lng];
+    if (nearbyMarkers[v.id]) glideNearby(nearbyMarkers[v.id], ll);
+    else nearbyMarkers[v.id] = L.marker(ll, { icon: icon('taxicar', '🚕', [26, 26], [13, 13]), interactive: false, zIndexOffset: 300 }).addTo(map);
+  });
+  Object.keys(nearbyMarkers).forEach((id) => { if (!present[id]) { nearbyMarkers[id].remove(); delete nearbyMarkers[id]; } });
+  updateNearbyPill(d.count || 0, d.nearest_m);
+}
+function glideNearby(marker, to) {
+  const from = marker.getLatLng();
+  if (marker._an) cancelAnimationFrame(marker._an);
+  const t0 = performance.now(), dur = 900;
+  const step = (t) => {
+    const k = Math.min(1, (t - t0) / dur), e = k < .5 ? 2 * k * k : -1 + (4 - 2 * k) * k;
+    marker.setLatLng([from.lat + (to[0] - from.lat) * e, from.lng + (to[1] - from.lng) * e]);
+    if (k < 1) marker._an = requestAnimationFrame(step); else marker._an = null;
+  };
+  marker._an = requestAnimationFrame(step);
+}
+function clearNearby() {
+  Object.values(nearbyMarkers).forEach((m) => m.remove());
+  nearbyMarkers = {};
+  updateNearbyPill(0, null);
+}
+function updateNearbyPill(count, nearestM) {
+  const pill = $('#nearbyPill'); if (!pill) return;
+  if (isRiding() || !count) { pill.classList.add('hidden'); return; }
+  let txt = '🚕 ' + count + (count === 1 ? ' taxi disponible cerca' : ' taxis disponibles cerca');
+  if (nearestM != null) {
+    const min = Math.max(1, Math.round((nearestM / 1000) / 22 * 60)); // ETA aprox. a ~22 km/h urbano
+    txt += ' · el más cercano a ~' + min + ' min';
+  }
+  pill.textContent = txt; pill.classList.remove('hidden');
 }
 
 /* ================= MAPA ================= */
@@ -493,6 +545,7 @@ function startPolling() {
   lastStatus = null;
   poll = true;
   clearTimeout(pollTimer);
+  clearNearby(); // durante el viaje se muestra solo el conductor asignado
   tick();
 }
 function stopPolling() { poll = false; clearTimeout(pollTimer); }

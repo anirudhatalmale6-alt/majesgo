@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Passenger;
 
 use App\Http\Controllers\Controller;
+use App\Models\Driver;
 use App\Models\Passenger;
 use App\Models\Ride;
 use App\Models\Setting;
@@ -155,6 +156,61 @@ class RideController extends Controller
         }
 
         return response()->json(['ride' => $this->payload($ride->fresh('driver'), $pos)]);
+    }
+
+    /**
+     * Conductores DISPONIBLES cerca, para mostrar los carritos en el mapa del pasajero
+     * (ver que hay unidades activas antes de pedir). Solo posición (sin identidad).
+     */
+    public function nearbyDrivers(Request $request)
+    {
+        $this->passenger($request);
+        $lat = (float) $request->query('lat');
+        $lng = (float) $request->query('lng');
+        if (! $lat || ! $lng) {
+            return response()->json(['drivers' => [], 'count' => 0, 'nearest_m' => null]);
+        }
+
+        $commission = (float) Setting::get('commission_value', 0.50);
+        $staleS     = (int) Setting::get('driver_stale_s', 180);
+        $displayKm  = (float) Setting::get('nearby_display_km', 6.0);
+        $demoOn     = (string) Setting::get('demo_enabled', '1') === '1';
+
+        $q = Driver::query()
+            ->where('status', 'disponible')          // libres (los ocupados no se muestran)
+            ->where('account_status', 'activo')
+            ->where('saldo', '>=', $commission)
+            ->whereNotNull('lat')->whereNotNull('lng')
+            ->where(function ($w) use ($staleS) {
+                $w->where('last_active_at', '>=', now()->subSeconds($staleS))->orWhere('is_demo', true);
+            });
+        if (! $demoOn) {
+            $q->where('is_demo', false);
+        }
+
+        $out = [];
+        $nearest = null;
+        foreach ($q->get() as $d) {
+            $dist = Routing::haversine($lat, $lng, (float) $d->lat, (float) $d->lng);
+            if ($dist > $displayKm * 1000) {
+                continue;
+            }
+            $out[] = ['id' => $d->id, 'lat' => (float) $d->lat, 'lng' => (float) $d->lng, 'dist' => $dist];
+            if ($nearest === null || $dist < $nearest) {
+                $nearest = $dist;
+            }
+        }
+
+        usort($out, fn ($a, $b) => $a['dist'] <=> $b['dist']);
+        $out = array_slice($out, 0, 30);
+        // no exponer la distancia exacta en el payload final
+        $out = array_map(fn ($x) => ['id' => $x['id'], 'lat' => $x['lat'], 'lng' => $x['lng']], $out);
+
+        return response()->json([
+            'drivers'   => $out,
+            'count'     => count($out),
+            'nearest_m' => $nearest !== null ? (int) round($nearest) : null,
+        ]);
     }
 
     private function assignDemoDriver(Ride $ride): bool
