@@ -205,6 +205,12 @@ async function boot() {
   if (cur.ride && ACTIVE.includes(cur.ride.status)) { ride = cur.ride; renderRide(ride); }
   else { renderHome(); }
   startPoll();
+
+  // Al volver a la app (desbloqueo/foreground), reactivar presencia y buscar viajes de inmediato:
+  // los temporizadores del navegador se pausan en segundo plano y el conductor podría quedar "inactivo".
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') { pushLocation(); tick(); }
+  });
 }
 
 /* ================= MAPA ================= */
@@ -460,12 +466,20 @@ async function tick() {
     try { const d = await api('api/current'); handleCurrent(d.ride); } catch (e) {}
     return;
   }
-  // libre y en línea → buscar solicitudes
-  if (online && !reqCode) {
+  // LATIDO de presencia: mientras esté en línea, reportar ubicación aunque esté quieto,
+  // para que 'last_active_at' no envejezca y el despacho lo siga considerando disponible.
+  if (online) pushLocation();
+  // libre y en línea → buscar solicitudes (y depurar una tarjeta obsoleta)
+  if (online) {
     try {
       const d = await api('api/pending');
       commission = d.commission || commission;
-      if (d.requests && d.requests.length && !ride && !reqCode) showRequest(d.requests[0]);
+      const reqs = d.requests || [];
+      // si la solicitud mostrada ya no existe (el pasajero canceló o la tomó otro), quitarla
+      if (reqCode && !reqs.some((x) => x.code === reqCode)) hideRequest();
+      // mostrar la solicitud aunque el conductor siga viendo el resumen de un viaje ya terminado
+      // (los viajes activos salieron antes por 'return'; aquí 'ride' es null o ya finalizado).
+      if (reqs.length && !reqCode) showRequest(reqs[0]);
     } catch (e) {}
   }
 }
