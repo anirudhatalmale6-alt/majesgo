@@ -127,6 +127,11 @@ class GeocodeController extends Controller
                 if (! $loc) {
                     continue;
                 }
+                // Solo la zona de Majes/El Pedregal: 'bounds' de Google es sesgo, no filtro,
+                // así que puede devolver calles homónimas de Lima u otra ciudad. Recortamos duro.
+                if (abs((float) $loc['lat'] + 16.3627) > 0.5 || abs((float) $loc['lng'] + 72.1908) > 0.5) {
+                    continue;
+                }
                 $types = $res['types'] ?? [];
                 $isBroad = $types && ! array_diff($types, $broad); // todos sus tipos son genéricos
                 $fa = $res['formatted_address'] ?? '';
