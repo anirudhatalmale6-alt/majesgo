@@ -257,8 +257,9 @@ window.MG = {
     center: [{{ $centerLat }}, {{ $centerLng }}],
     currency: @json($currency),
     csrf: document.querySelector('meta[name=csrf-token]').content,
+    vapidPublic: @json(config('services.webpush.public_key')),
 };
 </script>
-<script src="/js/passenger.js?v=12"></script>
+<script src="/js/passenger.js?v=13"></script>
 </body>
 </html>

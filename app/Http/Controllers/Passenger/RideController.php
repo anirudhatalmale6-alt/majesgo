@@ -11,6 +11,7 @@ use App\Services\DemoSim;
 use App\Services\Dispatch;
 use App\Services\Fare;
 use App\Services\Routing;
+use App\Services\WebPushSender;
 use Illuminate\Http\Request;
 
 class RideController extends Controller
@@ -87,6 +88,9 @@ class RideController extends Controller
             'requested_at'   => now(),
         ]);
 
+        // Avisar por push a los conductores cercanos elegibles (tras responder, sin demorar al pasajero).
+        defer(fn () => Dispatch::notifyNearbyDrivers($ride));
+
         return response()->json(['ok' => true, 'ride' => ['code' => $ride->code]]);
     }
 
@@ -156,6 +160,15 @@ class RideController extends Controller
         }
 
         return response()->json(['ride' => $this->payload($ride->fresh('driver'), $pos)]);
+    }
+
+    /** Guarda la suscripción push del navegador del pasajero. */
+    public function subscribePush(Request $request)
+    {
+        $passenger = $this->passenger($request);
+        $ok = WebPushSender::store('passenger', $passenger->id, $request->all());
+
+        return response()->json(['ok' => $ok]);
     }
 
     /**

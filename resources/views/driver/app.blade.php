@@ -299,8 +299,9 @@ window.MG = {
     center: [{{ $centerLat }}, {{ $centerLng }}],
     currency: @json($currency),
     csrf: document.querySelector('meta[name=csrf-token]').content,
+    vapidPublic: @json(config('services.webpush.public_key')),
 };
 </script>
-<script src="/js/driver.js?v=9"></script>
+<script src="/js/driver.js?v=10"></script>
 </body>
 </html>

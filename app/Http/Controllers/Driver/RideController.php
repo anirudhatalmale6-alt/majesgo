@@ -9,6 +9,7 @@ use App\Models\Ride;
 use App\Models\Setting;
 use App\Services\Dispatch;
 use App\Services\Routing;
+use App\Services\WebPushSender;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -64,6 +65,15 @@ class RideController extends Controller
         $driver->update(['lat' => $d['lat'], 'lng' => $d['lng'], 'last_active_at' => now()]);
 
         return response()->json(['ok' => true, 'saldo' => (float) $driver->saldo, 'can_receive' => $driver->canReceiveRides()]);
+    }
+
+    /** Guarda la suscripción push del navegador del conductor. */
+    public function subscribePush(Request $request)
+    {
+        $driver = $this->driver($request);
+        $ok = WebPushSender::store('driver', $driver->id, $request->all());
+
+        return response()->json(['ok' => $ok]);
     }
 
     /**
@@ -220,6 +230,14 @@ class RideController extends Controller
             return response()->json(['message' => 'Ese viaje ya fue tomado por otro conductor.'], 409);
         }
 
+        // Avisar por push al pasajero que un conductor lo ofreció (debe confirmar).
+        defer(fn () => WebPushSender::toOwner('passenger', (int) $ride->passenger_id, [
+            'title' => '¡Conductor encontrado! 🚕',
+            'body'  => 'Un conductor quiere tu viaje. Toca para confirmar.',
+            'url'   => '/app',
+            'tag'   => 'ride-offer',
+        ]));
+
         return response()->json(['ok' => true, 'ride' => $this->payload($ride)]);
     }
 
@@ -315,6 +333,15 @@ class RideController extends Controller
             return response()->json(['message' => 'No hay un viaje para marcar como llegado.'], 422);
         }
         $ride->forceFill(['status' => 'llego', 'arrived_at' => $ride->arrived_at ?? now()])->save();
+
+        // Avisar por push al pasajero que su taxi llegó.
+        defer(fn () => WebPushSender::toOwner('passenger', (int) $ride->passenger_id, [
+            'title' => 'Tu taxi llegó 🚕',
+            'body'  => 'Tu conductor está en el punto de recojo.',
+            'url'   => '/app',
+            'tag'   => 'ride-arrived',
+        ]));
+
         return response()->json(['ok' => true, 'ride' => $this->payload($ride)]);
     }
 

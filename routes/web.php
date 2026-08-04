@@ -33,6 +33,7 @@ Route::prefix('app')->name('app.')->group(function () {
         Route::get('api/geocode/reverse', [GeocodeController::class, 'reverse']);
         Route::get('api/geocode/search', [GeocodeController::class, 'search']);
         Route::get('api/drivers/nearby', [PassengerRide::class, 'nearbyDrivers']);
+        Route::post('api/push/subscribe', [PassengerRide::class, 'subscribePush']);
         Route::post('api/quote', [PassengerRide::class, 'quote']);
         Route::post('api/rides', [PassengerRide::class, 'store']);
         Route::get('api/rides/current', [PassengerRide::class, 'current']);
@@ -63,6 +64,7 @@ Route::prefix('conductor')->name('driver.')->group(function () {
         Route::post('api/connect', [DriverRide::class, 'connect']);
         Route::post('api/location', [DriverRide::class, 'location']);
         Route::post('api/reroute', [DriverRide::class, 'reroute']);
+        Route::post('api/push/subscribe', [DriverRide::class, 'subscribePush']);
 
         // Solicitudes entrantes
         Route::get('api/pending', [DriverRide::class, 'pending']);

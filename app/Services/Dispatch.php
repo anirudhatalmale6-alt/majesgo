@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Driver;
 use App\Models\Ride;
 use App\Models\Setting;
+use App\Services\WebPushSender;
 
 /**
  * Emparejamiento de viajes: encuentra conductores elegibles cerca del punto de recojo.
@@ -69,6 +70,30 @@ class Dispatch
         return $out;
     }
 
+    /** Notifica por push a los conductores elegibles cercanos que hay un viaje esperando. */
+    public static function notifyNearbyDrivers(Ride $ride): void
+    {
+        if ($ride->status !== 'solicitando') {
+            return;
+        }
+        $waited = max(0, now()->timestamp - $ride->requested_at->timestamp);
+        $radius = self::radiusForWait($waited);
+
+        $ids = [];
+        foreach (self::eligibleDrivers((float) $ride->origin_lat, (float) $ride->origin_lng, $radius, (array) $ride->excluded_driver_ids) as $e) {
+            if (! $e['driver']->is_demo) {
+                $ids[] = $e['driver']->id;
+            }
+        }
+
+        WebPushSender::toOwners('driver', $ids, [
+            'title' => 'Nuevo viaje en MajesGo 🚕',
+            'body'  => 'Hay una carrera cerca de ti. Toca para verla.',
+            'url'   => '/conductor',
+            'tag'   => 'ride-request',
+        ]);
+    }
+
     /**
      * Si una oferta ('ofrecido') pasó del tiempo límite sin respuesta del pasajero,
      * se libera: vuelve a 'solicitando', se excluye a ese conductor y se le libera.
@@ -112,6 +137,9 @@ class Dispatch
         if ($driverId && ($d = Driver::find($driverId)) && ! $d->activeRide()) {
             $d->update(['status' => 'disponible']);
         }
+
+        // Viaje re-emitido: volver a avisar por push a los conductores cercanos (menos el excluido).
+        defer(fn () => self::notifyNearbyDrivers($ride->fresh()));
     }
 
     /**

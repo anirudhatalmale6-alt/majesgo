@@ -445,6 +445,7 @@ async function toggleOnline() {
       if (myPos) { body.lat = myPos.lat; body.lng = myPos.lng; }
       await api('api/connect', body);
       online = true; toast('Conectado. Buscando viajes cercanos…');
+      enablePush(); // pedir permiso de notificaciones al conectarse (gesto del usuario)
     } else {
       await api('api/connect', { online: false });
       online = false; toast('Te desconectaste.');
@@ -881,9 +882,32 @@ $('#chatBack').addEventListener('click', closeChat);
 $('#chatSend').addEventListener('click', sendChat);
 $('#chatIn').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
 
-/* ================= PWA ================= */
+/* ================= PWA + PUSH ================= */
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').then(() => {
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') enablePush();
+  }).catch(() => {}));
+}
+
+function urlB64ToUint8(base64) {
+  const pad = '='.repeat((4 - base64.length % 4) % 4);
+  const b = (base64 + pad).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(b);
+  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+}
+async function enablePush() {
+  try {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !MG.vapidPublic) return;
+    if (typeof Notification === 'undefined') return;
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted') return;
+      sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToUint8(MG.vapidPublic) });
+    }
+    await api('api/push/subscribe', sub.toJSON());
+  } catch (e) { /* silencioso */ }
 }
 
 start();

@@ -526,6 +526,7 @@ function esc(s) { return (s || '').replace(/"/g, '&quot;').replace(/</g, '&lt;')
 
 async function doRequest() {
   const btn = $('#btnReq'); btn.disabled = true; btn.innerHTML = '<span class="spin"></span>';
+  enablePush(); // pedir permiso de avisos al pedir el taxi (gesto del usuario)
   try {
     await api('api/rides', {
       origin_lat: origin.lat, origin_lng: origin.lng, origin_address: origin.address || 'Mi ubicación',
@@ -830,9 +831,32 @@ $('#chatBack').addEventListener('click', closeChat);
 $('#chatSend').addEventListener('click', sendChat);
 $('#chatIn').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
 
-/* ================= PWA ================= */
+/* ================= PWA + PUSH ================= */
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').then(() => {
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') enablePush();
+  }).catch(() => {}));
+}
+
+function urlB64ToUint8(base64) {
+  const pad = '='.repeat((4 - base64.length % 4) % 4);
+  const b = (base64 + pad).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(b);
+  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+}
+async function enablePush() {
+  try {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !MG.vapidPublic) return;
+    if (typeof Notification === 'undefined') return;
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted') return;
+      sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToUint8(MG.vapidPublic) });
+    }
+    await api('api/push/subscribe', sub.toJSON());
+  } catch (e) { /* silencioso */ }
 }
 
 start();
