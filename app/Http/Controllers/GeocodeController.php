@@ -116,20 +116,38 @@ class GeocodeController extends Controller
                 }
                 return null;
             }
+            // Tipos demasiado genéricos: apuntan a todo un barrio/distrito, no a un lugar puntual.
+            // Si Google solo devuelve eso (típico al buscar un negocio por nombre en zona poco mapeada),
+            // lo descartamos y el frontend usa el respaldo Nominatim, que sí tiene esos POIs por nombre.
+            $broad = ['locality', 'political', 'neighborhood', 'sublocality', 'administrative_area_level_1',
+                      'administrative_area_level_2', 'administrative_area_level_3', 'postal_code', 'plus_code', 'country'];
             $out = [];
-            foreach (array_slice($d['results'] ?? [], 0, 6) as $res) {
+            foreach (array_slice($d['results'] ?? [], 0, 8) as $res) {
                 $loc = $res['geometry']['location'] ?? null;
                 if (! $loc) {
                     continue;
                 }
+                $types = $res['types'] ?? [];
+                $isBroad = $types && ! array_diff($types, $broad); // todos sus tipos son genéricos
+                $fa = $res['formatted_address'] ?? '';
+                $isPlusCode = (bool) preg_match('/^[A-Z0-9]{4,}\+[A-Z0-9]/', $fa); // p. ej. "JRP5+529"
+                if (($res['partial_match'] ?? false) && $isBroad) {
+                    continue; // coincidencia parcial que solo acertó el barrio → no sirve
+                }
+                if ($isBroad || $isPlusCode) {
+                    continue;
+                }
                 $out[] = [
                     'label'     => $this->shortLabel($res),
-                    'full'      => $res['formatted_address'] ?? '',
+                    'full'      => $fa,
                     'lat'       => (float) $loc['lat'],
                     'lng'       => (float) $loc['lng'],
                 ];
+                if (count($out) >= 6) {
+                    break;
+                }
             }
-            return $out;
+            return $out; // puede ser [] → el frontend cae a Nominatim
         } catch (\Throwable $e) {
             return null;
         }
