@@ -80,7 +80,9 @@ class WebPushSender
                         'publicKey' => $s->public_key,
                         'authToken' => $s->auth_token,
                     ]),
-                    json_encode($payload)
+                    json_encode($payload),
+                    // urgencia alta + TTL para que FCM despierte al teléfono aunque esté en reposo
+                    ['urgency' => 'high', 'TTL' => 1800]
                 );
             }
 
