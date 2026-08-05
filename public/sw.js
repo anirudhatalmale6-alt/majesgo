@@ -1,5 +1,13 @@
 // Service worker MajesGo — habilita instalacion PWA y carga offline del cascaron.
-const CACHE = 'majesgo-v2';
+const CACHE = 'majesgo-v3';
+// Clave pública VAPID (es pública; se usa para re-suscribir si el navegador rota la suscripción).
+const VAPID_PUBLIC = 'BDV6J4XobtuFG8SljAasHxOSM_t_Pwn-iAGJUaL3ycL_W4wLMpSYJ6-dKw7LK50IUXrIHBwuI5MpC_oVbGPGo50';
+function vapidKey() {
+  const pad = '='.repeat((4 - VAPID_PUBLIC.length % 4) % 4);
+  const b = (VAPID_PUBLIC + pad).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(b);
+  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+}
 const ASSETS = [
   '/icons/icon-192.png',
   '/icons/icon-512.png',
@@ -62,4 +70,27 @@ self.addEventListener('notificationclick', (e) => {
       if (self.clients.openWindow) return self.clients.openWindow(url);
     })
   );
+});
+
+// El navegador rota/expira la suscripción → re-suscribir y reenviar al servidor,
+// así el conductor/pasajero no deja de recibir avisos silenciosamente.
+self.addEventListener('pushsubscriptionchange', (e) => {
+  e.waitUntil((async () => {
+    try {
+      const sub = await self.registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: vapidKey(),
+      });
+      const opt = {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sub.toJSON()),
+        credentials: 'include',
+      };
+      // No sabemos si el dispositivo es conductor o pasajero: intentamos en ambos
+      // (el que tenga sesión válida lo guarda; el otro responde 401 y se ignora).
+      await fetch('/conductor/api/push/subscribe', opt).catch(() => {});
+      await fetch('/app/api/push/subscribe', opt).catch(() => {});
+    } catch (_) {}
+  })());
 });

@@ -84,11 +84,19 @@ class WebPushSender
                 );
             }
 
+            $ok = 0; $expired = 0; $failed = 0;
             foreach ($webPush->flush() as $report) {
-                if (! $report->isSuccess() && $report->isSubscriptionExpired()) {
+                if ($report->isSuccess()) {
+                    $ok++;
+                } elseif ($report->isSubscriptionExpired()) {
+                    $expired++;
                     PushSubscription::where('endpoint_hash', hash('sha256', (string) $report->getEndpoint()))->delete();
+                } else {
+                    $failed++;
+                    Log::warning('webpush send failed: '.$report->getReason());
                 }
             }
+            Log::info("webpush: ok=$ok expired=$expired failed=$failed total=".$subs->count());
         } catch (\Throwable $e) {
             Log::warning('webpush: '.$e->getMessage());
         }

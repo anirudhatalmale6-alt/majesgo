@@ -16,6 +16,12 @@ return Application::configure(basePath: dirname(__DIR__))
             'passenger' => \App\Http\Middleware\EnsurePassenger::class,
             'driver'    => \App\Http\Middleware\EnsureDriver::class,
         ]);
+        // El service worker re-suscribe el push sin token CSRF (no tiene acceso al meta);
+        // el endpoint igual exige sesión autenticada, así que es seguro exceptuarlo.
+        $middleware->validateCsrfTokens(except: [
+            'app/api/push/subscribe',
+            'conductor/api/push/subscribe',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

@@ -86,6 +86,8 @@ class Dispatch
             }
         }
 
+        \Log::info('notifyNearbyDrivers ride='.$ride->code.' eligible_drivers='.count($ids));
+
         WebPushSender::toOwners('driver', $ids, [
             'title' => 'Nuevo viaje en MajesGo 🚕',
             'body'  => 'Hay una carrera cerca de ti. Toca para verla.',
