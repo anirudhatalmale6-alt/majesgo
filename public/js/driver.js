@@ -32,7 +32,7 @@ function esc(s) { return (s || '').replace(/"/g, '&quot;').replace(/</g, '&lt;')
 let map, meMarker, oMarker, dMarker, routeLine;
 let me = null, online = false, ride = null, myPos = null;
 let reqCode = null, reqTimer = null, poll = null, lastPostAt = 0, commission = 0.5;
-let offerZoneMarker = null; // etiqueta resaltada de la zona del recojo durante la oferta
+let offerLabels = []; // etiquetas resaltadas (recojo + destino) durante la oferta
 
 // ---- modo navegación (pantalla completa tipo GPS) ----
 let navOpen = false, navMap = null, navCar = null, navLine = null, navPin = null;
@@ -575,16 +575,14 @@ function showRequest(req) {
   setPin('o', [req.origin.lat, req.origin.lng]);
   setPin('d', [req.dest.lat, req.dest.lng]);
   drawRoute(req.route_trip, '#00C853');
-  map.fitBounds(L.latLngBounds([[req.origin.lat, req.origin.lng], [req.dest.lat, req.dest.lng]]).pad(0.35), { paddingBottomRight: [0, 340] });
-  // durante la oferta: mapa limpio → ocultar las demás zonas y resaltar SOLO la zona del recojo
+  // encuadre con margen: arriba para que no se corte la etiqueta, abajo para que la tarjeta no tape los pines
+  map.fitBounds(L.latLngBounds([[req.origin.lat, req.origin.lng], [req.dest.lat, req.dest.lng]]), { paddingTopLeft: [30, 66], paddingBottomRight: [30, 410] });
+  // durante la oferta: mapa limpio → ocultar las demás zonas y resaltar recojo + destino
   document.getElementById('app').classList.add('offering');
-  if (offerZoneMarker) { offerZoneMarker.remove(); offerZoneMarker = null; }
-  if (req.origin_zone) {
-    offerZoneMarker = L.marker([req.origin.lat, req.origin.lng], {
-      icon: L.divIcon({ className: 'offerzone', html: '<span class="ozlabel">📍 ' + esc(req.origin_zone) + '</span>', iconSize: [0, 0], iconAnchor: [0, 0] }),
-      interactive: false, zIndexOffset: 1300,
-    }).addTo(map);
-  }
+  offerLabels.forEach((m) => m.remove()); offerLabels = [];
+  if (req.origin_zone) addOfferLabel([req.origin.lat, req.origin.lng], req.origin_zone, '');
+  const destLabel = req.dest_zone || (req.dest.address ? req.dest.address.split(',')[0].trim() : '');
+  if (destLabel) addOfferLabel([req.dest.lat, req.dest.lng], destLabel, 'dest');
 
   $('#reqYes').addEventListener('click', () => acceptRequest(req));
   $('#reqNo').addEventListener('click', () => rejectRequest(req.code));
@@ -598,14 +596,21 @@ function showRequest(req) {
     if (left <= 0) { rejectRequest(req.code, true); }
   }, 1000);
 }
+function addOfferLabel(latlng, text, variant) {
+  const m = L.marker(latlng, {
+    icon: L.divIcon({ className: 'offerzone', html: '<span class="ozlabel ' + variant + '">📍 ' + esc(text) + '</span>', iconSize: [0, 0], iconAnchor: [0, 0] }),
+    interactive: false, zIndexOffset: 1300,
+  }).addTo(map);
+  offerLabels.push(m);
+}
 function hideRequest() {
   clearInterval(reqTimer); reqTimer = null; reqCode = null;
   $('#reqwrap').classList.add('hidden');
-  // limpiar la vista previa (ruta + pines) y restaurar las zonas del mapa
+  // limpiar la vista previa (ruta + pines + etiquetas) y restaurar las zonas del mapa
   if (routeLine) { routeLine.remove(); routeLine = null; }
   if (oMarker) { oMarker.remove(); oMarker = null; }
   if (dMarker) { dMarker.remove(); dMarker = null; }
-  if (offerZoneMarker) { offerZoneMarker.remove(); offerZoneMarker = null; }
+  offerLabels.forEach((m) => m.remove()); offerLabels = [];
   document.getElementById('app').classList.remove('offering');
 }
 async function acceptRequest(req) {
