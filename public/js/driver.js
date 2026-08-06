@@ -205,6 +205,7 @@ async function boot() {
   if (cur.ride && ACTIVE.includes(cur.ride.status)) { ride = cur.ride; renderRide(ride); }
   else { renderHome(); }
   startPoll();
+  loadZones(); // mostrar los nombres de las zonas locales en el mapa del conductor
 
   // Al volver a la app (desbloqueo/foreground), reactivar presencia y buscar viajes de inmediato:
   // los temporizadores del navegador se pausan en segundo plano y el conductor podría quedar "inactivo".
@@ -224,6 +225,35 @@ function initMap() {
   $('#btnMenu').addEventListener('click', openDrawer);
   const bm = $('#btnMapMode'); if (bm) bm.addEventListener('click', toggleMapMode);
   applyMapMode();
+  map.on('zoomend', applyZoneZoom);
+}
+
+/* ============ Zonas locales (nombres en el mapa; ayuda al conductor a ubicarse) ============ */
+let zoneLayer = null;
+const ZONE_ZOOM_PINS = 13, ZONE_ZOOM_LABELS = 15;
+function applyZoneZoom() {
+  const app = document.getElementById('app');
+  if (!app || !map) return;
+  const z = map.getZoom();
+  app.classList.toggle('zmid', z >= ZONE_ZOOM_PINS && z < ZONE_ZOOM_LABELS);
+  app.classList.toggle('znear', z >= ZONE_ZOOM_LABELS);
+}
+async function loadZones() {
+  let d;
+  try { d = await api('api/zones'); } catch (e) { return; }
+  if (zoneLayer) { zoneLayer.remove(); zoneLayer = null; }
+  const zones = d.zones || [];
+  if (!zones.length) return;
+  zoneLayer = L.layerGroup().addTo(map);
+  const pin = '<svg class="zpin" viewBox="0 0 24 34"><path d="M12 0C5.4 0 0 5.4 0 12c0 8 12 22 12 22s12-14 12-22C24 5.4 18.6 0 12 0z"/><circle cx="12" cy="12" r="4"/></svg>';
+  zones.forEach((z) => {
+    const cls = 'zonemk' + (z.primary ? ' zprimary' : '');
+    L.marker([z.lat, z.lng], {
+      icon: L.divIcon({ className: cls, html: pin + '<span class="zname">' + esc(z.name) + '</span>', iconSize: [0, 0], iconAnchor: [0, 0] }),
+      interactive: false, zIndexOffset: z.primary ? 260 : 200,
+    }).addTo(zoneLayer);
+  });
+  applyZoneZoom();
 }
 function icon(cls, html, size, anchor) {
   return L.divIcon({ className: '', html: '<div class="' + cls + '">' + (html || '') + '</div>', iconSize: size, iconAnchor: anchor });
@@ -531,16 +561,19 @@ function showRequest(req) {
       <div class="av">${req.passenger.initial || 'P'}</div>
       <div><div class="nm">${esc(req.passenger.name)}</div><div class="car2">⭐ ${(req.passenger.rating || 5).toFixed(1)} · ${req.passenger.trips || 0} viajes</div></div>
     </div>
-    <div class="addr"><span class="dot o"></span><div class="tx">${esc(req.origin.address || 'Punto de recojo')}<small>Recojo · a ${km(req.to_pickup_m)}</small></div></div>
+    ${req.origin_zone
+      ? `<div class="addr"><span class="dot o"></span><div class="tx">📍 ${esc(req.origin_zone)}<small>Recojo · ${esc(req.origin.address || '')} · a ${km(req.to_pickup_m)}</small></div></div>`
+      : `<div class="addr"><span class="dot o"></span><div class="tx">${esc(req.origin.address || 'Punto de recojo')}<small>Recojo · a ${km(req.to_pickup_m)}</small></div></div>`}
     ${req.reference ? `<div class="addr"><span class="dot" style="background:var(--amarillo)"></span><div class="tx">${esc(req.reference)}<small>Referencia del pasajero</small></div></div>` : ''}
     <div class="addr"><span class="dot d"></span><div class="tx">${esc(req.dest.address || 'Destino')}<small>Destino · ${km(req.trip_distance_m)} · ${mins(req.trip_duration_s)}</small></div></div>
     <div class="acts">
       <button class="btn ghost" id="reqNo">Rechazar</button>
       <button class="btn" id="reqYes">Aceptar</button>
     </div>`;
-  // vista previa en el mapa
+  // vista previa en el mapa: recojo + destino + RUTA (para que el conductor mire el mapa, no la dirección escrita)
   setPin('o', [req.origin.lat, req.origin.lng]);
   setPin('d', [req.dest.lat, req.dest.lng]);
+  drawRoute(req.route_trip, '#00C853');
   map.fitBounds(L.latLngBounds([[req.origin.lat, req.origin.lng], [req.dest.lat, req.dest.lng]]).pad(0.35), { paddingBottomRight: [0, 340] });
 
   $('#reqYes').addEventListener('click', () => acceptRequest(req));
@@ -558,6 +591,10 @@ function showRequest(req) {
 function hideRequest() {
   clearInterval(reqTimer); reqTimer = null; reqCode = null;
   $('#reqwrap').classList.add('hidden');
+  // limpiar la vista previa (ruta + pines) al cerrar la tarjeta
+  if (routeLine) { routeLine.remove(); routeLine = null; }
+  if (oMarker) { oMarker.remove(); oMarker = null; }
+  if (dMarker) { dMarker.remove(); dMarker = null; }
 }
 async function acceptRequest(req) {
   const btn = $('#reqYes'); btn.disabled = true; btn.innerHTML = '<span class="spin"></span>';

@@ -42,6 +42,32 @@ class CustomPlace extends Model
         });
     }
 
+    /** Nombre de la zona local cuyo círculo contiene el punto (la más cercana), o null. */
+    public static function zoneAt(float $lat, float $lng): ?string
+    {
+        $best = null;
+        $bestD = null;
+        foreach (self::activeCached() as $p) {
+            $d = self::haversineM($lat, $lng, $p['lat'], $p['lng']);
+            if ($d <= $p['radius_m'] && ($bestD === null || $d < $bestD)) {
+                $bestD = $d;
+                $best = $p['name'];
+            }
+        }
+
+        return $best;
+    }
+
+    private static function haversineM(float $lat1, float $lng1, float $lat2, float $lng2): float
+    {
+        $r = 6371000;
+        $dLat = deg2rad($lat2 - $lat1);
+        $dLng = deg2rad($lng2 - $lng1);
+        $a = sin($dLat / 2) ** 2 + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($dLng / 2) ** 2;
+
+        return $r * 2 * atan2(sqrt($a), sqrt(1 - $a));
+    }
+
     /** Lista de nombres a comparar (nombre + apodos). */
     public function names(): array
     {

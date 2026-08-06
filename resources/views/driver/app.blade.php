@@ -37,6 +37,16 @@
         .car{font-size:30px;filter:drop-shadow(0 4px 6px rgba(0,0,0,.5))}
         .medot{width:16px;height:16px;background:var(--amarillo);border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 6px rgba(255,193,7,.25)}
         .mapmode{position:absolute;top:calc(env(safe-area-inset-top) + 66px);left:14px;z-index:19;width:40px;height:40px;border-radius:50%;border:0;background:rgba(13,13,13,.72);backdrop-filter:blur(8px);font-size:17px;cursor:pointer;display:grid;place-items:center;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+        /* Zonas locales en el mapa del conductor (mismo criterio que el pasajero) */
+        .zonemk{pointer-events:none}
+        .zonemk .zpin{display:none;position:absolute;left:-9px;top:-26px;width:18px;height:26px;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5))}
+        .zonemk .zpin path{fill:#3d7bd6} .zonemk .zpin circle{fill:#fff}
+        .zonemk .zname{display:none;position:absolute;left:11px;top:-22px;white-space:nowrap;font-size:11px;font-weight:700;color:#dfe7ff;background:rgba(20,26,40,.72);border:1px solid rgba(138,180,255,.4);padding:2px 8px;border-radius:9px;box-shadow:0 1px 4px rgba(0,0,0,.45)}
+        #app.zmid .zonemk .zpin,#app.znear .zonemk .zpin{display:block}
+        #app.znear .zonemk .zname{display:block}
+        .zonemk.zprimary .zpin,.zonemk.zprimary .zname{display:block}
+        .zonemk.zprimary .zpin path{fill:#009d4f}
+        #app.lightmap .zonemk .zname{color:#173a70;background:rgba(255,255,255,.9);border-color:rgba(60,110,200,.45)}
         #app.lightmap #map,#app.lightmap #navmap{background:#e6e9e4}
         #app.lightmap .leaflet-container{background:#e6e9e4}
         .pulsebtn{animation:btnpulse 1.15s ease-out infinite}
@@ -111,7 +121,8 @@
         .acts{display:flex;gap:10px;margin-top:4px}
 
         /* Solicitud entrante */
-        .reqwrap{position:absolute;inset:0;z-index:38;background:rgba(6,8,10,.72);backdrop-filter:blur(3px);display:flex;align-items:flex-end;padding:0}
+        /* solo la tarjeta abajo; el mapa arriba queda CLARO y visible (recojo+ruta+zona) */
+        .reqwrap{position:absolute;left:0;right:0;bottom:0;z-index:38;display:flex;align-items:flex-end;padding:0}
         .reqcard{background:var(--panel);width:100%;border-radius:22px 22px 0 0;padding:16px 18px calc(env(safe-area-inset-bottom) + 18px);box-shadow:0 -12px 44px rgba(0,0,0,.6);animation:slideup .25s ease}
         @keyframes slideup{from{transform:translateY(40px);opacity:.4}to{transform:none;opacity:1}}
         .reqhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
@@ -302,6 +313,6 @@ window.MG = {
     vapidPublic: @json(config('services.webpush.public_key')),
 };
 </script>
-<script src="/js/driver.js?v=10"></script>
+<script src="/js/driver.js?v=11"></script>
 </body>
 </html>

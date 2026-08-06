@@ -102,17 +102,7 @@ class GeocodeController extends Controller
     /** Nombre de la zona local cuyo círculo contiene el punto (la más cercana), o null. */
     private function customPlaceAt(float $lat, float $lng): ?string
     {
-        $best = null;
-        $bestD = null;
-        foreach (CustomPlace::activeCached() as $p) {
-            $d = $this->haversine($lat, $lng, $p['lat'], $p['lng']);
-            if ($d <= $p['radius_m'] && ($bestD === null || $d < $bestD)) {
-                $bestD = $d;
-                $best = $p['name'];
-            }
-        }
-
-        return $best;
+        return CustomPlace::zoneAt($lat, $lng);
     }
 
     /** Zonas locales que coinciden con el texto (por nombre o apodo). */

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Driver;
 
 use App\Http\Controllers\Controller;
+use App\Models\CustomPlace;
 use App\Models\Driver;
 use App\Models\Recharge;
 use App\Models\Ride;
@@ -166,6 +167,8 @@ class RideController extends Controller
                 'payment_method'      => $ride->payment_method,
                 'origin'              => ['lat' => (float) $ride->origin_lat, 'lng' => (float) $ride->origin_lng, 'address' => $ride->origin_address],
                 'dest'                => ['lat' => (float) $ride->dest_lat, 'lng' => (float) $ride->dest_lng, 'address' => $ride->dest_address],
+                'origin_zone'         => CustomPlace::zoneAt((float) $ride->origin_lat, (float) $ride->origin_lng),
+                'route_trip'          => $ride->route_trip, // para dibujar la ruta en la tarjeta de oferta
                 'reference'           => $ride->reference,
                 'passenger'           => $this->passengerCard($ride),
             ];

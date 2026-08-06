@@ -66,6 +66,7 @@ Route::prefix('conductor')->name('driver.')->group(function () {
         Route::post('api/connect', [DriverRide::class, 'connect']);
         Route::post('api/location', [DriverRide::class, 'location']);
         Route::post('api/reroute', [DriverRide::class, 'reroute']);
+        Route::get('api/zones', [GeocodeController::class, 'zones']);
         Route::post('api/push/subscribe', [DriverRide::class, 'subscribePush']);
 
         // Solicitudes entrantes
