@@ -32,6 +32,7 @@ function esc(s) { return (s || '').replace(/"/g, '&quot;').replace(/</g, '&lt;')
 let map, meMarker, oMarker, dMarker, routeLine;
 let me = null, online = false, ride = null, myPos = null;
 let reqCode = null, reqTimer = null, poll = null, lastPostAt = 0, commission = 0.5;
+let offerZoneMarker = null; // etiqueta resaltada de la zona del recojo durante la oferta
 
 // ---- modo navegación (pantalla completa tipo GPS) ----
 let navOpen = false, navMap = null, navCar = null, navLine = null, navPin = null;
@@ -575,6 +576,15 @@ function showRequest(req) {
   setPin('d', [req.dest.lat, req.dest.lng]);
   drawRoute(req.route_trip, '#00C853');
   map.fitBounds(L.latLngBounds([[req.origin.lat, req.origin.lng], [req.dest.lat, req.dest.lng]]).pad(0.35), { paddingBottomRight: [0, 340] });
+  // durante la oferta: mapa limpio → ocultar las demás zonas y resaltar SOLO la zona del recojo
+  document.getElementById('app').classList.add('offering');
+  if (offerZoneMarker) { offerZoneMarker.remove(); offerZoneMarker = null; }
+  if (req.origin_zone) {
+    offerZoneMarker = L.marker([req.origin.lat, req.origin.lng], {
+      icon: L.divIcon({ className: 'offerzone', html: '<span class="ozlabel">📍 ' + esc(req.origin_zone) + '</span>', iconSize: [0, 0], iconAnchor: [0, 0] }),
+      interactive: false, zIndexOffset: 1300,
+    }).addTo(map);
+  }
 
   $('#reqYes').addEventListener('click', () => acceptRequest(req));
   $('#reqNo').addEventListener('click', () => rejectRequest(req.code));
@@ -591,10 +601,12 @@ function showRequest(req) {
 function hideRequest() {
   clearInterval(reqTimer); reqTimer = null; reqCode = null;
   $('#reqwrap').classList.add('hidden');
-  // limpiar la vista previa (ruta + pines) al cerrar la tarjeta
+  // limpiar la vista previa (ruta + pines) y restaurar las zonas del mapa
   if (routeLine) { routeLine.remove(); routeLine = null; }
   if (oMarker) { oMarker.remove(); oMarker = null; }
   if (dMarker) { dMarker.remove(); dMarker = null; }
+  if (offerZoneMarker) { offerZoneMarker.remove(); offerZoneMarker = null; }
+  document.getElementById('app').classList.remove('offering');
 }
 async function acceptRequest(req) {
   const btn = $('#reqYes'); btn.disabled = true; btn.innerHTML = '<span class="spin"></span>';

@@ -47,6 +47,10 @@
         .zonemk.zprimary .zpin,.zonemk.zprimary .zname{display:block}
         .zonemk.zprimary .zpin path{fill:#009d4f}
         #app.lightmap .zonemk .zname{color:#173a70;background:rgba(255,255,255,.9);border-color:rgba(60,110,200,.45)}
+        /* durante la oferta: ocultar todas las zonas y resaltar solo la del recojo */
+        #app.offering .zonemk{display:none!important}
+        .offerzone{pointer-events:none}
+        .offerzone .ozlabel{position:absolute;left:0;top:-54px;transform:translateX(-50%);white-space:nowrap;font-size:12.5px;font-weight:800;color:#fff;background:#009d4f;padding:4px 12px;border-radius:12px;box-shadow:0 3px 12px rgba(0,0,0,.55);border:1.5px solid rgba(255,255,255,.9)}
         #app.lightmap #map,#app.lightmap #navmap{background:#e6e9e4}
         #app.lightmap .leaflet-container{background:#e6e9e4}
         .pulsebtn{animation:btnpulse 1.15s ease-out infinite}
@@ -313,6 +317,6 @@ window.MG = {
     vapidPublic: @json(config('services.webpush.public_key')),
 };
 </script>
-<script src="/js/driver.js?v=11"></script>
+<script src="/js/driver.js?v=12"></script>
 </body>
 </html>
