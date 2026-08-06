@@ -41,6 +41,20 @@
         .taxicar{font-size:22px;filter:drop-shadow(0 3px 4px rgba(0,0,0,.45))}
         .nearbypill{position:absolute;top:calc(env(safe-area-inset-top) + 62px);left:50%;transform:translateX(-50%);z-index:19;background:rgba(13,13,13,.80);backdrop-filter:blur(8px);color:#fff;font-size:12.5px;font-weight:600;padding:7px 14px;border-radius:20px;box-shadow:0 2px 10px rgba(0,0,0,.35);white-space:nowrap;pointer-events:none;max-width:88vw;overflow:hidden;text-overflow:ellipsis}
         #app.lightmap .nearbypill{background:rgba(255,255,255,.92);color:#14181c}
+        /* Pin central fijo + punto exacto */
+        .centerpin{position:absolute;left:50%;top:50%;z-index:24;pointer-events:none;transform:translate(-50%,-100%);transition:transform .13s ease}
+        .centerpin.lift{transform:translate(-50%,-118%)}
+        .centerpin .pinsvg{width:34px;height:51px;display:block;filter:drop-shadow(0 4px 5px rgba(0,0,0,.45))}
+        .centerpin .pn{fill:#ff5252}
+        .centerpin.o .pn{fill:#00C853}
+        .centerdot{position:absolute;left:50%;top:50%;z-index:23;pointer-events:none;transform:translate(-50%,-50%);width:8px;height:8px;border-radius:50%;background:rgba(0,0,0,.45);box-shadow:0 0 0 2px rgba(255,255,255,.5)}
+        /* Barra de confirmar ubicación */
+        .confirmbar{position:absolute;left:0;right:0;bottom:0;z-index:26;background:var(--panel);border-radius:22px 22px 0 0;box-shadow:0 -10px 40px rgba(0,0,0,.5);padding:14px 18px calc(env(safe-area-inset-bottom) + 16px)}
+        .confirmbar .cbhead{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+        .confirmbar .cbback{width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:var(--panel-2);color:#fff;font-size:15px;cursor:pointer;flex:none}
+        .confirmbar .cbtitle{font-weight:700;font-size:16px}
+        .confirmbar .cbaddr{background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:12px 13px;font-size:14px;margin-bottom:12px;min-height:20px;word-break:break-word}
+        .mapbtn{flex:none;width:34px;height:34px;border-radius:10px;border:1px solid var(--line);background:var(--panel);font-size:16px;cursor:pointer;margin-left:6px;display:grid;place-items:center}
         .mapmode{position:absolute;top:calc(env(safe-area-inset-top) + 66px);left:14px;z-index:19;width:40px;height:40px;border-radius:50%;border:0;background:rgba(13,13,13,.72);backdrop-filter:blur(8px);font-size:17px;cursor:pointer;display:grid;place-items:center;box-shadow:0 2px 8px rgba(0,0,0,.3)}
         #app.lightmap #map{background:#e6e9e4}
         #app.lightmap .leaflet-container{background:#e6e9e4}
@@ -199,6 +213,22 @@
 
     <div class="nearbypill hidden" id="nearbyPill"></div>
 
+    <!-- Pin central fijo + punto exacto (estilo Uber/InDrive) -->
+    <div class="centerpin hidden" id="centerPin">
+        <svg viewBox="0 0 24 36" class="pinsvg" aria-hidden="true"><path class="pn" d="M12 0C5.4 0 0 5.4 0 12c0 8.4 12 24 12 24s12-15.6 12-24C24 5.4 18.6 0 12 0z" stroke="#fff" stroke-width="2"/><circle cx="12" cy="12" r="4.5" fill="#fff"/></svg>
+    </div>
+    <div class="centerdot hidden" id="centerDot"></div>
+
+    <!-- Barra de confirmar ubicación -->
+    <div class="confirmbar hidden" id="confirmBar">
+        <div class="cbhead">
+            <button class="cbback" id="cbBack" aria-label="Volver">✕</button>
+            <div class="cbtitle" id="cbTitle">Fija tu punto</div>
+        </div>
+        <div class="cbaddr" id="cbAddr">Buscando dirección…</div>
+        <button class="btn" id="cbConfirm">Confirmar ubicación</button>
+    </div>
+
     <button class="locbtn hidden" id="btnLoc" title="Mi ubicación">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8.5"/></svg>
     </button>
@@ -260,6 +290,6 @@ window.MG = {
     vapidPublic: @json(config('services.webpush.public_key')),
 };
 </script>
-<script src="/js/passenger.js?v=13"></script>
+<script src="/js/passenger.js?v=14"></script>
 </body>
 </html>

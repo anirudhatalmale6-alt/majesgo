@@ -190,10 +190,8 @@ function initMap() {
   const bm = $('#btnMapMode'); if (bm) bm.addEventListener('click', toggleMapMode);
   applyMapMode();
 
-  map.on('click', (e) => {
-    if (isRiding()) return;
-    setDest({ lat: e.latlng.lat, lng: e.latlng.lng });
-  });
+  // Ya NO se fija el punto con un toque en el mapa (causaba chinchetas accidentales al hacer
+  // zoom/paneo). Ahora se usa el pin central fijo + botón "Confirmar ubicación" (estilo Uber/InDrive).
   // si el usuario mueve el mapa a mano, dejamos de recentrar automáticamente
   map.on('dragstart', () => { followMe = false; });
 
@@ -203,6 +201,8 @@ function initMap() {
 
   $('#btnLoc').addEventListener('click', () => locate(true));
   $('#btnMenu').addEventListener('click', openHistory);
+  const cbC = $('#cbConfirm'); if (cbC) cbC.addEventListener('click', () => exitPick(true));
+  const cbB = $('#cbBack'); if (cbB) cbB.addEventListener('click', () => exitPick(false));
 }
 
 /* ====== Panel inferior arrastrable (colapsa a una barrita para ver el mapa) ====== */
@@ -343,6 +343,74 @@ function setDest(p, address) {
   refreshQuote();
 }
 
+/* ============ Elegir punto con pin central fijo (estilo Uber/InDrive) ============ */
+let pickMode = null, pickGeoT = null;
+
+function enterPick(which) {
+  if (isRiding()) return;
+  pickMode = which;
+  followMe = false;
+  let c;
+  if (which === 'origin') c = origin ? [origin.lat, origin.lng] : (lastMeLL || MG.center);
+  else c = dest ? [dest.lat, dest.lng] : (origin ? [origin.lat, origin.lng] : (lastMeLL || MG.center));
+  map.setView(c, Math.max(map.getZoom(), 16), { animate: false });
+  if (which === 'origin' && oMarker) oMarker.setOpacity(0);
+  if (which === 'dest' && dMarker) dMarker.setOpacity(0);
+  $('#sheet').classList.add('hidden');
+  $('#btnLoc').classList.add('hidden');
+  const cp = $('#centerPin'); if (cp) cp.className = 'centerpin ' + (which === 'origin' ? 'o' : 'd');
+  const cd = $('#centerDot'); if (cd) cd.classList.remove('hidden');
+  $('#confirmBar').classList.remove('hidden');
+  $('#cbTitle').textContent = which === 'origin' ? 'Fija tu punto de recojo' : 'Fija tu destino';
+  updatePickAddress();
+  map.on('movestart', onPickMoveStart);
+  map.on('moveend', onPickMoveEnd);
+}
+function onPickMoveStart() {
+  const cp = $('#centerPin'); if (cp) cp.classList.add('lift');
+  $('#cbAddr').textContent = 'Moviendo el mapa…';
+}
+function onPickMoveEnd() {
+  const cp = $('#centerPin'); if (cp) cp.classList.remove('lift');
+  updatePickAddress();
+}
+function updatePickAddress() {
+  clearTimeout(pickGeoT);
+  $('#cbAddr').textContent = 'Buscando dirección…';
+  pickGeoT = setTimeout(() => {
+    const c = map.getCenter();
+    reverseGeocode({ lat: c.lat, lng: c.lng }).then((a) => {
+      if (pickMode) $('#cbAddr').textContent = a || 'Ubicación marcada en el mapa';
+    });
+  }, 350);
+}
+function exitPick(confirmed) {
+  const which = pickMode; pickMode = null;
+  clearTimeout(pickGeoT);
+  map.off('movestart', onPickMoveStart);
+  map.off('moveend', onPickMoveEnd);
+  $('#confirmBar').classList.add('hidden');
+  const cp = $('#centerPin'); if (cp) cp.className = 'centerpin hidden';
+  const cd = $('#centerDot'); if (cd) cd.classList.add('hidden');
+  if (oMarker) oMarker.setOpacity(1);
+  if (dMarker) dMarker.setOpacity(1);
+  $('#sheet').classList.remove('hidden');
+  $('#btnLoc').classList.remove('hidden');
+  if (confirmed) {
+    const c = map.getCenter();
+    const p = { lat: c.lat, lng: c.lng };
+    if (which === 'origin') {
+      originPinned = true;
+      setOrigin(p);
+      reverseGeocode(p).then((a) => { if (origin) { origin.address = a; } refreshQuote(); renderPlanning(); });
+    } else {
+      setDest(p); // setDest ya hace reverseGeocode + refreshQuote + renderPlanning
+    }
+  } else {
+    renderPlanning();
+  }
+}
+
 /* ============ Geocoding: proxy (Google) con respaldo Nominatim (OSM) ============ */
 async function reverseGeocode(p) {
   // 1) nuestro proxy (usa Google si la clave está activa)
@@ -475,9 +543,9 @@ function renderPlanning() {
   b.innerHTML = `
     <h2>¿A dónde vamos?</h2>
     <div class="sub">Elige tu destino y propón tu precio.</div>
-    <div class="fieldrow"><span class="dot o"></span><input id="oIn" value="${(origin && origin.address) ? esc(origin.address) : 'Mi ubicación'}" placeholder="Origen (puedes editarlo)"><small>Origen</small></div>
+    <div class="fieldrow"><span class="dot o"></span><input id="oIn" value="${(origin && origin.address) ? esc(origin.address) : 'Mi ubicación'}" placeholder="Origen (puedes editarlo)"><button class="mapbtn" id="oMap" title="Elegir en el mapa">📍</button><small>Origen</small></div>
     <div class="sugg">
-      <div class="fieldrow"><span class="dot d"></span><input id="dIn" placeholder="Escribe el destino o toca el mapa" value="${dest && dest.address ? esc(dest.address) : ''}"><small>Destino</small></div>
+      <div class="fieldrow"><span class="dot d"></span><input id="dIn" placeholder="Escribe el destino o elígelo en el mapa" value="${dest && dest.address ? esc(dest.address) : ''}"><button class="mapbtn" id="dMap" title="Elegir en el mapa">📍</button><small>Destino</small></div>
       <div class="suggbox" id="sugg"></div>
     </div>
     <div class="fieldrow"><span class="dot" style="background:#FFC107"></span><input id="refIn" placeholder="Referencia del recojo (opcional): casa, color, algo cercano…" value="${reference ? esc(reference) : ''}"><small>Referencia</small></div>
@@ -499,9 +567,14 @@ function renderPlanning() {
         <button data-m="yape" class="${method === 'yape' ? 'on' : ''}">💜 Yape</button>
       </div>
       <button class="btn" id="btnReq">Buscar taxi · ${money(price)}</button>
-    ` : `<div class="hintprice" style="margin-top:8px">Toca el mapa para marcar a dónde quieres ir 👆</div>`}
+    ` : `
+      <button class="btn ghost" id="pickDest" style="margin-top:10px">📍 Elegir destino en el mapa</button>
+      <div class="hintprice" style="margin-top:8px">O escribe el destino arriba, o toca 📍 para elegirlo en el mapa.</div>`}
   `;
 
+  const oMap = $('#oMap'); if (oMap) oMap.addEventListener('click', () => enterPick('origin'));
+  const dMap = $('#dMap'); if (dMap) dMap.addEventListener('click', () => enterPick('dest'));
+  const pickDest = $('#pickDest'); if (pickDest) pickDest.addEventListener('click', () => enterPick('dest'));
   const dIn = $('#dIn'); if (dIn) dIn.addEventListener('input', () => searchPlaces(dIn.value.trim(), $('#sugg')));
   const oIn = $('#oIn'); if (oIn) oIn.addEventListener('input', () => {
     originPinned = true;                 // si edita el texto, dejamos de sobrescribirlo con el GPS
