@@ -139,10 +139,10 @@ async function loadZones() {
   const zones = d.zones || [];
   if (!zones.length) return;
   zoneLayer = L.layerGroup().addTo(map);
+  const pin = '<svg class="zpin" viewBox="0 0 24 34"><path d="M12 0C5.4 0 0 5.4 0 12c0 8 12 22 12 22s12-14 12-22C24 5.4 18.6 0 12 0z"/><circle cx="12" cy="12" r="4"/></svg>';
   zones.forEach((z) => {
-    L.circle([z.lat, z.lng], { radius: z.radius_m, color: '#8ab4ff', weight: 1, opacity: .4, fillColor: '#8ab4ff', fillOpacity: .06, interactive: false }).addTo(zoneLayer);
     L.marker([z.lat, z.lng], {
-      icon: L.divIcon({ className: '', html: '<div class="zonelabel">' + esc(z.name) + '</div>', iconSize: [0, 0] }),
+      icon: L.divIcon({ className: 'zonemk', html: pin + '<span class="zname">' + esc(z.name) + '</span>', iconSize: [0, 0], iconAnchor: [0, 0] }),
       interactive: false, zIndexOffset: 200,
     }).addTo(zoneLayer);
   });
