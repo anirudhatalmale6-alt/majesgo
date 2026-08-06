@@ -39,6 +39,8 @@
         .car{font-size:30px;filter:drop-shadow(0 4px 6px rgba(0,0,0,.5));transition:transform .1s}
         .medot{width:16px;height:16px;background:#2b8fff;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 6px rgba(43,143,255,.25)}
         .taxicar{font-size:22px;filter:drop-shadow(0 3px 4px rgba(0,0,0,.45))}
+        .zonelabel{transform:translate(-50%,-50%);white-space:nowrap;font-size:11px;font-weight:700;color:#dfe7ff;background:rgba(20,26,40,.72);border:1px solid rgba(138,180,255,.4);padding:2px 8px;border-radius:9px;pointer-events:none;box-shadow:0 1px 4px rgba(0,0,0,.45)}
+        #app.lightmap .zonelabel{color:#173a70;background:rgba(255,255,255,.9);border-color:rgba(60,110,200,.45)}
         .nearbypill{position:absolute;top:calc(env(safe-area-inset-top) + 62px);left:50%;transform:translateX(-50%);z-index:19;background:rgba(13,13,13,.80);backdrop-filter:blur(8px);color:#fff;font-size:12.5px;font-weight:600;padding:7px 14px;border-radius:20px;box-shadow:0 2px 10px rgba(0,0,0,.35);white-space:nowrap;pointer-events:none;max-width:88vw;overflow:hidden;text-overflow:ellipsis}
         #app.lightmap .nearbypill{background:rgba(255,255,255,.92);color:#14181c}
         /* Pin central fijo + punto exacto */
@@ -290,6 +292,6 @@ window.MG = {
     vapidPublic: @json(config('services.webpush.public_key')),
 };
 </script>
-<script src="/js/passenger.js?v=14"></script>
+<script src="/js/passenger.js?v=15"></script>
 </body>
 </html>

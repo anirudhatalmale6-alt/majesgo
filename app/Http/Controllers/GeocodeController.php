@@ -85,6 +85,19 @@ class GeocodeController extends Controller
         return response()->json(['results' => array_slice($results, 0, 8)]);
     }
 
+    /** Zonas locales activas (para dibujar sus nombres en el mapa del pasajero). */
+    public function zones()
+    {
+        $out = array_map(fn ($p) => [
+            'name'     => $p['name'],
+            'lat'      => $p['lat'],
+            'lng'      => $p['lng'],
+            'radius_m' => $p['radius_m'],
+        ], CustomPlace::activeCached());
+
+        return response()->json(['zones' => array_values($out)]);
+    }
+
     /** Nombre de la zona local cuyo círculo contiene el punto (la más cercana), o null. */
     private function customPlaceAt(float $lat, float $lng): ?string
     {

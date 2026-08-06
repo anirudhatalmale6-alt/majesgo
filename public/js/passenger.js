@@ -37,6 +37,7 @@ let mapLight = false, baseTile = null;
 let sheetState = 'open', sheetDragging = false;
 const SHEET_PEEK = 78; // px visibles cuando el panel está colapsado (se ve el mapa)
 let nearbyMarkers = {}, nearbyTimer = null; // carritos de taxis disponibles en el mapa
+let zoneLayer = null; // etiquetas de las zonas locales en el mapa
 
 /* ---------- modo del mapa (claro de día / oscuro de noche) ---------- */
 function tileUrl(light) {
@@ -127,6 +128,24 @@ async function boot() {
   if (cur.ride) { startPolling(); }
   else { setDefaultOrigin(); renderPlanning(); }
   startNearby(); // mostrar taxis disponibles cerca en el mapa (se ocultan durante el viaje)
+  loadZones();   // mostrar los nombres de las zonas locales en el mapa
+}
+
+/* ============ Zonas locales (nombres visibles en el mapa) ============ */
+async function loadZones() {
+  let d;
+  try { d = await api('api/zones'); } catch (e) { return; }
+  if (zoneLayer) { zoneLayer.remove(); zoneLayer = null; }
+  const zones = d.zones || [];
+  if (!zones.length) return;
+  zoneLayer = L.layerGroup().addTo(map);
+  zones.forEach((z) => {
+    L.circle([z.lat, z.lng], { radius: z.radius_m, color: '#8ab4ff', weight: 1, opacity: .4, fillColor: '#8ab4ff', fillOpacity: .06, interactive: false }).addTo(zoneLayer);
+    L.marker([z.lat, z.lng], {
+      icon: L.divIcon({ className: '', html: '<div class="zonelabel">' + esc(z.name) + '</div>', iconSize: [0, 0] }),
+      interactive: false, zIndexOffset: 200,
+    }).addTo(zoneLayer);
+  });
 }
 
 /* ============ Taxis disponibles cerca (tiempo real) ============ */
