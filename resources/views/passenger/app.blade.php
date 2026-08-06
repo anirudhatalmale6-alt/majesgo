@@ -40,9 +40,12 @@
         .medot{width:16px;height:16px;background:#2b8fff;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 6px rgba(43,143,255,.25)}
         .taxicar{font-size:22px;filter:drop-shadow(0 3px 4px rgba(0,0,0,.45))}
         .zonemk{pointer-events:none}
-        .zonemk .zpin{position:absolute;left:-9px;top:-26px;width:18px;height:26px;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5))}
+        .zonemk .zpin{display:none;position:absolute;left:-9px;top:-26px;width:18px;height:26px;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5))}
         .zonemk .zpin path{fill:#3d7bd6} .zonemk .zpin circle{fill:#fff}
-        .zonemk .zname{position:absolute;left:11px;top:-22px;white-space:nowrap;font-size:11px;font-weight:700;color:#dfe7ff;background:rgba(20,26,40,.72);border:1px solid rgba(138,180,255,.4);padding:2px 8px;border-radius:9px;box-shadow:0 1px 4px rgba(0,0,0,.45)}
+        .zonemk .zname{display:none;position:absolute;left:11px;top:-22px;white-space:nowrap;font-size:11px;font-weight:700;color:#dfe7ff;background:rgba(20,26,40,.72);border:1px solid rgba(138,180,255,.4);padding:2px 8px;border-radius:9px;box-shadow:0 1px 4px rgba(0,0,0,.45)}
+        /* nivel de detalle por zoom: pines desde 'zmid', nombres desde 'znear' (evita saturar) */
+        #app.zmid .zonemk .zpin,#app.znear .zonemk .zpin{display:block}
+        #app.znear .zonemk .zname{display:block}
         #app.lightmap .zonemk .zname{color:#173a70;background:rgba(255,255,255,.9);border-color:rgba(60,110,200,.45)}
         .nearbypill{position:absolute;top:calc(env(safe-area-inset-top) + 62px);left:50%;transform:translateX(-50%);z-index:19;background:rgba(13,13,13,.80);backdrop-filter:blur(8px);color:#fff;font-size:12.5px;font-weight:600;padding:7px 14px;border-radius:20px;box-shadow:0 2px 10px rgba(0,0,0,.35);white-space:nowrap;pointer-events:none;max-width:88vw;overflow:hidden;text-overflow:ellipsis}
         #app.lightmap .nearbypill{background:rgba(255,255,255,.92);color:#14181c}
@@ -295,6 +298,6 @@ window.MG = {
     vapidPublic: @json(config('services.webpush.public_key')),
 };
 </script>
-<script src="/js/passenger.js?v=16"></script>
+<script src="/js/passenger.js?v=17"></script>
 </body>
 </html>

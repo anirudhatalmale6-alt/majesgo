@@ -132,6 +132,15 @@ async function boot() {
 }
 
 /* ============ Zonas locales (nombres visibles en el mapa) ============ */
+const ZONE_ZOOM_PINS = 13;   // desde este zoom se ven los pines
+const ZONE_ZOOM_LABELS = 15; // desde este zoom se ven también los nombres
+function applyZoneZoom() {
+  const app = document.getElementById('app');
+  if (!app || !map) return;
+  const z = map.getZoom();
+  app.classList.toggle('zmid', z >= ZONE_ZOOM_PINS && z < ZONE_ZOOM_LABELS);
+  app.classList.toggle('znear', z >= ZONE_ZOOM_LABELS);
+}
 async function loadZones() {
   let d;
   try { d = await api('api/zones'); } catch (e) { return; }
@@ -146,6 +155,7 @@ async function loadZones() {
       interactive: false, zIndexOffset: 200,
     }).addTo(zoneLayer);
   });
+  applyZoneZoom(); // aplicar el nivel de detalle según el zoom actual
 }
 
 /* ============ Taxis disponibles cerca (tiempo real) ============ */
@@ -213,6 +223,7 @@ function initMap() {
   // zoom/paneo). Ahora se usa el pin central fijo + botón "Confirmar ubicación" (estilo Uber/InDrive).
   // si el usuario mueve el mapa a mano, dejamos de recentrar automáticamente
   map.on('dragstart', () => { followMe = false; });
+  map.on('zoomend', applyZoneZoom); // mostrar/ocultar nombres de zonas según el zoom (evita saturar)
 
   const ro = new ResizeObserver(() => { if (!sheetDragging) applySheetSnap(false); });
   ro.observe($('#sheet'));
