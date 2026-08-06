@@ -59,14 +59,16 @@ class PlaceController extends Controller
     private function validated(Request $request): array
     {
         $data = $request->validate([
-            'name'     => ['required', 'string', 'max:120'],
-            'aliases'  => ['nullable', 'string', 'max:300'],
-            'lat'      => ['required', 'numeric', 'between:-90,90'],
-            'lng'      => ['required', 'numeric', 'between:-180,180'],
-            'radius_m' => ['required', 'integer', 'min:50', 'max:5000'],
-            'active'   => ['nullable'],
+            'name'       => ['required', 'string', 'max:120'],
+            'aliases'    => ['nullable', 'string', 'max:300'],
+            'lat'        => ['required', 'numeric', 'between:-90,90'],
+            'lng'        => ['required', 'numeric', 'between:-180,180'],
+            'radius_m'   => ['required', 'integer', 'min:50', 'max:5000'],
+            'active'     => ['nullable'],
+            'is_primary' => ['nullable'],
         ]);
         $data['active'] = $request->boolean('active');
+        $data['is_primary'] = $request->boolean('is_primary');
 
         return $data;
     }

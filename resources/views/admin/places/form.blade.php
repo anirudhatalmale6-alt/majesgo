@@ -20,6 +20,14 @@
                 <div class="muted" style="font-size:12px;margin-top:5px">Separados por comas. Sirven para que la búsqueda encuentre la zona por cualquiera de esos nombres.</div>
             </div>
             <div class="field">
+                <label>Tipo de zona</label>
+                <select class="input" name="is_primary">
+                    <option value="0" @selected(!old('is_primary',$place->is_primary ?? false))>Secundaria (su nombre aparece al acercar el mapa)</option>
+                    <option value="1" @selected(old('is_primary',$place->is_primary ?? false))>Principal (su nombre se ve siempre, incluso de lejos)</option>
+                </select>
+                <div class="muted" style="font-size:12px;margin-top:5px">Marca como "Principal" solo las zonas grandes/importantes (ej. Módulo A, La Colina). Las demás déjalas "Secundaria" para no saturar el mapa.</div>
+            </div>
+            <div class="field">
                 <label>Radio de cobertura (metros)</label>
                 <input class="input" type="number" min="50" max="5000" step="10" name="radius_m" id="radius_m" value="{{ old('radius_m',$place->radius_m ?? 300) }}" required>
                 <div class="muted" style="font-size:12px;margin-top:5px">Qué tan grande es la zona alrededor del punto. Ej: 300 m para un sector pequeño.</div>

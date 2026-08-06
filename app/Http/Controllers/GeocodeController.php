@@ -93,6 +93,7 @@ class GeocodeController extends Controller
             'lat'      => $p['lat'],
             'lng'      => $p['lng'],
             'radius_m' => $p['radius_m'],
+            'primary'  => $p['primary'],
         ], CustomPlace::activeCached());
 
         return response()->json(['zones' => array_values($out)]);

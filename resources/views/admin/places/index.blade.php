@@ -13,13 +13,17 @@
 
 <div class="card" style="padding:0">
     <table>
-        <thead><tr><th>Zona</th><th>Otros nombres</th><th style="text-align:center">Radio</th><th style="text-align:center">Estado</th><th></th></tr></thead>
+        <thead><tr><th>Zona</th><th style="text-align:center">Tipo</th><th>Otros nombres</th><th style="text-align:center">Radio</th><th style="text-align:center">Estado</th><th></th></tr></thead>
         <tbody>
         @forelse($places as $p)
             <tr>
                 <td>
                     <div style="font-weight:600">{{ $p->name }}</div>
                     <div class="muted" style="font-size:12px">{{ number_format($p->lat,5) }}, {{ number_format($p->lng,5) }}</div>
+                </td>
+                <td style="text-align:center">
+                    @if($p->is_primary)<span class="badge on"><span class="dot"></span>Principal</span>
+                    @else<span class="badge off">Secundaria</span>@endif
                 </td>
                 <td class="muted" style="font-size:13px">{{ $p->aliases ?: '—' }}</td>
                 <td style="text-align:center">{{ $p->radius_m }} m</td>
@@ -36,7 +40,7 @@
                 </td>
             </tr>
         @empty
-            <tr><td colspan="5" class="muted" style="text-align:center;padding:34px">Aún no hay zonas. <a href="{{ route('admin.places.create') }}" style="color:var(--verde-d);font-weight:600">Agregar la primera →</a></td></tr>
+            <tr><td colspan="6" class="muted" style="text-align:center;padding:34px">Aún no hay zonas. <a href="{{ route('admin.places.create') }}" style="color:var(--verde-d);font-weight:600">Agregar la primera →</a></td></tr>
         @endforelse
         </tbody>
     </table>

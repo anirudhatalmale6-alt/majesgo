@@ -10,9 +10,10 @@ class CustomPlace extends Model
     protected $guarded = ['id'];
 
     protected $casts = [
-        'lat'    => 'float',
-        'lng'    => 'float',
-        'active' => 'boolean',
+        'lat'        => 'float',
+        'lng'        => 'float',
+        'active'     => 'boolean',
+        'is_primary' => 'boolean',
     ];
 
     protected static function booted(): void
@@ -36,6 +37,7 @@ class CustomPlace extends Model
                 'lat'      => (float) $p->lat,
                 'lng'      => (float) $p->lng,
                 'radius_m' => (int) $p->radius_m,
+                'primary'  => (bool) $p->is_primary,
             ])->all();
         });
     }

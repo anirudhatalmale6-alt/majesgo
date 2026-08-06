@@ -150,9 +150,10 @@ async function loadZones() {
   zoneLayer = L.layerGroup().addTo(map);
   const pin = '<svg class="zpin" viewBox="0 0 24 34"><path d="M12 0C5.4 0 0 5.4 0 12c0 8 12 22 12 22s12-14 12-22C24 5.4 18.6 0 12 0z"/><circle cx="12" cy="12" r="4"/></svg>';
   zones.forEach((z) => {
+    const cls = 'zonemk' + (z.primary ? ' zprimary' : '');
     L.marker([z.lat, z.lng], {
-      icon: L.divIcon({ className: 'zonemk', html: pin + '<span class="zname">' + esc(z.name) + '</span>', iconSize: [0, 0], iconAnchor: [0, 0] }),
-      interactive: false, zIndexOffset: 200,
+      icon: L.divIcon({ className: cls, html: pin + '<span class="zname">' + esc(z.name) + '</span>', iconSize: [0, 0], iconAnchor: [0, 0] }),
+      interactive: false, zIndexOffset: z.primary ? 260 : 200,
     }).addTo(zoneLayer);
   });
   applyZoneZoom(); // aplicar el nivel de detalle según el zoom actual

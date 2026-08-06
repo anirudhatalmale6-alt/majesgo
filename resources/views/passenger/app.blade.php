@@ -46,6 +46,9 @@
         /* nivel de detalle por zoom: pines desde 'zmid', nombres desde 'znear' (evita saturar) */
         #app.zmid .zonemk .zpin,#app.znear .zonemk .zpin{display:block}
         #app.znear .zonemk .zname{display:block}
+        /* zonas PRINCIPALES: su pin y su nombre se ven SIEMPRE, incluso de lejos */
+        .zonemk.zprimary .zpin,.zonemk.zprimary .zname{display:block}
+        .zonemk.zprimary .zpin path{fill:#009d4f} /* verde para distinguir las principales */
         #app.lightmap .zonemk .zname{color:#173a70;background:rgba(255,255,255,.9);border-color:rgba(60,110,200,.45)}
         .nearbypill{position:absolute;top:calc(env(safe-area-inset-top) + 62px);left:50%;transform:translateX(-50%);z-index:19;background:rgba(13,13,13,.80);backdrop-filter:blur(8px);color:#fff;font-size:12.5px;font-weight:600;padding:7px 14px;border-radius:20px;box-shadow:0 2px 10px rgba(0,0,0,.35);white-space:nowrap;pointer-events:none;max-width:88vw;overflow:hidden;text-overflow:ellipsis}
         #app.lightmap .nearbypill{background:rgba(255,255,255,.92);color:#14181c}
@@ -298,6 +301,6 @@ window.MG = {
     vapidPublic: @json(config('services.webpush.public_key')),
 };
 </script>
-<script src="/js/passenger.js?v=17"></script>
+<script src="/js/passenger.js?v=18"></script>
 </body>
 </html>
