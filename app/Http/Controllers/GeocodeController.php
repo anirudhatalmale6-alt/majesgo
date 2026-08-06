@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CustomPlace;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -40,6 +41,13 @@ class GeocodeController extends Controller
             return response()->json(['label' => null]);
         }
 
+        // 0) ZONAS LOCALES de MajesGo: si el punto cae dentro de una zona propia, usar su nombre
+        //    (aunque Google/OSM no la tengan). Es lo que el negocio conoce localmente.
+        $zone = $this->customPlaceAt($lat, $lng);
+        if ($zone !== null) {
+            return response()->json(['label' => $zone, 'source' => 'zona']);
+        }
+
         // cache por coords redondeadas (~11 m) durante 30 días: mismos puntos no se re-consultan
         $ck = 'geo:rev:' . round($lat, 4) . ',' . round($lng, 4);
         $label = Cache::remember($ck, now()->addDays(30), fn () => $this->googleReverse($lat, $lng));
@@ -59,14 +67,70 @@ class GeocodeController extends Controller
             return response()->json(['results' => null]);
         }
 
-        $ck = 'geo:sea:' . mb_strtolower($q);
-        $results = Cache::remember($ck, now()->addDays(7), fn () => $this->googleSearch($q));
+        // 0) ZONAS LOCALES de MajesGo primero (aparecen arriba en las sugerencias)
+        $custom = $this->customPlaceSearch($q);
 
-        if ($results === null) {
+        $ck = 'geo:sea:' . mb_strtolower($q);
+        $google = Cache::remember($ck, now()->addDays(7), fn () => $this->googleSearch($q));
+        if ($google === null) {
             Cache::forget($ck);
         }
 
-        return response()->json(['results' => $results]);
+        $results = array_merge($custom, $google ?? []);
+        // si no hay ni zonas locales ni Google, devolver null para que el frontend use Nominatim
+        if (! $results) {
+            return response()->json(['results' => null]);
+        }
+
+        return response()->json(['results' => array_slice($results, 0, 8)]);
+    }
+
+    /** Nombre de la zona local cuyo círculo contiene el punto (la más cercana), o null. */
+    private function customPlaceAt(float $lat, float $lng): ?string
+    {
+        $best = null;
+        $bestD = null;
+        foreach (CustomPlace::activeCached() as $p) {
+            $d = $this->haversine($lat, $lng, $p['lat'], $p['lng']);
+            if ($d <= $p['radius_m'] && ($bestD === null || $d < $bestD)) {
+                $bestD = $d;
+                $best = $p['name'];
+            }
+        }
+
+        return $best;
+    }
+
+    /** Zonas locales que coinciden con el texto (por nombre o apodo). */
+    private function customPlaceSearch(string $q): array
+    {
+        $needle = mb_strtolower($q);
+        $out = [];
+        foreach (CustomPlace::activeCached() as $p) {
+            foreach ($p['names'] as $n) {
+                if (mb_strpos(mb_strtolower($n), $needle) !== false) {
+                    $out[] = [
+                        'label' => $p['name'],
+                        'full'  => 'Zona local · MajesGo',
+                        'lat'   => $p['lat'],
+                        'lng'   => $p['lng'],
+                    ];
+                    break;
+                }
+            }
+        }
+
+        return $out;
+    }
+
+    private function haversine(float $lat1, float $lng1, float $lat2, float $lng2): float
+    {
+        $r = 6371000;
+        $dLat = deg2rad($lat2 - $lat1);
+        $dLng = deg2rad($lng2 - $lng1);
+        $a = sin($dLat / 2) ** 2 + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($dLng / 2) ** 2;
+
+        return $r * 2 * atan2(sqrt($a), sqrt(1 - $a));
     }
 
     private function googleReverse(float $lat, float $lng): ?string

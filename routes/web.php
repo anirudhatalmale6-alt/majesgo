@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\AuthController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\DriverController;
 use App\Http\Controllers\Admin\RechargeController;
+use App\Http\Controllers\Admin\PlaceController;
 use App\Http\Controllers\Admin\SettingController;
 use App\Http\Controllers\Passenger\AuthController as PassengerAuth;
 use App\Http\Controllers\Passenger\PageController as PassengerPage;
@@ -118,6 +119,14 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('recargas', [RechargeController::class, 'store'])->name('recharges.store');
         Route::post('recargas/{recharge}/aprobar', [RechargeController::class, 'approve'])->name('recharges.approve');
         Route::post('recargas/{recharge}/rechazar', [RechargeController::class, 'reject'])->name('recharges.reject');
+
+        // Zonas locales (referencias personalizadas)
+        Route::get('zonas', [PlaceController::class, 'index'])->name('places.index');
+        Route::get('zonas/nueva', [PlaceController::class, 'create'])->name('places.create');
+        Route::post('zonas', [PlaceController::class, 'store'])->name('places.store');
+        Route::get('zonas/{place}/editar', [PlaceController::class, 'edit'])->name('places.edit');
+        Route::put('zonas/{place}', [PlaceController::class, 'update'])->name('places.update');
+        Route::delete('zonas/{place}', [PlaceController::class, 'destroy'])->name('places.destroy');
 
         // Configuración
         Route::get('configuracion', [SettingController::class, 'edit'])->name('settings.edit');
