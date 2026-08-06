@@ -22,6 +22,9 @@ return Application::configure(basePath: dirname(__DIR__))
             'app/api/push/subscribe',
             'conductor/api/push/subscribe',
         ]);
+        // Invitados (no logueados) que entran a una URL del panel → a la pantalla de login
+        // (evita el error "Route [login] not defined").
+        $middleware->redirectGuestsTo(fn () => route('admin.login'));
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
