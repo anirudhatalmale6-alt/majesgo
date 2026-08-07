@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Driver;
 use App\Http\Controllers\Controller;
 use App\Models\CustomPlace;
 use App\Models\Driver;
+use App\Models\DriverSession;
 use App\Models\Recharge;
 use App\Models\Ride;
 use App\Models\Setting;
@@ -44,11 +45,13 @@ class RideController extends Controller
             $upd = ['status' => 'disponible', 'last_active_at' => now()];
             if (isset($d['lat'], $d['lng'])) { $upd['lat'] = $d['lat']; $upd['lng'] = $d['lng']; }
             $driver->update($upd);
+            $this->openSession($driver);
         } else {
             if ($driver->activeRide()) {
                 return response()->json(['message' => 'Termina o cancela tu viaje antes de desconectarte.'], 422);
             }
             $driver->update(['status' => 'desconectado']);
+            $this->closeSession($driver);
         }
 
         return response()->json(['ok' => true, 'status' => $driver->status, 'can_receive' => $driver->canReceiveRides()]);
@@ -234,6 +237,8 @@ class RideController extends Controller
             return response()->json(['message' => 'Ese viaje ya fue tomado por otro conductor.'], 409);
         }
 
+        $driver->increment('stat_accepted'); // para la tasa de aceptación
+
         // Avisar por push al pasajero que un conductor lo ofreció (debe confirmar).
         defer(fn () => WebPushSender::toOwner('passenger', (int) $ride->passenger_id, [
             'title' => '¡Conductor encontrado! 🚕',
@@ -249,6 +254,7 @@ class RideController extends Controller
     public function reject(Request $request)
     {
         $data = $request->validate(['code' => ['required', 'string']]);
+        $this->driver($request)->increment('stat_rejected'); // para la tasa de aceptación
         $ride = Ride::where('code', $data['code'])->first();
         if ($ride) {
             // omisión temporal con marca de tiempo (ver pending): no es permanente,
@@ -527,6 +533,74 @@ class RideController extends Controller
                 'earnings' => (float) $today->sum('final_price'),
             ],
         ]);
+    }
+
+    /** Estadísticas del conductor para el panel de inicio. */
+    public function stats(Request $request)
+    {
+        $driver = $this->driver($request);
+        $today = now()->toDateString();
+
+        $todayRides = $driver->rides()
+            ->where('status', 'completado')
+            ->whereDate('completed_at', $today)
+            ->get();
+
+        // ganancias netas de hoy = tarifa cobrada menos la comisión de cada viaje
+        $earnings = $todayRides->sum(fn (Ride $r) => (float) ($r->final_price ?? $r->offered_price) - (float) ($r->commission ?? 0));
+
+        $accepted = (int) $driver->stat_accepted;
+        $rejected = (int) $driver->stat_rejected;
+        $total = $accepted + $rejected;
+
+        return response()->json([
+            'saldo'           => (float) $driver->saldo,
+            'rating'          => (float) $driver->rating,
+            'trips_total'     => (int) $driver->total_trips,
+            'today_trips'     => $todayRides->count(),
+            'today_earnings'  => round($earnings, 2),
+            'hours_online'    => round($this->hoursOnlineToday($driver), 1),
+            'acceptance_rate' => $total > 0 ? (int) round($accepted / $total * 100) : null,
+            'currency'        => Setting::get('currency', 'S/'),
+        ]);
+    }
+
+    /** Horas conectado HOY (suma de sesiones de hoy; la abierta cuenta hasta ahora o la última actividad). */
+    private function hoursOnlineToday(Driver $driver): float
+    {
+        $start = now()->startOfDay();
+        $sessions = DriverSession::where('driver_id', $driver->id)
+            ->where(fn ($q) => $q->whereNull('ended_at')->orWhere('ended_at', '>=', $start))
+            ->get();
+
+        $seconds = 0;
+        foreach ($sessions as $s) {
+            $from = $s->started_at->greaterThan($start) ? $s->started_at : $start;
+            if ($s->ended_at) {
+                $to = $s->ended_at;
+            } else {
+                // sesión abierta: hasta ahora si sigue activo, o hasta su última actividad si dejó de reportar
+                $to = ($driver->status !== 'desconectado' && $driver->last_active_at && $driver->last_active_at->greaterThan(now()->subMinutes(5)))
+                    ? now()
+                    : ($driver->last_active_at ?? $s->started_at);
+            }
+            $seconds += max(0, $to->getTimestamp() - $from->getTimestamp());
+        }
+
+        return $seconds / 3600;
+    }
+
+    /** Abre una sesión de conexión (cerrando cualquiera abierta por seguridad). */
+    private function openSession(Driver $driver): void
+    {
+        DriverSession::where('driver_id', $driver->id)->whereNull('ended_at')->update(['ended_at' => now()]);
+        DriverSession::create(['driver_id' => $driver->id, 'started_at' => now()]);
+    }
+
+    /** Cierra la sesión abierta del conductor. */
+    private function closeSession(Driver $driver): void
+    {
+        DriverSession::where('driver_id', $driver->id)->whereNull('ended_at')->update(['ended_at' => now()]);
     }
 
     /* ============ Helpers ============ */

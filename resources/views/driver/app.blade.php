@@ -52,6 +52,31 @@
         .offerzone{pointer-events:none}
         .offerzone .ozlabel{position:absolute;left:0;top:-54px;transform:translateX(-50%);white-space:nowrap;max-width:170px;overflow:hidden;text-overflow:ellipsis;font-size:12.5px;font-weight:800;color:#fff;background:#009d4f;padding:4px 12px;border-radius:12px;box-shadow:0 3px 12px rgba(0,0,0,.55);border:1.5px solid rgba(255,255,255,.9)}
         .offerzone .ozlabel.dest{background:#e23b3b}
+        /* ---- Home rediseñado del conductor ---- */
+        .dstatetxt{font-weight:700;font-size:15px;margin:2px 0 12px;color:#fff}
+        .slide{position:relative;height:60px;border-radius:16px;background:linear-gradient(90deg,#0e2c1a,#12351f);border:1px solid rgba(0,200,83,.35);overflow:hidden;display:flex;align-items:center;justify-content:center;user-select:none}
+        .slide .slidetext{color:#8fe6b0;font-weight:700;font-size:15px;pointer-events:none}
+        .slide .knob{position:absolute;left:4px;top:4px;width:52px;height:52px;border-radius:13px;background:var(--verde);display:grid;place-items:center;cursor:grab;touch-action:none;box-shadow:0 3px 10px rgba(0,0,0,.4);z-index:2}
+        .slide .knob svg{width:24px;height:24px}
+        .onlinebar{display:flex;align-items:center;gap:10px;height:56px;padding:0 8px 0 18px;border-radius:16px;background:linear-gradient(90deg,rgba(0,200,83,.22),rgba(0,200,83,.08));border:1px solid rgba(0,200,83,.4);color:#fff;font-weight:800;font-size:15px}
+        .onlinebar .odot{width:11px;height:11px;border-radius:50%;background:var(--verde);box-shadow:0 0 0 4px rgba(0,200,83,.25);animation:odotp 1.6s infinite}
+        @keyframes odotp{0%,100%{opacity:1}50%{opacity:.4}}
+        .onlinebar .offbtn{margin-left:auto;background:#2a2f37;border:0;color:#cfd6de;font-weight:700;font-size:13px;padding:9px 14px;border-radius:11px;cursor:pointer}
+        .statgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;margin-top:14px}
+        .statbig{grid-column:1 / -1;background:linear-gradient(120deg,#12351f,#0e2c1a);border:1px solid rgba(0,200,83,.28);border-radius:15px;padding:14px 16px}
+        .statcell{background:var(--panel-2,#1a1e24);border:1px solid rgba(255,255,255,.06);border-radius:14px;padding:12px;position:relative}
+        .statcell.saldocell{border-color:rgba(255,193,7,.28)}
+        .statgrid .sv{font-weight:800;font-size:19px;color:#fff;line-height:1.1}
+        .statbig .sv{font-size:30px}
+        .statgrid .sv.g{color:#37e08a} .statgrid .sv.a{color:#ffca3a}
+        .statgrid .sl{color:#8b94a0;font-size:11.5px;margin-top:3px}
+        .minibtn{margin-top:8px;background:var(--amarillo);color:#3a2e00;border:0;font-weight:700;font-size:11.5px;padding:6px 10px;border-radius:9px;cursor:pointer}
+        /* auto del conductor con anillo tipo radar */
+        .medriver{position:relative}
+        .medriver .car{position:absolute;left:-14px;top:-14px;width:28px;height:28px;display:grid;place-items:center;font-size:21px;filter:drop-shadow(0 2px 3px rgba(0,0,0,.55));z-index:2}
+        .medriver .radar{position:absolute;left:-42px;top:-42px;width:84px;height:84px;border-radius:50%;background:radial-gradient(circle,rgba(43,143,255,.22),rgba(43,143,255,.04) 62%,transparent 72%)}
+        .medriver .radar::after{content:"";position:absolute;inset:0;border-radius:50%;border:2px solid rgba(43,143,255,.55);animation:radarpulse 2.3s ease-out infinite}
+        @keyframes radarpulse{0%{transform:scale(.35);opacity:.85}100%{transform:scale(1);opacity:0}}
         #app.lightmap #map,#app.lightmap #navmap{background:#e6e9e4}
         #app.lightmap .leaflet-container{background:#e6e9e4}
         .pulsebtn{animation:btnpulse 1.15s ease-out infinite}
@@ -239,6 +264,9 @@
         <div class="brand"><span style="font-size:16px">🚕</span><b>Majes<span class="g">Go</span></b><span class="tag">CONDUCTOR</span></div>
         <div class="rgt">
             <div class="saldo hidden" id="saldoPill"><b id="saldoVal">S/ 0.00</b><small>Saldo</small></div>
+            <button class="iconbtn" id="btnBell" title="Avisos" aria-label="Avisos">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+            </button>
             <button class="iconbtn" id="btnMenu" title="Menú" aria-label="Menú">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
             </button>
@@ -318,6 +346,6 @@ window.MG = {
     vapidPublic: @json(config('services.webpush.public_key')),
 };
 </script>
-<script src="/js/driver.js?v=13"></script>
+<script src="/js/driver.js?v=14"></script>
 </body>
 </html>

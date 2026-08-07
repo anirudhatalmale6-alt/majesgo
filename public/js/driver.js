@@ -31,6 +31,7 @@ function esc(s) { return (s || '').replace(/"/g, '&quot;').replace(/</g, '&lt;')
 /* ---------- Estado ---------- */
 let map, meMarker, oMarker, dMarker, routeLine;
 let me = null, online = false, ride = null, myPos = null;
+let dstats = null; // estadísticas del conductor (ganancias del día, horas, aceptación, etc.)
 let reqCode = null, reqTimer = null, poll = null, lastPostAt = 0, commission = 0.5;
 let offerLabels = []; // etiquetas resaltadas (recojo + destino) durante la oferta
 
@@ -224,6 +225,7 @@ function initMap() {
   }).addTo(map);
   L.control.zoom({ position: 'bottomleft' }).addTo(map);
   $('#btnMenu').addEventListener('click', openDrawer);
+  const bell = $('#btnBell'); if (bell) bell.addEventListener('click', openDrawer);
   const bm = $('#btnMapMode'); if (bm) bm.addEventListener('click', toggleMapMode);
   applyMapMode();
   map.on('zoomend', applyZoneZoom);
@@ -285,7 +287,7 @@ function startGeo() {
   if (!navigator.geolocation) { toast('Tu dispositivo no permite ubicación.'); return; }
   navigator.geolocation.watchPosition((pos) => {
     myPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-    if (!meMarker) meMarker = L.marker(myPos, { icon: icon('medot', '', [16, 16], [8, 8]), interactive: false, zIndexOffset: 900 }).addTo(map);
+    if (!meMarker) meMarker = L.marker(myPos, { icon: icon('medriver', '<div class="radar"></div><div class="car">🚕</div>', [0, 0], [0, 0]), interactive: false, zIndexOffset: 900 }).addTo(map);
     else meMarker.setLatLng(myPos);
     // primera vez, centrar
     if (!map._centeredOnce) { map.setView(myPos, 16); map._centeredOnce = true; }
@@ -443,33 +445,69 @@ function pushLocation() {
 function renderHome() {
   clearTrip();
   closeChat(); chatLastId = 0; chatSeenId = 0; rideLastMsgId = 0; arrivedFor = null;
-  const canR = me.can_receive;
   const lowSaldo = me.saldo < commission;
   const b = $('#sheetBody');
   b.innerHTML = `
-    <div class="connectrow">
-      <button class="bigswitch ${online ? 'on' : 'off'}" id="bigSw">
-        ${online ? '<span class="pulse"></span>' : ''}
-        <span class="ic">${online ? '🟢' : '⏻'}</span>
-        ${online ? 'EN LÍNEA' : 'CONECTAR'}
-      </button>
-      <div class="statetxt">${online ? 'Conectado · buscando viajes' : 'Estás desconectado'}</div>
-      <div class="statesub">${online ? 'Te avisaremos apenas haya un viaje cerca.' : 'Conéctate para empezar a recibir viajes.'}</div>
-    </div>
-    ${lowSaldo ? `<div class="warn red" style="margin-top:14px">⚠️ Tu saldo (${money(me.saldo)}) no alcanza para la comisión de ${money(commission)}. Recarga para poder recibir viajes.</div>
-      <button class="btn amber" id="btnRecharge">Recargar saldo</button>` : `
-      <div class="routeinfo" style="margin-top:14px">
-        <div class="chip"><div class="v a">${money(me.saldo)}</div><div class="l">Saldo</div></div>
-        <div class="chip"><div class="v">⭐ ${(me.rating || 5).toFixed(1)}</div><div class="l">Calificación</div></div>
-        <div class="chip"><div class="v">${me.trips || 0}</div><div class="l">Viajes</div></div>
-      </div>`}
-  `;
-  $('#bigSw').addEventListener('click', toggleOnline);
+    <div class="dstatetxt">${online ? '🟢 Conectado · buscando viajes' : 'Estás desconectado'}</div>
+    ${online
+      ? `<div class="onlinebar"><span class="odot"></span><span>EN LÍNEA</span><button class="offbtn" id="btnOff">Desconectar</button></div>`
+      : `<div class="slide" id="slide"><div class="knob" id="knob"><svg viewBox="0 0 24 24" fill="none" stroke="#0f5132" stroke-width="3" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></div><span class="slidetext" id="slidetext">Desliza para conectarte</span></div>`}
+    ${lowSaldo ? `<div class="warn red" style="margin-top:12px">⚠️ Tu saldo (${money(me.saldo)}) no alcanza para la comisión de ${money(commission)}. Recarga para recibir viajes.</div>` : ''}
+    <div class="statgrid">
+      <div class="statbig"><div class="sv g" id="stEarn">${dstats ? money(dstats.today_earnings) : '…'}</div><div class="sl">Ganancias del día</div></div>
+      <div class="statcell"><div class="sv" id="stTrips">${dstats ? dstats.today_trips : '…'}</div><div class="sl">Viajes hoy</div></div>
+      <div class="statcell"><div class="sv" id="stHours">${dstats ? dstats.hours_online + ' h' : '…'}</div><div class="sl">Horas conectado</div></div>
+      <div class="statcell"><div class="sv" id="stRating">⭐ ${(me.rating || 5).toFixed(1)}</div><div class="sl">Calificación</div></div>
+      <div class="statcell"><div class="sv" id="stAcc">${dstats ? (dstats.acceptance_rate === null ? '—' : dstats.acceptance_rate + '%') : '…'}</div><div class="sl">Aceptación</div></div>
+      <div class="statcell saldocell"><div class="sv a" id="stSaldo">${money(me.saldo)}</div><div class="sl">Saldo</div><button class="minibtn" id="btnRecharge">Recargar</button></div>
+    </div>`;
+
+  const slide = $('#slide'); if (slide) setupSlide();
+  const off = $('#btnOff'); if (off) off.addEventListener('click', toggleOnline);
   const rc = $('#btnRecharge'); if (rc) rc.addEventListener('click', openDrawer);
+  refreshStats();
+}
+
+async function refreshStats() {
+  try {
+    dstats = await api('api/stats');
+    if (!$('#stEarn')) return; // el home ya no está visible
+    $('#stEarn').textContent = money(dstats.today_earnings);
+    $('#stTrips').textContent = dstats.today_trips;
+    $('#stHours').textContent = dstats.hours_online + ' h';
+    $('#stAcc').textContent = dstats.acceptance_rate === null ? '—' : dstats.acceptance_rate + '%';
+    $('#stSaldo').textContent = money(dstats.saldo);
+    if (typeof dstats.saldo === 'number') me.saldo = dstats.saldo;
+  } catch (e) { /* silencioso */ }
+}
+
+// Deslizar para conectarse (evita toques accidentales)
+function setupSlide() {
+  const slide = $('#slide'), knob = $('#knob'), text = $('#slidetext');
+  if (!slide || !knob) return;
+  let dragging = false, startX = 0, x = 0, max = 0;
+  const kw = 52;
+  const onDown = (e) => { dragging = true; max = slide.offsetWidth - kw - 8; startX = (e.touches ? e.touches[0].clientX : e.clientX) - x; knob.style.transition = 'none'; try { knob.setPointerCapture(e.pointerId); } catch (_) {} };
+  const onMove = (e) => {
+    if (!dragging) return;
+    x = Math.max(0, Math.min(max, (e.touches ? e.touches[0].clientX : e.clientX) - startX));
+    knob.style.transform = 'translateX(' + x + 'px)';
+    if (text) text.style.opacity = Math.max(0, 1 - x / max);
+  };
+  const onUp = () => {
+    if (!dragging) return; dragging = false;
+    knob.style.transition = 'transform .18s';
+    if (x >= max - 4) { knob.style.transform = 'translateX(' + max + 'px)'; toggleOnline(); }
+    else { knob.style.transform = 'translateX(0)'; if (text) text.style.opacity = 1; }
+    x = 0;
+  };
+  knob.addEventListener('pointerdown', onDown);
+  knob.addEventListener('pointermove', onMove);
+  knob.addEventListener('pointerup', onUp);
+  knob.addEventListener('pointercancel', onUp);
 }
 
 async function toggleOnline() {
-  const sw = $('#bigSw'); sw.disabled = true;
   try {
     if (!online) {
       const body = { online: true };
@@ -486,7 +524,8 @@ async function toggleOnline() {
   } catch (e) {
     toast(e.message);
     if (e.status === 422) openDrawer();
-  } finally { sw.disabled = false; }
+    renderHome(); // restaurar el control de deslizar si falló
+  }
 }
 
 /* ================= POLLING ================= */

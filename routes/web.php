@@ -89,6 +89,7 @@ Route::prefix('conductor')->name('driver.')->group(function () {
         Route::get('api/saldo', [DriverRide::class, 'saldo']);
         Route::post('api/recharge', [DriverRide::class, 'recharge']);
         Route::get('api/history', [DriverRide::class, 'history']);
+        Route::get('api/stats', [DriverRide::class, 'stats']);
     });
 });
 
