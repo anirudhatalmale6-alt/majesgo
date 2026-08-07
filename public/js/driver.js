@@ -32,6 +32,7 @@ function esc(s) { return (s || '').replace(/"/g, '&quot;').replace(/</g, '&lt;')
 let map, meMarker, oMarker, dMarker, routeLine;
 let me = null, online = false, ride = null, myPos = null;
 let dstats = null; // estadísticas del conductor (ganancias del día, horas, aceptación, etc.)
+let dSheetState = 'open', dSheetDragging = false; // panel inferior colapsable
 let reqCode = null, reqTimer = null, poll = null, lastPostAt = 0, commission = 0.5;
 let offerLabels = []; // etiquetas resaltadas (recojo + destino) durante la oferta
 
@@ -229,11 +230,14 @@ function initMap() {
   const bm = $('#btnMapMode'); if (bm) bm.addEventListener('click', toggleMapMode);
   applyMapMode();
   map.on('zoomend', applyZoneZoom);
+  setupDSheetDrag();
+  const ro = new ResizeObserver(() => { if (!dSheetDragging) applyDSheetSnap(false); });
+  ro.observe($('#sheet'));
 }
 
 /* ============ Zonas locales (nombres en el mapa; ayuda al conductor a ubicarse) ============ */
 let zoneLayer = null;
-const ZONE_ZOOM_PINS = 13, ZONE_ZOOM_LABELS = 15;
+const ZONE_ZOOM_PINS = 13, ZONE_ZOOM_LABELS = 16; // nombres solo al acercar más (evita que se pisen)
 function applyZoneZoom() {
   const app = document.getElementById('app');
   if (!app || !map) return;
@@ -448,24 +452,73 @@ function renderHome() {
   const lowSaldo = me.saldo < commission;
   const b = $('#sheetBody');
   b.innerHTML = `
-    <div class="dstatetxt">${online ? '🟢 Conectado · buscando viajes' : 'Estás desconectado'}</div>
-    ${online
-      ? `<div class="onlinebar"><span class="odot"></span><span>EN LÍNEA</span><button class="offbtn" id="btnOff">Desconectar</button></div>`
-      : `<div class="slide" id="slide"><div class="knob" id="knob"><svg viewBox="0 0 24 24" fill="none" stroke="#0f5132" stroke-width="3" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></div><span class="slidetext" id="slidetext">Desliza para conectarte</span></div>`}
-    ${lowSaldo ? `<div class="warn red" style="margin-top:12px">⚠️ Tu saldo (${money(me.saldo)}) no alcanza para la comisión de ${money(commission)}. Recarga para recibir viajes.</div>` : ''}
-    <div class="statgrid">
-      <div class="statbig"><div class="sv g" id="stEarn">${dstats ? money(dstats.today_earnings) : '…'}</div><div class="sl">Ganancias del día</div></div>
+    <div id="homeEssential">
+      ${online
+        ? `<div class="onlinebar"><span class="odot"></span><span>EN LÍNEA · buscando viajes</span><button class="offbtn" id="btnOff">Desconectar</button></div>`
+        : `<div class="slide" id="slide"><div class="knob" id="knob"><svg viewBox="0 0 24 24" fill="none" stroke="#0f5132" stroke-width="3" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></div><span class="slidetext" id="slidetext">Desliza para conectarte</span></div>`}
+      ${lowSaldo ? `<div class="warn red" style="margin-top:12px">⚠️ Tu saldo (${money(me.saldo)}) no alcanza para la comisión de ${money(commission)}. Recarga para recibir viajes.</div>` : ''}
+      <div class="essrow">
+        <div class="statcell earn"><div class="sv g" id="stEarn">${dstats ? money(dstats.today_earnings) : '…'}</div><div class="sl">Ganancias del día</div></div>
+        <div class="statcell saldocell"><div class="sv a" id="stSaldo">${money(me.saldo)}</div><div class="sl">Saldo</div><button class="minibtn" id="btnRecharge">Recargar</button></div>
+      </div>
+    </div>
+    <div class="statgrid3">
       <div class="statcell"><div class="sv" id="stTrips">${dstats ? dstats.today_trips : '…'}</div><div class="sl">Viajes hoy</div></div>
       <div class="statcell"><div class="sv" id="stHours">${dstats ? dstats.hours_online + ' h' : '…'}</div><div class="sl">Horas conectado</div></div>
       <div class="statcell"><div class="sv" id="stRating">⭐ ${(me.rating || 5).toFixed(1)}</div><div class="sl">Calificación</div></div>
       <div class="statcell"><div class="sv" id="stAcc">${dstats ? (dstats.acceptance_rate === null ? '—' : dstats.acceptance_rate + '%') : '…'}</div><div class="sl">Aceptación</div></div>
-      <div class="statcell saldocell"><div class="sv a" id="stSaldo">${money(me.saldo)}</div><div class="sl">Saldo</div><button class="minibtn" id="btnRecharge">Recargar</button></div>
     </div>`;
 
   const slide = $('#slide'); if (slide) setupSlide();
   const off = $('#btnOff'); if (off) off.addEventListener('click', toggleOnline);
   const rc = $('#btnRecharge'); if (rc) rc.addEventListener('click', openDrawer);
+  dSheetState = 'peek'; // el home arranca colapsado (~28%); el conductor desliza arriba para ver el detalle
+  applyDSheetSnap(false);
   refreshStats();
+}
+
+/* ====== Panel inferior colapsable (peek = esenciales; deslizar arriba = detalle) ====== */
+function dPeekHeight() {
+  const s = $('#sheet'); const grab = s.querySelector('.grab');
+  const ess = document.getElementById('homeEssential');
+  if (!ess) return null; // vistas sin "esenciales" (viaje, etc.) → no colapsar
+  return (grab ? grab.offsetHeight : 22) + ess.offsetHeight + 14;
+}
+function applyDSheetSnap(animate) {
+  const s = $('#sheet');
+  if (!s || s.classList.contains('hidden')) return;
+  s.style.transition = (animate === false) ? 'none' : '';
+  const h = s.offsetHeight;
+  const peek = dPeekHeight();
+  const off = (dSheetState === 'peek' && peek) ? Math.max(0, h - peek) : 0;
+  s.style.transform = 'translateY(' + off + 'px)';
+}
+function setupDSheetDrag() {
+  const s = $('#sheet');
+  const grab = s.querySelector('.grab');
+  if (!grab) return;
+  let startY = 0, startOff = 0, h = 0, moved = 0, peek = 0;
+  grab.addEventListener('pointerdown', (e) => {
+    peek = dPeekHeight(); if (!peek) return; // solo colapsable en el home
+    dSheetDragging = true; moved = 0; h = s.offsetHeight;
+    startY = e.clientY; startOff = dSheetState === 'peek' ? Math.max(0, h - peek) : 0;
+    s.style.transition = 'none';
+    try { grab.setPointerCapture(e.pointerId); } catch (_) {}
+  });
+  grab.addEventListener('pointermove', (e) => {
+    if (!dSheetDragging) return;
+    const dy = e.clientY - startY; moved = Math.max(moved, Math.abs(dy));
+    let off = Math.max(0, Math.min(startOff + dy, h - peek));
+    s.style.transform = 'translateY(' + off + 'px)';
+  });
+  const end = (e) => {
+    if (!dSheetDragging) return; dSheetDragging = false;
+    if (moved < 6) { dSheetState = (dSheetState === 'peek') ? 'open' : 'peek'; }
+    else { const off = startOff + (e.clientY - startY); dSheetState = off > (h - peek) / 2 ? 'peek' : 'open'; }
+    applyDSheetSnap(true);
+  };
+  grab.addEventListener('pointerup', end);
+  grab.addEventListener('pointercancel', end);
 }
 
 async function refreshStats() {
@@ -825,8 +878,7 @@ function ackRide(r) { if (r && r.id) api('api/ack', { ride_id: r.id }).catch(() 
 function updateSaldo(saldo, canReceive) {
   if (typeof saldo !== 'number') return;
   me.saldo = saldo; me.can_receive = canReceive;
-  $('#saldoPill').classList.remove('hidden');
-  $('#saldoVal').textContent = money(saldo);
+  const st = $('#stSaldo'); if (st) st.textContent = money(saldo); // el saldo vive en el panel inferior
 }
 
 let rTier = null, rMethod = 'yape';

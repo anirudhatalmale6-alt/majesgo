@@ -133,7 +133,7 @@ async function boot() {
 
 /* ============ Zonas locales (nombres visibles en el mapa) ============ */
 const ZONE_ZOOM_PINS = 13;   // desde este zoom se ven los pines
-const ZONE_ZOOM_LABELS = 15; // desde este zoom se ven también los nombres
+const ZONE_ZOOM_LABELS = 16; // desde este zoom se ven los nombres (más alto = menos se pisan)
 function applyZoneZoom() {
   const app = document.getElementById('app');
   if (!app || !map) return;

@@ -42,7 +42,7 @@
         .zonemk{pointer-events:none}
         .zonemk .zpin{display:none;position:absolute;left:-9px;top:-26px;width:18px;height:26px;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5))}
         .zonemk .zpin path{fill:#3d7bd6} .zonemk .zpin circle{fill:#fff}
-        .zonemk .zname{display:none;position:absolute;left:11px;top:-22px;white-space:nowrap;font-size:11px;font-weight:700;color:#dfe7ff;background:rgba(20,26,40,.72);border:1px solid rgba(138,180,255,.4);padding:2px 8px;border-radius:9px;box-shadow:0 1px 4px rgba(0,0,0,.45)}
+        .zonemk .zname{display:none;position:absolute;left:11px;top:-22px;white-space:nowrap;max-width:140px;overflow:hidden;text-overflow:ellipsis;font-size:11px;font-weight:700;color:#dfe7ff;background:rgba(20,26,40,.72);border:1px solid rgba(138,180,255,.4);padding:2px 8px;border-radius:9px;box-shadow:0 1px 4px rgba(0,0,0,.45)}
         /* nivel de detalle por zoom: pines desde 'zmid', nombres desde 'znear' (evita saturar) */
         #app.zmid .zonemk .zpin,#app.znear .zonemk .zpin{display:block}
         #app.znear .zonemk .zname{display:block}
@@ -301,6 +301,6 @@ window.MG = {
     vapidPublic: @json(config('services.webpush.public_key')),
 };
 </script>
-<script src="/js/passenger.js?v=18"></script>
+<script src="/js/passenger.js?v=19"></script>
 </body>
 </html>

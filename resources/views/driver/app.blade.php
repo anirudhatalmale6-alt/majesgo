@@ -41,7 +41,7 @@
         .zonemk{pointer-events:none}
         .zonemk .zpin{display:none;position:absolute;left:-9px;top:-26px;width:18px;height:26px;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5))}
         .zonemk .zpin path{fill:#3d7bd6} .zonemk .zpin circle{fill:#fff}
-        .zonemk .zname{display:none;position:absolute;left:11px;top:-22px;white-space:nowrap;font-size:11px;font-weight:700;color:#dfe7ff;background:rgba(20,26,40,.72);border:1px solid rgba(138,180,255,.4);padding:2px 8px;border-radius:9px;box-shadow:0 1px 4px rgba(0,0,0,.45)}
+        .zonemk .zname{display:none;position:absolute;left:11px;top:-22px;white-space:nowrap;max-width:140px;overflow:hidden;text-overflow:ellipsis;font-size:11px;font-weight:700;color:#dfe7ff;background:rgba(20,26,40,.72);border:1px solid rgba(138,180,255,.4);padding:2px 8px;border-radius:9px;box-shadow:0 1px 4px rgba(0,0,0,.45)}
         #app.zmid .zonemk .zpin,#app.znear .zonemk .zpin{display:block}
         #app.znear .zonemk .zname{display:block}
         .zonemk.zprimary .zpin,.zonemk.zprimary .zname{display:block}
@@ -62,14 +62,15 @@
         .onlinebar .odot{width:11px;height:11px;border-radius:50%;background:var(--verde);box-shadow:0 0 0 4px rgba(0,200,83,.25);animation:odotp 1.6s infinite}
         @keyframes odotp{0%,100%{opacity:1}50%{opacity:.4}}
         .onlinebar .offbtn{margin-left:auto;background:#2a2f37;border:0;color:#cfd6de;font-weight:700;font-size:13px;padding:9px 14px;border-radius:11px;cursor:pointer}
-        .statgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;margin-top:14px}
-        .statbig{grid-column:1 / -1;background:linear-gradient(120deg,#12351f,#0e2c1a);border:1px solid rgba(0,200,83,.28);border-radius:15px;padding:14px 16px}
+        .essrow{display:grid;grid-template-columns:1.45fr 1fr;gap:9px;margin-top:12px}
+        .statgrid3{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:9px}
         .statcell{background:var(--panel-2,#1a1e24);border:1px solid rgba(255,255,255,.06);border-radius:14px;padding:12px;position:relative}
+        .statcell.earn{background:linear-gradient(120deg,#12351f,#0e2c1a);border-color:rgba(0,200,83,.28)}
         .statcell.saldocell{border-color:rgba(255,193,7,.28)}
-        .statgrid .sv{font-weight:800;font-size:19px;color:#fff;line-height:1.1}
-        .statbig .sv{font-size:30px}
-        .statgrid .sv.g{color:#37e08a} .statgrid .sv.a{color:#ffca3a}
-        .statgrid .sl{color:#8b94a0;font-size:11.5px;margin-top:3px}
+        .statcell .sv{font-weight:800;font-size:18px;color:#fff;line-height:1.1}
+        .statcell.earn .sv{font-size:26px}
+        .statcell .sv.g{color:#37e08a} .statcell .sv.a{color:#ffca3a}
+        .statcell .sl{color:#8b94a0;font-size:11.5px;margin-top:3px}
         .minibtn{margin-top:8px;background:var(--amarillo);color:#3a2e00;border:0;font-weight:700;font-size:11.5px;padding:6px 10px;border-radius:9px;cursor:pointer}
         /* auto del conductor con anillo tipo radar */
         .medriver{position:relative}
@@ -97,8 +98,10 @@
 
         .sheet{position:absolute;left:0;right:0;bottom:0;z-index:22;background:var(--panel);
             border-radius:22px 22px 0 0;box-shadow:0 -10px 40px rgba(0,0,0,.5);
-            padding:8px 18px calc(env(safe-area-inset-bottom) + 18px);max-height:82dvh;overflow-y:auto}
-        .grab{width:42px;height:5px;border-radius:3px;background:#3a414a;margin:6px auto 12px}
+            padding:0 18px calc(env(safe-area-inset-bottom) + 18px);max-height:82dvh;overflow-y:auto;
+            transition:transform .28s cubic-bezier(.4,0,.2,1);will-change:transform}
+        .grab{width:100%;height:28px;margin:0 0 6px;cursor:grab;touch-action:none;position:sticky;top:0;background:var(--panel);z-index:3}
+        .grab::after{content:"";position:absolute;left:50%;top:11px;transform:translateX(-50%);width:42px;height:5px;border-radius:3px;background:#3a414a}
         .sheet h2{margin:0 0 3px;font-size:19px}
         .sheet .sub{color:var(--muted);font-size:13px;margin-bottom:14px}
 
@@ -263,7 +266,6 @@
     <div class="topbar">
         <div class="brand"><span style="font-size:16px">🚕</span><b>Majes<span class="g">Go</span></b><span class="tag">CONDUCTOR</span></div>
         <div class="rgt">
-            <div class="saldo hidden" id="saldoPill"><b id="saldoVal">S/ 0.00</b><small>Saldo</small></div>
             <button class="iconbtn" id="btnBell" title="Avisos" aria-label="Avisos">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
             </button>
@@ -346,6 +348,6 @@ window.MG = {
     vapidPublic: @json(config('services.webpush.public_key')),
 };
 </script>
-<script src="/js/driver.js?v=14"></script>
+<script src="/js/driver.js?v=15"></script>
 </body>
 </html>
