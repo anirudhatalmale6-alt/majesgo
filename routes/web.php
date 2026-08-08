@@ -84,6 +84,7 @@ Route::prefix('conductor')->name('driver.')->group(function () {
         Route::post('api/cancel', [DriverRide::class, 'cancel']);
         Route::post('api/rate', [DriverRide::class, 'ratePassenger']);
         Route::post('api/ack', [DriverRide::class, 'ack']);
+        Route::post('api/cancel-report', [DriverRide::class, 'cancelReport']);
 
         // Saldo y recargas
         Route::get('api/saldo', [DriverRide::class, 'saldo']);

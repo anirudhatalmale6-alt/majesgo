@@ -41,6 +41,76 @@ let navOpen = false, navMap = null, navCar = null, navLine = null, navPin = null
 let navLastLL = null, navLastT = 0, navBearing = 0, navFollow = true, navCanRotate = false, navTargetLL = null;
 let chatOpen = false, chatLastId = 0, chatSeenId = 0, chatPoll = null, rideLastMsgId = 0;
 let mapLight = false, baseTile = null, navTile = null, arrivedFor = null;
+let cancelModalOpen = false, cancelledRide = null, cancelReason = null, audioCtx = null;
+
+/* ---------- Alerta sonora (para la cancelación del pasajero) ---------- */
+// Se prepara/reactiva el contexto de audio con un gesto del usuario (tocar la pantalla),
+// requisito de los navegadores para poder reproducir sonido después.
+function ensureAudio() {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  } catch (e) {}
+}
+function alertBeep() {
+  try {
+    ensureAudio(); if (!audioCtx) return;
+    const now = audioCtx.currentTime;
+    for (let i = 0; i < 3; i++) {
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.type = 'sine'; o.frequency.value = i % 2 === 0 ? 880 : 620;
+      const s = now + i * 0.32;
+      g.gain.setValueAtTime(0.0001, s);
+      g.gain.exponentialRampToValueAtTime(0.4, s + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, s + 0.26);
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(s); o.stop(s + 0.28);
+    }
+  } catch (e) {}
+}
+
+/* ================= MODAL: cancelación del pasajero ================= */
+const CANCEL_REASONS = ['El pasajero canceló sin avisar', 'Tardó mucho en responder', 'Falsa solicitud'];
+
+function showCancelModal(r) {
+  cancelModalOpen = true; cancelledRide = r; cancelReason = null;
+  if (navOpen) closeNav();
+  closeChat();
+  alertBeep();
+  if (navigator.vibrate) { try { navigator.vibrate([220, 100, 220, 100, 220]); } catch (e) {} }
+  const m = $('#cancelModal');
+  m.innerHTML = `
+    <div class="modalcard">
+      <div class="micon">🚫</div>
+      <h2>El pasajero ha cancelado la carrera</h2>
+      <p class="msub">El viaje se canceló. Si quieres, reporta el motivo (opcional) y vuelve a estar disponible.</p>
+      <div class="reasonlbl">Reportar cancelación (opcional):</div>
+      <div class="reasons" id="cxReasons">
+        ${CANCEL_REASONS.map((t, i) => `<button class="reason" data-i="${i}">${esc(t)}</button>`).join('')}
+      </div>
+      <button class="btn" id="cxContinue">Aceptar y continuar</button>
+    </div>`;
+  m.classList.remove('hidden');
+  const btns = m.querySelectorAll('.reason');
+  btns.forEach((b) => b.addEventListener('click', () => {
+    const i = +b.dataset.i;
+    if (cancelReason === CANCEL_REASONS[i]) { cancelReason = null; b.classList.remove('on'); }   // volver a tocar = quitar
+    else { cancelReason = CANCEL_REASONS[i]; btns.forEach((x) => x.classList.remove('on')); b.classList.add('on'); }
+  }));
+  $('#cxContinue').addEventListener('click', continueAfterCancel);
+}
+
+async function continueAfterCancel() {
+  const btn = $('#cxContinue'); if (btn) btn.disabled = true;
+  const rid = cancelledRide ? cancelledRide.id : null;
+  // guarda el motivo (si eligió) + marca la carrera como vista para no repetir el modal
+  try { await api('api/cancel-report', { ride_id: rid, reason: cancelReason }); } catch (e) {}
+  const m = $('#cancelModal'); m.classList.add('hidden'); m.innerHTML = '';
+  cancelModalOpen = false; cancelledRide = null; cancelReason = null;
+  ride = null; online = true; me.status = 'disponible';
+  clearTrip();
+  renderHome();
+}
 
 const ACTIVE = ['ofrecido', 'aceptado', 'en_camino', 'llego', 'a_bordo'];
 const ARRIVE_M = 30; // metros para avisar "llegaste"
@@ -215,6 +285,9 @@ async function boot() {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') { pushLocation(); tick(); }
   });
+
+  // preparar/reactivar el audio con cualquier toque (necesario para la alerta sonora de cancelación)
+  document.addEventListener('pointerdown', ensureAudio);
 }
 
 /* ================= MAPA ================= */
@@ -585,6 +658,8 @@ async function toggleOnline() {
 function startPoll() { if (poll) clearInterval(poll); tick(); poll = setInterval(tick, 3000); }
 
 async function tick() {
+  // modal de cancelación abierto → no hacer nada más (solo mantener presencia) hasta que el conductor continúe
+  if (cancelModalOpen) { if (online) pushLocation(); return; }
   // viaje en curso → seguir su estado
   if (ride && ACTIVE.includes(ride.status)) {
     try { const d = await api('api/current'); handleCurrent(d.ride); } catch (e) {}
@@ -620,9 +695,11 @@ function handleCurrent(r) {
     return;
   }
   if (r.status === 'cancelado') {
-    if (navOpen) closeNav();
-    ackRide(r); ride = null; toast('El pasajero canceló el viaje.');
-    online = true; me.status = 'disponible'; renderHome(); return;
+    // si lo canceló el propio conductor, ya se manejó localmente → volver a home sin modal
+    if (r.cancelled_by === 'conductor') { if (navOpen) closeNav(); ackRide(r); ride = null; online = true; me.status = 'disponible'; renderHome(); return; }
+    // el PASAJERO canceló: mostrar modal + sonido + vibración + reporte de motivo
+    showCancelModal(r);
+    return;
   }
   if (r.status === 'completado') { if (navOpen) closeNav(); ride = r; renderCompleted(r); return; }
   const prevStatus = ride && ride.status;

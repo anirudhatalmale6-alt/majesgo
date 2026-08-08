@@ -303,6 +303,28 @@ class RideController extends Controller
         return response()->json(['ok' => true]);
     }
 
+    /** El conductor reporta el motivo de una cancelación hecha por el pasajero (auditoría/soporte). */
+    public function cancelReport(Request $request)
+    {
+        $driver = $this->driver($request);
+        $data = $request->validate([
+            'ride_id' => ['required', 'integer'],
+            'reason'  => ['nullable', 'string', 'max:120'],
+        ]);
+
+        $ride = $driver->rides()->where('id', $data['ride_id'])->where('status', 'cancelado')->first();
+        if ($ride && ! empty($data['reason'])) {
+            $ride->update([
+                'driver_report'      => $data['reason'],
+                'driver_reported_at' => now(),
+            ]);
+        }
+        // marcar como visto para no repetir la pantalla de cancelación
+        $request->session()->put('drv_ack_ride', $data['ride_id']);
+
+        return response()->json(['ok' => true]);
+    }
+
     /* ============ Chat con el pasajero ============ */
 
     private function chatRide(Driver $driver): ?Ride
@@ -632,6 +654,7 @@ class RideController extends Controller
             'code'         => $ride->code,
             'status'       => $ride->status,
             'status_label' => $this->driverStatusLabel($ride->status),
+            'cancelled_by' => $ride->cancelled_by,
             'offered_price'=> (float) $ride->offered_price,
             'final_price'  => $ride->final_price !== null ? (float) $ride->final_price : null,
             'commission'   => $ride->commission !== null ? (float) $ride->commission : (float) Setting::get('commission_value', 0.50),

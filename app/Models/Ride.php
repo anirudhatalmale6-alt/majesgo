@@ -24,6 +24,7 @@ class Ride extends Model
         'started_at'       => 'datetime',
         'completed_at'     => 'datetime',
         'cancelled_at'     => 'datetime',
+        'driver_reported_at' => 'datetime',
     ];
 
     /** Estados en los que el viaje sigue "vivo" (uno activo por pasajero). */

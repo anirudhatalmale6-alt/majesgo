@@ -253,6 +253,20 @@
 
         .toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 20px);transform:translateX(-50%);z-index:60;background:#fff;color:#111;padding:12px 18px;border-radius:12px;font-weight:600;font-size:14px;box-shadow:0 10px 30px rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:.2s;max-width:88%;text-align:center}
         .toast.show{opacity:1}
+        /* Modal de cancelación del pasajero */
+        .modal{position:fixed;inset:0;z-index:70;background:rgba(3,5,8,.72);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:22px;animation:mfade .18s ease}
+        @keyframes mfade{from{opacity:0}to{opacity:1}}
+        .modalcard{width:100%;max-width:380px;background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:22px 20px calc(env(safe-area-inset-bottom) + 20px);box-shadow:0 20px 60px rgba(0,0,0,.6);text-align:center;animation:mpop .22s cubic-bezier(.2,.8,.3,1.2)}
+        @keyframes mpop{from{transform:scale(.9);opacity:.4}to{transform:scale(1);opacity:1}}
+        .modalcard .micon{width:62px;height:62px;margin:2px auto 12px;border-radius:50%;background:rgba(255,82,82,.14);display:grid;place-items:center;font-size:30px}
+        .modalcard h2{margin:0 0 6px;font-size:20px}
+        .modalcard .msub{margin:0 0 16px;color:var(--muted);font-size:13.5px;line-height:1.4}
+        .modalcard .reasonlbl{text-align:left;font-size:12px;color:var(--muted);font-weight:600;margin:0 0 8px 2px}
+        .modalcard .reasons{display:flex;flex-direction:column;gap:9px;margin-bottom:18px}
+        .modalcard .reason{width:100%;text-align:left;padding:13px 14px;border-radius:12px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);font-family:inherit;font-size:14px;cursor:pointer;transition:.12s}
+        .modalcard .reason:hover{border-color:#3a4150}
+        .modalcard .reason.on{border-color:var(--verde);background:rgba(0,200,83,.14);color:#fff;font-weight:600}
+        .modalcard .reason.on::after{content:"✓";float:right;color:var(--verde);font-weight:800}
         .hidden{display:none !important}
         .spin{width:20px;height:20px;border:2.5px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;display:inline-block}
         @keyframes sp{to{transform:rotate(360deg)}}
@@ -335,6 +349,9 @@
         <div class="cinput"><input id="chatIn" placeholder="Escribe un mensaje…" maxlength="500" autocomplete="off"><button id="chatSend" aria-label="Enviar">➤</button></div>
     </div>
 
+    <!-- Modal: el pasajero canceló la carrera (contenido lo llena driver.js) -->
+    <div class="modal hidden" id="cancelModal"></div>
+
     <div class="toast" id="toast"></div>
 </div>
 
@@ -348,6 +365,6 @@ window.MG = {
     vapidPublic: @json(config('services.webpush.public_key')),
 };
 </script>
-<script src="/js/driver.js?v=15"></script>
+<script src="/js/driver.js?v=16"></script>
 </body>
 </html>

@@ -329,7 +329,9 @@ class RideController extends Controller
 
         $passenger->increment('cancel_count');
 
-        if ($ride->driver && $ride->driver->is_demo) {
+        // Liberar al conductor asignado para que vuelva a recibir viajes de inmediato
+        // (antes solo se liberaba al conductor demo; el real quedaba 'ocupado' y no recibía nada).
+        if ($ride->driver && $ride->driver->status === 'ocupado') {
             $ride->driver->update(['status' => 'disponible']);
         }
 
