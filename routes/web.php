@@ -17,6 +17,9 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/', fn () => redirect()->route('admin.login'));
 
+// Política de privacidad (pública) — requerida por Google Play
+Route::view('/privacidad', 'legal.privacy')->name('privacy');
+
 /*
 | App del PASAJERO (PWA instalable) — Hito 2
 */
