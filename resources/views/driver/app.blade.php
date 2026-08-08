@@ -58,6 +58,11 @@
         .slide .slidetext{color:#8fe6b0;font-weight:700;font-size:15px;pointer-events:none}
         .slide .knob{position:absolute;left:4px;top:4px;width:52px;height:52px;border-radius:13px;background:var(--verde);display:grid;place-items:center;cursor:grab;touch-action:none;box-shadow:0 3px 10px rgba(0,0,0,.4);z-index:2}
         .slide .knob svg{width:24px;height:24px}
+        /* Variante "desliza para desconectarte" (gris/rojo, gesto deliberado para no desconectar por error) */
+        .onlinebar + .slide.off{margin-top:10px}
+        .slide.off{background:linear-gradient(90deg,#2b2f36,#23272e);border-color:rgba(255,90,90,.42)}
+        .slide.off .slidetext{color:#ff9d9d}
+        .slide.off .knob{background:#ff5a5a}
         .onlinebar{display:flex;align-items:center;gap:10px;height:56px;padding:0 8px 0 18px;border-radius:16px;background:linear-gradient(90deg,rgba(0,200,83,.22),rgba(0,200,83,.08));border:1px solid rgba(0,200,83,.4);color:#fff;font-weight:800;font-size:15px}
         .onlinebar .odot{width:11px;height:11px;border-radius:50%;background:var(--verde);box-shadow:0 0 0 4px rgba(0,200,83,.25);animation:odotp 1.6s infinite}
         @keyframes odotp{0%,100%{opacity:1}50%{opacity:.4}}
@@ -365,6 +370,6 @@ window.MG = {
     vapidPublic: @json(config('services.webpush.public_key')),
 };
 </script>
-<script src="/js/driver.js?v=16"></script>
+<script src="/js/driver.js?v=17"></script>
 </body>
 </html>
