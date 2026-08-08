@@ -335,5 +335,6 @@ window.MG = {
 };
 </script>
 <script src="/js/passenger.js?v=22"></script>
+<script src="/js/native.js?v=1"></script>
 </body>
 </html>

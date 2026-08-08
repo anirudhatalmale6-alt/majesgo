@@ -44,6 +44,8 @@ class WebPushSender
             PushSubscription::where('owner_type', $ownerType)->where('owner_id', $ownerId)->get(),
             $payload
         );
+        // También por FCM nativo (apps de Play Store)
+        FcmSender::toOwner($ownerType, $ownerId, $payload);
     }
 
     /** @param array<int> $ownerIds */
@@ -56,6 +58,8 @@ class WebPushSender
             PushSubscription::where('owner_type', $ownerType)->whereIn('owner_id', $ownerIds)->get(),
             $payload
         );
+        // También por FCM nativo (apps de Play Store)
+        FcmSender::toOwners($ownerType, $ownerIds, $payload);
     }
 
     private static function dispatch($subs, array $payload): void

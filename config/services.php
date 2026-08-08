@@ -24,6 +24,12 @@ return [
         'subject'     => env('VAPID_SUBJECT', 'mailto:soporte@majesgo.pe'),
     ],
 
+    // Firebase Cloud Messaging (push nativo para las apps de Play Store)
+    'fcm' => [
+        'credentials' => env('FCM_CREDENTIALS', storage_path('app/firebase/serviceAccount.json')),
+        'project_id'  => env('FCM_PROJECT_ID', 'majesgo-8c09e'),
+    ],
+
     'postmark' => [
         'key' => env('POSTMARK_API_KEY'),
     ],

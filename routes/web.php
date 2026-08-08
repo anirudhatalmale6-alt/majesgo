@@ -36,6 +36,7 @@ Route::prefix('app')->name('app.')->group(function () {
         Route::get('api/zones', [GeocodeController::class, 'zones']);
         Route::get('api/drivers/nearby', [PassengerRide::class, 'nearbyDrivers']);
         Route::post('api/push/subscribe', [PassengerRide::class, 'subscribePush']);
+        Route::post('api/push/fcm-token', [PassengerRide::class, 'subscribeFcm']);
         Route::post('api/quote', [PassengerRide::class, 'quote']);
         Route::post('api/rides', [PassengerRide::class, 'store']);
         Route::get('api/rides/current', [PassengerRide::class, 'current']);
@@ -68,6 +69,7 @@ Route::prefix('conductor')->name('driver.')->group(function () {
         Route::post('api/reroute', [DriverRide::class, 'reroute']);
         Route::get('api/zones', [GeocodeController::class, 'zones']);
         Route::post('api/push/subscribe', [DriverRide::class, 'subscribePush']);
+        Route::post('api/push/fcm-token', [DriverRide::class, 'subscribeFcm']);
 
         // Solicitudes entrantes
         Route::get('api/pending', [DriverRide::class, 'pending']);

@@ -171,6 +171,16 @@ class RideController extends Controller
         return response()->json(['ok' => $ok]);
     }
 
+    /** Registra el token FCM del dispositivo (app nativa de Play Store). */
+    public function subscribeFcm(Request $request)
+    {
+        $passenger = $this->passenger($request);
+        $data = $request->validate(['token' => ['required', 'string', 'max:512']]);
+        $ok = \App\Services\FcmSender::store('passenger', $passenger->id, $data['token']);
+
+        return response()->json(['ok' => $ok]);
+    }
+
     /**
      * Conductores DISPONIBLES cerca, para mostrar los carritos en el mapa del pasajero
      * (ver que hay unidades activas antes de pedir). Solo posición (sin identidad).

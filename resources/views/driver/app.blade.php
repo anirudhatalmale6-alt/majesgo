@@ -371,5 +371,6 @@ window.MG = {
 };
 </script>
 <script src="/js/driver.js?v=17"></script>
+<script src="/js/native.js?v=1"></script>
 </body>
 </html>

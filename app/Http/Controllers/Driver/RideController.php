@@ -80,6 +80,16 @@ class RideController extends Controller
         return response()->json(['ok' => $ok]);
     }
 
+    /** Registra el token FCM del dispositivo (app nativa de Play Store). */
+    public function subscribeFcm(Request $request)
+    {
+        $driver = $this->driver($request);
+        $data = $request->validate(['token' => ['required', 'string', 'max:512']]);
+        $ok = \App\Services\FcmSender::store('driver', $driver->id, $data['token']);
+
+        return response()->json(['ok' => $ok]);
+    }
+
     /**
      * Recalcular la ruta desde la posición actual del conductor hacia el objetivo del tramo
      * (recojo si va a buscar al pasajero; destino si ya lo lleva a bordo). Se usa cuando el
