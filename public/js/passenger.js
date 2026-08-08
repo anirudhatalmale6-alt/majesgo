@@ -608,13 +608,13 @@ function renderPlanning() {
   b.innerHTML = `
     <div id="planEssential">
       <h2>¿A dónde vamos?</h2>
-      <div class="fieldrow"><span class="dot o"></span><input id="oIn" value="${(origin && origin.address) ? esc(origin.address) : 'Mi ubicación'}" placeholder="Origen (puedes editarlo)"><button class="mapbtn o" id="oMap" title="Elegir origen en el mapa" aria-label="Elegir origen en el mapa">${pinBtn('#00C853')}</button><small>Origen</small></div>
+      <div class="fieldrow"><span class="dot o"></span><div class="fcol"><label class="flbl" for="oIn">¿Dónde te recogemos?</label><input id="oIn" value="${(origin && origin.address) ? esc(origin.address) : 'Mi ubicación'}" placeholder="Tu punto de recojo"></div><button class="mapbtn o" id="oMap" title="Elegir el recojo en el mapa" aria-label="Elegir el recojo en el mapa">${pinBtn('#00C853')}</button></div>
       <div class="sugg">
-        <div class="fieldrow"><span class="dot d"></span><input id="dIn" placeholder="¿A dónde vas? Escríbelo o elígelo en el mapa" value="${dest && dest.address ? esc(dest.address) : ''}"><button class="mapbtn d" id="dMap" title="Elegir destino en el mapa" aria-label="Elegir destino en el mapa">${pinBtn('#ff5252')}</button><small>Destino</small></div>
+        <div class="fieldrow"><span class="dot d"></span><div class="fcol"><label class="flbl" for="dIn">¿A dónde vas?</label><input id="dIn" placeholder="Escríbelo o elígelo en el mapa" value="${dest && dest.address ? esc(dest.address) : ''}"></div><button class="mapbtn d" id="dMap" title="Elegir destino en el mapa" aria-label="Elegir destino en el mapa">${pinBtn('#ff5252')}</button></div>
         <div class="suggbox" id="sugg"></div>
       </div>
     </div>
-    <div class="fieldrow"><span class="dot" style="background:#FFC107"></span><input id="refIn" placeholder="Referencia del recojo (opcional): casa, color, algo cercano…" value="${reference ? esc(reference) : ''}"><small>Referencia</small></div>
+    <div class="fieldrow"><span class="dot" style="background:#FFC107"></span><div class="fcol"><label class="flbl" for="refIn">Referencia del recojo (opcional)</label><input id="refIn" placeholder="Casa, color, algo cercano…" value="${reference ? esc(reference) : ''}"></div></div>
     ${hasRoute ? `
       <div class="routeinfo">
         <div class="chip"><div class="v">${(quote.distance_m / 1000).toFixed(1)} km</div><div class="l">Distancia</div></div>

@@ -113,6 +113,10 @@
         .fieldrow input{flex:1;background:none;border:0;color:#fff;font-family:inherit;font-size:14.5px;outline:none;min-width:0}
         .fieldrow input::placeholder{color:#6b7480}
         .fieldrow small{color:var(--muted);font-size:11px}
+        /* Etiqueta-pregunta arriba del campo (más clara que un rótulo lateral) */
+        .fieldrow .fcol{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+        .fieldrow .fcol input{width:100%;flex:none}
+        .fieldrow .flbl{font-size:10.5px;font-weight:600;color:var(--muted);line-height:1.1}
 
         .sugg{position:relative}
         .suggbox{position:absolute;left:0;right:0;top:100%;margin-top:-6px;background:var(--panel-2);border:1px solid var(--line);border-radius:0 0 13px 13px;z-index:5;max-height:210px;overflow-y:auto}
@@ -312,6 +316,6 @@ window.MG = {
     vapidPublic: @json(config('services.webpush.public_key')),
 };
 </script>
-<script src="/js/passenger.js?v=20"></script>
+<script src="/js/passenger.js?v=21"></script>
 </body>
 </html>
