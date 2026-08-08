@@ -34,8 +34,15 @@ let offerTimer = null, offerKey = null;
 let meWatchId = null, followMe = true, originPinned = false, lastGeoAt = 0, lastMeLL = null;
 let chatOpen = false, chatLastId = 0, chatSeenId = 0, chatPoll = null, rideLastMsgId = 0;
 let mapLight = false, baseTile = null;
-let sheetState = 'open', sheetDragging = false;
-const SHEET_PEEK = 78; // px visibles cuando el panel está colapsado (se ve el mapa)
+let sheetState = 'peek', sheetDragging = false; // arranca COMPACTO (solo la barra principal) para ver más mapa
+const SHEET_PEEK = 96; // respaldo: px visibles si no hay bloque "esencial" para medir
+
+/* Icono de persona/pasajero para la ubicación actual del usuario (se distingue del origen) */
+const ME_ICON = '<div class="meperson"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm0 2c-3.3 0-8 1.7-8 5v1h16v-1c0-3.3-4.7-5-8-5z"/></svg></div>';
+/* Pin de color para los botones "elegir en el mapa" (verde=origen, rojo=destino) */
+function pinBtn(color) {
+  return '<svg viewBox="0 0 24 34" width="15" height="20" aria-hidden="true"><path fill="' + color + '" stroke="#fff" stroke-width="2.4" d="M12 1C6 1 1.2 5.8 1.2 11.8 1.2 19.6 12 33 12 33s10.8-13.4 10.8-21.2C22.8 5.8 18 1 12 1z"/><circle cx="12" cy="11.8" r="3.9" fill="#fff"/></svg>';
+}
 let nearbyMarkers = {}, nearbyTimer = null; // carritos de taxis disponibles en el mapa
 let zoneLayer = null; // etiquetas de las zonas locales en el mapa
 
@@ -237,12 +244,23 @@ function initMap() {
 }
 
 /* ====== Panel inferior arrastrable (colapsa a una barrita para ver el mapa) ====== */
+/* Alto visible en modo compacto = agarradera + el bloque "esencial" (título + campos).
+   Si la vista no tiene bloque esencial (viaje en curso, etc.) el panel va siempre abierto. */
+function sheetPeekPx() {
+  const s = $('#sheet'); if (!s) return SHEET_PEEK;
+  const grab = s.querySelector('.grab');
+  const ess = document.getElementById('planEssential');
+  if (!ess) return Math.min(SHEET_PEEK, s.offsetHeight); // sin esencial → prácticamente abierto
+  const gh = grab ? grab.offsetHeight : 30;
+  return Math.min(s.offsetHeight, gh + ess.offsetHeight + 10);
+}
 function applySheetSnap(animate) {
   const s = $('#sheet');
   if (!s || s.classList.contains('hidden')) return;
   s.style.transition = (animate === false) ? 'none' : '';
   const h = s.offsetHeight;
-  const off = sheetState === 'peek' ? Math.max(0, h - SHEET_PEEK) : 0;
+  const peek = sheetPeekPx();
+  const off = sheetState === 'peek' ? Math.max(0, h - peek) : 0;
   s.style.transform = 'translateY(' + off + 'px)';
   document.documentElement.style.setProperty('--sheet-h', (h - off) + 'px');
 }
@@ -250,30 +268,31 @@ function setupSheetDrag() {
   const s = $('#sheet');
   const grab = s.querySelector('.grab');
   if (!grab) return;
-  let startY = 0, startOff = 0, h = 0, moved = 0;
+  let startY = 0, startOff = 0, h = 0, peek = 0, moved = 0;
   grab.addEventListener('pointerdown', (e) => {
-    sheetDragging = true; moved = 0; h = s.offsetHeight;
+    sheetDragging = true; moved = 0; h = s.offsetHeight; peek = sheetPeekPx();
     startY = e.clientY;
-    startOff = sheetState === 'peek' ? Math.max(0, h - SHEET_PEEK) : 0;
+    startOff = sheetState === 'peek' ? Math.max(0, h - peek) : 0;
     s.style.transition = 'none';
     try { grab.setPointerCapture(e.pointerId); } catch (_) {}
   });
   grab.addEventListener('pointermove', (e) => {
     if (!sheetDragging) return;
     const dy = e.clientY - startY; moved = Math.max(moved, Math.abs(dy));
-    let off = startOff + dy; off = Math.max(0, Math.min(off, h - SHEET_PEEK));
+    let off = startOff + dy; off = Math.max(0, Math.min(off, h - peek));
     s.style.transform = 'translateY(' + off + 'px)';
     document.documentElement.style.setProperty('--sheet-h', (h - off) + 'px');
   });
   const end = (e) => {
     if (!sheetDragging) return; sheetDragging = false;
     if (moved < 6) { sheetState = (sheetState === 'peek') ? 'open' : 'peek'; }         // toque = alternar
-    else { const off = startOff + (e.clientY - startY); sheetState = off > (h - SHEET_PEEK) / 2 ? 'peek' : 'open'; }
+    else { const off = startOff + (e.clientY - startY); sheetState = off > (h - peek) / 2 ? 'peek' : 'open'; }
     applySheetSnap(true);
   };
   grab.addEventListener('pointerup', end);
   grab.addEventListener('pointercancel', end);
 }
+function openSheet() { if (sheetState !== 'open') { sheetState = 'open'; applySheetSnap(true); } }
 
 function icon(cls, html, size, anchor) {
   return L.divIcon({ className: '', html: '<div class="' + cls + '">' + (html || '') + '</div>', iconSize: size, iconAnchor: anchor });
@@ -331,8 +350,20 @@ function onMePos(pos) {
 }
 
 function updateMe(p) {
-  if (!meMarker) meMarker = L.marker([p.lat, p.lng], { icon: icon('medot', '', [16, 16], [8, 8]), interactive: false, zIndexOffset: 500 }).addTo(map);
+  // La ubicación actual del usuario se muestra con un icono de persona/pasajero (no un punto),
+  // para que NO se confunda con el pin de origen (verde) ni con las referencias.
+  if (!meMarker) meMarker = L.marker([p.lat, p.lng], { icon: L.divIcon({ className: '', html: ME_ICON, iconSize: [34, 34], iconAnchor: [17, 17] }), interactive: false, zIndexOffset: 500 }).addTo(map);
   else meMarker.setLatLng([p.lat, p.lng]);
+}
+
+/* Muestra el pin de origen (verde) SOLO cuando es un punto elegido a mano o hay un viaje.
+   Mientras el recojo simplemente sigue tu ubicación en vivo, basta el icono de persona
+   (evita el pin verde encimado sobre tu posición, que era la confusión reportada). */
+function reflectOrigin() {
+  if (!oMarker) return;
+  const show = isRiding() || originPinned;
+  oMarker.setOpacity(show ? 1 : 0);
+  if (oMarker.dragging) { (show && !isRiding()) ? oMarker.dragging.enable() : oMarker.dragging.disable(); }
 }
 
 function geoDist(a, b) {
@@ -349,9 +380,11 @@ function setOrigin(p, address) {
     oMarker.on('dragend', () => {
       originPinned = true; // el usuario eligió un punto de recojo a mano → dejamos de seguir el GPS
       const ll = oMarker.getLatLng(); origin = { lat: ll.lat, lng: ll.lng };
+      reflectOrigin();
       reverseGeocode(ll).then((a) => { origin.address = a; refreshQuote(); });
     });
   } else oMarker.setLatLng(p);
+  reflectOrigin();
 }
 
 function setDest(p, address) {
@@ -571,13 +604,15 @@ function drawRoute(coords, color) {
 function renderPlanning() {
   const b = $('#sheetBody');
   const hasRoute = quote && dest;
+  if (hasRoute) sheetState = 'open'; // con ruta lista se abre para ver precio y "Buscar taxi"
   b.innerHTML = `
-    <h2>¿A dónde vamos?</h2>
-    <div class="sub">Elige tu destino y propón tu precio.</div>
-    <div class="fieldrow"><span class="dot o"></span><input id="oIn" value="${(origin && origin.address) ? esc(origin.address) : 'Mi ubicación'}" placeholder="Origen (puedes editarlo)"><button class="mapbtn" id="oMap" title="Elegir en el mapa">📍</button><small>Origen</small></div>
-    <div class="sugg">
-      <div class="fieldrow"><span class="dot d"></span><input id="dIn" placeholder="Escribe el destino o elígelo en el mapa" value="${dest && dest.address ? esc(dest.address) : ''}"><button class="mapbtn" id="dMap" title="Elegir en el mapa">📍</button><small>Destino</small></div>
-      <div class="suggbox" id="sugg"></div>
+    <div id="planEssential">
+      <h2>¿A dónde vamos?</h2>
+      <div class="fieldrow"><span class="dot o"></span><input id="oIn" value="${(origin && origin.address) ? esc(origin.address) : 'Mi ubicación'}" placeholder="Origen (puedes editarlo)"><button class="mapbtn o" id="oMap" title="Elegir origen en el mapa" aria-label="Elegir origen en el mapa">${pinBtn('#00C853')}</button><small>Origen</small></div>
+      <div class="sugg">
+        <div class="fieldrow"><span class="dot d"></span><input id="dIn" placeholder="¿A dónde vas? Escríbelo o elígelo en el mapa" value="${dest && dest.address ? esc(dest.address) : ''}"><button class="mapbtn d" id="dMap" title="Elegir destino en el mapa" aria-label="Elegir destino en el mapa">${pinBtn('#ff5252')}</button><small>Destino</small></div>
+        <div class="suggbox" id="sugg"></div>
+      </div>
     </div>
     <div class="fieldrow"><span class="dot" style="background:#FFC107"></span><input id="refIn" placeholder="Referencia del recojo (opcional): casa, color, algo cercano…" value="${reference ? esc(reference) : ''}"><small>Referencia</small></div>
     ${hasRoute ? `
@@ -599,18 +634,25 @@ function renderPlanning() {
       </div>
       <button class="btn" id="btnReq">Buscar taxi · ${money(price)}</button>
     ` : `
-      <button class="btn ghost" id="pickDest" style="margin-top:10px">📍 Elegir destino en el mapa</button>
-      <div class="hintprice" style="margin-top:8px">O escribe el destino arriba, o toca 📍 para elegirlo en el mapa.</div>`}
+      <button class="btn ghost" id="pickDest" style="margin-top:10px"><span class="btnpin">${pinBtn('#ff5252')}</span> Elegir destino en el mapa</button>
+      <div class="hintprice" style="margin-top:8px">O escríbelo arriba, o toca el pin del campo Destino para elegirlo en el mapa.</div>`}
   `;
 
   const oMap = $('#oMap'); if (oMap) oMap.addEventListener('click', () => enterPick('origin'));
   const dMap = $('#dMap'); if (dMap) dMap.addEventListener('click', () => enterPick('dest'));
   const pickDest = $('#pickDest'); if (pickDest) pickDest.addEventListener('click', () => enterPick('dest'));
-  const dIn = $('#dIn'); if (dIn) dIn.addEventListener('input', () => searchPlaces(dIn.value.trim(), $('#sugg')));
-  const oIn = $('#oIn'); if (oIn) oIn.addEventListener('input', () => {
-    originPinned = true;                 // si edita el texto, dejamos de sobrescribirlo con el GPS
-    if (origin) origin.address = oIn.value;
-  });
+  const dIn = $('#dIn'); if (dIn) {
+    dIn.addEventListener('focus', openSheet);   // al tocar el destino, se abre el panel (búsqueda + teclado)
+    dIn.addEventListener('input', () => searchPlaces(dIn.value.trim(), $('#sugg')));
+  }
+  const oIn = $('#oIn'); if (oIn) {
+    oIn.addEventListener('focus', openSheet);
+    oIn.addEventListener('input', () => {
+      originPinned = true;                 // si edita el texto, dejamos de sobrescribirlo con el GPS
+      if (origin) origin.address = oIn.value;
+      reflectOrigin();
+    });
+  }
   const refIn = $('#refIn'); if (refIn) refIn.addEventListener('input', () => { reference = refIn.value; });
   if (hasRoute) {
     $('#minus').addEventListener('click', () => bump(-0.5));
@@ -620,6 +662,7 @@ function renderPlanning() {
     }));
     $('#btnReq').addEventListener('click', doRequest);
   }
+  requestAnimationFrame(() => applySheetSnap(false)); // reubica el panel según su nuevo alto/estado
 }
 function bump(d) {
   price = Math.max(quote.floor, Math.round((price + d) * 2) / 2);
@@ -670,6 +713,7 @@ async function tick() {
 }
 
 function renderRide(r) {
+  sheetState = 'open';   // durante el viaje el panel va abierto (info del conductor / estado)
   if (typeof r.last_message_id === 'number') rideLastMsgId = r.last_message_id;
   // dibujar rutas
   if (r.status === 'ofrecido' || r.status === 'aceptado' || r.status === 'en_camino' || r.status === 'llego') {
@@ -680,7 +724,7 @@ function renderRide(r) {
   // marcador del auto
   if (r.driver_pos && r.driver_pos.lat) moveCar(r.driver_pos);
   // marcadores origen/destino
-  if (oMarker) oMarker.setLatLng([r.origin.lat, r.origin.lng]).dragging.disable();
+  if (oMarker) { oMarker.setLatLng([r.origin.lat, r.origin.lng]).dragging.disable(); oMarker.setOpacity(1); }
   if (!dMarker) setDest({ lat: r.dest.lat, lng: r.dest.lng }, r.dest.address); else dMarker.setLatLng([r.dest.lat, r.dest.lng]);
 
   if (r.status !== 'ofrecido') { clearInterval(offerTimer); offerKey = null; }
@@ -834,7 +878,10 @@ function resetAfterRide() {
   if (dMarker) { dMarker.remove(); dMarker = null; }
   if (routeLine) { routeLine.remove(); routeLine = null; }
   if (carMarker) { carMarker.remove(); carMarker = null; }
+  originPinned = false;   // el recojo vuelve a seguir tu ubicación en vivo
+  sheetState = 'peek';    // panel compacto otra vez para ver el mapa
   if (oMarker) oMarker.dragging.enable();
+  reflectOrigin();
   setDefaultOrigin();
   renderPlanning();
 }

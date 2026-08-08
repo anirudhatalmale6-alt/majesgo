@@ -31,3 +31,6 @@ Thumbs.db
 /make_icon.py
 /database/database.sqlite
 /make_driver_icon.py
+
+# Firebase config + Admin SDK key (secreto, nunca al repo público)
+/native/

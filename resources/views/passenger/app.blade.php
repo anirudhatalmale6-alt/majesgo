@@ -38,6 +38,10 @@
         .pin.o{background:var(--verde)} .pin.d{background:#ff5252}
         .car{font-size:30px;filter:drop-shadow(0 4px 6px rgba(0,0,0,.5));transition:transform .1s}
         .medot{width:16px;height:16px;background:#2b8fff;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 6px rgba(43,143,255,.25)}
+        /* Ubicación actual del usuario: icono de persona/pasajero (se distingue del origen verde) */
+        .meperson{width:34px;height:34px;border-radius:50%;background:#2b8fff;border:3px solid #fff;
+            box-shadow:0 0 0 6px rgba(43,143,255,.20),0 3px 8px rgba(0,0,0,.4);display:grid;place-items:center}
+        .meperson svg{width:20px;height:20px;fill:#fff;display:block}
         .taxicar{font-size:22px;filter:drop-shadow(0 3px 4px rgba(0,0,0,.45))}
         .zonemk{pointer-events:none}
         .zonemk .zpin{display:none;position:absolute;left:-9px;top:-26px;width:18px;height:26px;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5))}
@@ -66,6 +70,9 @@
         .confirmbar .cbtitle{font-weight:700;font-size:16px}
         .confirmbar .cbaddr{background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:12px 13px;font-size:14px;margin-bottom:12px;min-height:20px;word-break:break-word}
         .mapbtn{flex:none;width:34px;height:34px;border-radius:10px;border:1px solid var(--line);background:var(--panel);font-size:16px;cursor:pointer;margin-left:6px;display:grid;place-items:center}
+        .mapbtn.o{border-color:rgba(0,200,83,.5)} .mapbtn.d{border-color:rgba(255,82,82,.5)}
+        .mapbtn svg{display:block}
+        .btnpin{display:inline-flex;vertical-align:-4px}.btnpin svg{filter:drop-shadow(0 1px 1px rgba(0,0,0,.4))}
         .mapmode{position:absolute;top:calc(env(safe-area-inset-top) + 66px);left:14px;z-index:19;width:40px;height:40px;border-radius:50%;border:0;background:rgba(13,13,13,.72);backdrop-filter:blur(8px);font-size:17px;cursor:pointer;display:grid;place-items:center;box-shadow:0 2px 8px rgba(0,0,0,.3)}
         #app.lightmap #map{background:#e6e9e4}
         #app.lightmap .leaflet-container{background:#e6e9e4}
@@ -95,6 +102,10 @@
         .grab::after{content:"";position:absolute;left:50%;top:12px;transform:translateX(-50%);width:42px;height:5px;border-radius:3px;background:#3a414a}
         .sheet h2{margin:0 0 3px;font-size:19px}
         .sheet .sub{color:var(--muted);font-size:13px;margin-bottom:14px}
+        /* Bloque esencial (barra principal) visible en modo compacto: espacios ajustados */
+        #planEssential{padding-top:2px}
+        #planEssential h2{margin:0 0 9px}
+        #planEssential .fieldrow{margin-bottom:8px}
 
         .fieldrow{display:flex;align-items:center;gap:11px;background:var(--panel-2);border:1px solid var(--line);border-radius:13px;padding:12px 13px;margin-bottom:10px}
         .fieldrow .dot{width:11px;height:11px;border-radius:50%;flex:none}
@@ -301,6 +312,6 @@ window.MG = {
     vapidPublic: @json(config('services.webpush.public_key')),
 };
 </script>
-<script src="/js/passenger.js?v=19"></script>
+<script src="/js/passenger.js?v=20"></script>
 </body>
 </html>
