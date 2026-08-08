@@ -320,14 +320,28 @@ class RideController extends Controller
             return response()->json(['message' => 'No tienes un viaje activo.'], 422);
         }
 
+        $data = $request->validate([
+            'reason' => ['nullable', 'string', 'max:120'],
+        ]);
+
+        // ¿Fue una cancelación "tardía"? (el conductor ya estaba asignado / en camino / esperando)
+        $lateCancel = in_array($ride->status, ['aceptado', 'en_camino', 'llego'], true) && $ride->driver_id;
+
         $ride->forceFill([
             'status'        => 'cancelado',
             'cancelled_by'  => 'pasajero',
-            'cancel_reason' => $request->input('reason'),
+            'cancel_reason' => $data['reason'] ?? null,
             'cancelled_at'  => now(),
         ])->save();
 
         $passenger->increment('cancel_count');
+
+        // Impacto en la calificación del pasajero SOLO si canceló con el conductor ya en camino.
+        // Penalización suave y recuperable (−0.10, con piso de 3.50) para no castigar en exceso.
+        if ($lateCancel) {
+            $newRating = max(3.50, round((float) $passenger->rating - 0.10, 2));
+            $passenger->update(['rating' => $newRating]);
+        }
 
         // Liberar al conductor asignado para que vuelva a recibir viajes de inmediato
         // (antes solo se liberaba al conductor demo; el real quedaba 'ocupado' y no recibía nada).

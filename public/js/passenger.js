@@ -43,6 +43,10 @@ const ME_ICON = '<div class="meperson"><svg viewBox="0 0 24 24" aria-hidden="tru
 function pinBtn(color) {
   return '<svg viewBox="0 0 24 34" width="15" height="20" aria-hidden="true"><path fill="' + color + '" stroke="#fff" stroke-width="2.4" d="M12 1C6 1 1.2 5.8 1.2 11.8 1.2 19.6 12 33 12 33s10.8-13.4 10.8-21.2C22.8 5.8 18 1 12 1z"/><circle cx="12" cy="11.8" r="3.9" fill="#fff"/></svg>';
 }
+
+let curRide = null; // último viaje recibido (para decidir el tipo de cancelación)
+const PAX_CANCEL_REASONS = ['El conductor tarda mucho', 'Ingresé mal la dirección', 'Cambié de planes / Ya no necesito el viaje', 'Otro motivo'];
+let paxCancelReason = null;
 let nearbyMarkers = {}, nearbyTimer = null; // carritos de taxis disponibles en el mapa
 let zoneLayer = null; // etiquetas de las zonas locales en el mapa
 
@@ -713,6 +717,7 @@ async function tick() {
 }
 
 function renderRide(r) {
+  curRide = r;
   sheetState = 'open';   // durante el viaje el panel va abierto (info del conductor / estado)
   if (typeof r.last_message_id === 'number') rideLastMsgId = r.last_message_id;
   // dibujar rutas
@@ -864,10 +869,64 @@ function renderCompleted(r) {
   });
 }
 
-async function cancelRide() {
-  if (!confirm('¿Cancelar el viaje?')) return;
-  try { await api('api/rides/cancel', {}); } catch (e) {}
+function cancelRide() {
+  const st = curRide && curRide.status;
+  // conductor ya asignado / en camino → modal de advertencia con motivo
+  if (['aceptado', 'en_camino', 'llego'].includes(st)) { openCancelModal(); return; }
+  // aún buscando (sin conductor asignado) → cancelación simple, sin penalización
+  if (!confirm('¿Cancelar la búsqueda de taxi?')) return;
+  doCancel(null);
+}
+
+async function doCancel(reason) {
+  try { await api('api/rides/cancel', { reason }); } catch (e) {}
   stopPolling(); toast('Viaje cancelado'); resetAfterRide();
+}
+
+/* ====== Modal de cancelación del pasajero (2 pasos: advertencia → motivo) ====== */
+function openCancelModal() {
+  paxCancelReason = null;
+  renderCancelStep1();
+  $('#cancelModal').classList.remove('hidden');
+}
+function closeCancelModal() {
+  const m = $('#cancelModal'); m.classList.add('hidden'); m.innerHTML = '';
+}
+function renderCancelStep1() {
+  $('#cancelModal').innerHTML = `
+    <div class="modalcard">
+      <div class="micon warn">⚠️</div>
+      <h2>¿Seguro que deseas cancelar?</h2>
+      <p class="msub">El conductor ya está en camino a tu punto de recojo. Cancelar este viaje afectará tu calificación de usuario y la prioridad con la que se acepten tus próximos pedidos.</p>
+      <button class="btn" id="cxKeep">Continuar viaje</button>
+      <button class="btn softred" id="cxCancel">Sí, cancelar carrera</button>
+    </div>`;
+  $('#cxKeep').addEventListener('click', closeCancelModal);
+  $('#cxCancel').addEventListener('click', renderCancelStep2);
+}
+function renderCancelStep2() {
+  $('#cancelModal').innerHTML = `
+    <div class="modalcard">
+      <h2>¿Por qué cancelas?</h2>
+      <p class="msub">Cuéntanos el motivo (opcional). Nos ayuda a mejorar el servicio.</p>
+      <div class="reasons" id="cxReasons">
+        ${PAX_CANCEL_REASONS.map((t, i) => `<button class="reason" data-i="${i}">${esc(t)}</button>`).join('')}
+      </div>
+      <button class="btn danger" id="cxConfirm">Confirmar cancelación</button>
+      <button class="btn ghost" id="cxBack">Volver</button>
+    </div>`;
+  const btns = [...document.querySelectorAll('#cxReasons .reason')];
+  btns.forEach((b) => b.addEventListener('click', () => {
+    const i = +b.dataset.i;
+    if (paxCancelReason === PAX_CANCEL_REASONS[i]) { paxCancelReason = null; b.classList.remove('on'); }
+    else { paxCancelReason = PAX_CANCEL_REASONS[i]; btns.forEach((x) => x.classList.remove('on')); b.classList.add('on'); }
+  }));
+  $('#cxConfirm').addEventListener('click', async () => {
+    const b = $('#cxConfirm'); if (b) { b.disabled = true; b.innerHTML = '<span class="spin"></span>'; }
+    await doCancel(paxCancelReason);
+    closeCancelModal();
+  });
+  $('#cxBack').addEventListener('click', renderCancelStep1);
 }
 
 function resetAfterRide() {
@@ -878,6 +937,7 @@ function resetAfterRide() {
   if (dMarker) { dMarker.remove(); dMarker = null; }
   if (routeLine) { routeLine.remove(); routeLine = null; }
   if (carMarker) { carMarker.remove(); carMarker = null; }
+  curRide = null;
   originPinned = false;   // el recojo vuelve a seguir tu ubicación en vivo
   sheetState = 'peek';    // panel compacto otra vez para ver el mapa
   if (oMarker) oMarker.dragging.enable();
