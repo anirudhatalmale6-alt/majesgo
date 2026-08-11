@@ -406,6 +406,8 @@ class RideController extends Controller
             return response()->json(['message' => 'No hay un viaje para finalizar.'], 422);
         }
 
+        // Precio cerrado: se cobra EXACTAMENTE lo pactado al aceptar el viaje.
+        // No se recalcula con el tiempo real transcurrido aunque haya habido tráfico o demoras.
         $finalPrice = (float) $ride->offered_price;
         $commission = Fare::commission($finalPrice);
 

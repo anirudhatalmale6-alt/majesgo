@@ -135,6 +135,7 @@
         .stepper button{width:40px;height:40px;border-radius:11px;border:0;background:#2a3038;color:#fff;font-size:22px;font-weight:700;cursor:pointer}
         .stepper .price{min-width:104px;text-align:center;font-size:22px;font-weight:800}
         .hintprice{font-size:11.5px;color:var(--muted);text-align:center;margin:-6px 0 12px}
+        .pricelock{font-size:11.5px;line-height:1.35;color:#7DE9AC;background:rgba(0,230,118,.09);border:1px solid rgba(0,230,118,.22);border-radius:10px;padding:7px 10px;text-align:center;margin:0 0 12px}
 
         .pay{display:flex;gap:10px;margin-bottom:16px}
         .pay button{flex:1;padding:12px;border-radius:13px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);font-family:inherit;font-weight:600;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px}
@@ -334,7 +335,7 @@ window.MG = {
     vapidPublic: @json(config('services.webpush.public_key')),
 };
 </script>
-<script src="/js/passenger.js?v=22"></script>
+<script src="/js/passenger.js?v=23"></script>
 <script src="/js/native.js?v=1"></script>
 </body>
 </html>

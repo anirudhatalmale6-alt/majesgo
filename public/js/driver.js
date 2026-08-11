@@ -734,6 +734,7 @@ function showRequest(req) {
       <div class="l">${req.payment_method === 'yape' ? '💜 Pago con Yape' : '💵 Pago en efectivo'} · sugerido ${money(req.suggested_price)}</div>
     </div>
     <div class="earnnote">Recibes ${money(earn)} (comisión ${money(reqCom)} · ${commissionPct}%)</div>
+    <div class="earnnote lock">🔒 Precio cerrado: cobras ${money(req.offered_price)} aunque el viaje demore más.</div>
     <div class="drv">
       <div class="av">${req.passenger.initial || 'P'}</div>
       <div><div class="nm">${esc(req.passenger.name)}</div><div class="car2">⭐ ${(req.passenger.rating || 5).toFixed(1)} · ${req.passenger.trips || 0} viajes</div></div>

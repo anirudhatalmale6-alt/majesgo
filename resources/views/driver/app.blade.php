@@ -173,6 +173,7 @@
         .fare .n{font-size:40px;font-weight:800}.fare .n .cur{font-size:20px;color:var(--muted)}
         .fare .l{color:var(--muted);font-size:12.5px}
         .earnnote{text-align:center;font-size:11.5px;color:var(--muted);margin:-6px 0 12px}
+        .earnnote.lock{color:#7DE9AC;background:rgba(0,230,118,.09);border:1px solid rgba(0,230,118,.22);border-radius:10px;padding:6px 10px;margin:-6px 0 12px}
 
         .stars{display:flex;justify-content:center;gap:8px;margin:8px 0 18px}
         .stars span{font-size:36px;cursor:pointer;filter:grayscale(1);opacity:.5;transition:.1s}
@@ -370,7 +371,7 @@ window.MG = {
     vapidPublic: @json(config('services.webpush.public_key')),
 };
 </script>
-<script src="/js/driver.js?v=18"></script>
+<script src="/js/driver.js?v=19"></script>
 <script src="/js/native.js?v=1"></script>
 </body>
 </html>

@@ -632,6 +632,7 @@ function renderPlanning() {
         </div>
       </div>
       <div class="hintprice">Sugerido: ${money(quote.suggested)} · puedes ofrecer desde ${money(quote.floor)}</div>
+      <div class="pricelock">🔒 Precio fijo: pagas este monto al llegar, aunque haya tráfico o demoras.</div>
       <div class="pay">
         <button data-m="efectivo" class="${method === 'efectivo' ? 'on' : ''}">💵 Efectivo</button>
         <button data-m="yape" class="${method === 'yape' ? 'on' : ''}">💜 Yape</button>
@@ -842,6 +843,7 @@ function renderAssigned(r) {
       <div class="chip"><div class="v">${money(r.offered_price)}</div><div class="l">${r.payment_method === 'yape' ? 'Yape' : 'Efectivo'}</div></div>
       <div class="chip"><div class="v">${(r.distance_m / 1000).toFixed(1)} km</div><div class="l">al destino</div></div>
     </div>
+    <div class="pricelock">🔒 Precio fijo pactado: ${money(r.offered_price)}. No cambia por el tráfico.</div>
     <div class="acts">
       <button class="btn ghost" id="btnChat">💬 Chat${(rideLastMsgId > chatSeenId && !chatOpen) ? ' <span class="undot"></span>' : ''}</button>
       ${canCancel ? '<button class="btn danger" id="btnCancel">Cancelar</button>' : ''}
@@ -855,6 +857,7 @@ function renderCompleted(r) {
   $('#sheetBody').innerHTML = `
     <div style="text-align:center"><div style="font-size:44px">✅</div><h2>¡Llegaste!</h2><div class="sub">Gracias por viajar con MajesGo.</div></div>
     <div class="fare-big"><div class="n">${money(r.final_price || r.offered_price)}</div><div class="l">${r.payment_method === 'yape' ? 'Pagas con Yape' : 'Pagas en efectivo'}</div></div>
+    <div class="pricelock">🔒 Es el mismo precio que aceptaste al pedir el viaje.</div>
     <div class="sub" style="text-align:center">¿Cómo estuvo tu conductor?</div>
     <div class="stars" id="stars">${[1, 2, 3, 4, 5].map((n) => `<span data-n="${n}">★</span>`).join('')}</div>
     <button class="btn" id="btnDone">Listo</button>`;

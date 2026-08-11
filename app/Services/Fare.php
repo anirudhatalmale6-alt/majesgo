@@ -16,6 +16,13 @@ use App\Models\Setting;
  * COMISIÓN: porcentaje de la tarifa (5% por defecto); el 95% restante queda para el conductor.
  *
  * El pasajero puede proponer su propio precio (estilo inDrive), nunca por debajo de floor().
+ *
+ * ⚠ PRECIO CERRADO — REGLA DE NEGOCIO INNEGOCIABLE
+ * suggest() sirve ÚNICAMENTE para proponer un precio ANTES de solicitar el viaje.
+ * Una vez que el conductor acepta, el precio pactado (rides.offered_price) queda congelado:
+ * el pasajero paga exactamente ese monto aunque el viaje demore el triple por tráfico.
+ * NUNCA llames a suggest() al finalizar un viaje ni recalcules la tarifa con el tiempo real
+ * transcurrido — final_price siempre se copia de offered_price (ver Driver\RideController::complete).
  */
 class Fare
 {
