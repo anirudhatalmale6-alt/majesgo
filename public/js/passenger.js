@@ -764,6 +764,14 @@ function vehiclePhoto(d) {
     </div>`;
 }
 
+/** Rostro del conductor (solo si la central lo aprobó); si no, la inicial de siempre. */
+function driverAvatar(d) {
+  if (d && d.photo) {
+    return `<div class="av"><img src="${d.photo}" alt="Foto de ${esc(d.name || 'tu conductor')}" loading="lazy"></div>`;
+  }
+  return `<div class="av">${(d && d.initial) || '🚗'}</div>`;
+}
+
 /** Abre la foto a pantalla completa al tocarla (la placa se lee mejor en grande). */
 function bindVehiclePhoto(d) {
   const box = $('#vehShot');
@@ -793,7 +801,7 @@ function renderOffer(r) {
     </div>
     ${vehiclePhoto(d)}
     <div class="drv">
-      <div class="av">${d.initial || '🚗'}</div>
+      ${driverAvatar(d)}
       <div><div class="nm">${esc(d.name || 'Conductor')}</div><div class="car2">${esc(d.vehicle || '')} · ${esc(d.plate || '')} ${d.color ? '· ' + esc(d.color) : ''}</div></div>
       <div class="rate"><b>⭐ ${(d.rating || 5).toFixed(1)}</b><small>${d.trips || 0} viajes</small></div>
     </div>
@@ -865,7 +873,7 @@ function renderAssigned(r) {
     <div class="statusband">${band[0]}<small>${band[1]}</small></div>
     ${vehiclePhoto(d)}
     <div class="drv">
-      <div class="av">${d.initial || '🚗'}</div>
+      ${driverAvatar(d)}
       <div><div class="nm">${esc(d.name || 'Conductor')}</div><div class="car2">${esc(d.vehicle || '')} · ${esc(d.plate || '')} ${d.color ? '· ' + esc(d.color) : ''}</div></div>
       <div class="rate"><b>⭐ ${(d.rating || 5).toFixed(1)}</b><small>${d.trips || 0} viajes</small></div>
     </div>

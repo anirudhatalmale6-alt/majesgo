@@ -43,6 +43,12 @@ class Driver extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
+    /** Fotos enviadas a la central (rostro y vehículo), con su estado de aprobación. */
+    public function photos()
+    {
+        return $this->hasMany(DriverPhoto::class)->latest('id');
+    }
+
     /* ---- Helpers de negocio ---- */
 
     public function isBlocked(): bool
@@ -50,11 +56,18 @@ class Driver extends Model
         return $this->account_status !== 'activo';
     }
 
-    /** Puede recibir viajes: cuenta activa + saldo suficiente para la comisión mínima. */
+    /**
+     * Puede recibir viajes: cuenta activa + saldo suficiente para la comisión mínima
+     * + sus fotos (rostro y vehículo) aprobadas por la central.
+     *
+     * El requisito de fotos también se evalúa aquí, y no solo al conectarse, para que un
+     * conductor ya conectado deje de recibir viajes en cuanto la central le rechace una foto.
+     */
     public function canReceiveRides(): bool
     {
         return $this->account_status === 'activo'
-            && (float) $this->saldo >= \App\Services\Fare::minSaldo();
+            && (float) $this->saldo >= \App\Services\Fare::minSaldo()
+            && ! \App\Services\DriverPhotos::missing($this);
     }
 
     /**

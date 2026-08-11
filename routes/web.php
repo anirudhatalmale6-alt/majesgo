@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\AuthController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\DriverController;
+use App\Http\Controllers\Admin\DriverPhotoController;
 use App\Http\Controllers\Admin\RechargeController;
 use App\Http\Controllers\Admin\PlaceController;
 use App\Http\Controllers\Admin\SettingController;
@@ -91,9 +92,9 @@ Route::prefix('conductor')->name('driver.')->group(function () {
         Route::post('api/ack', [DriverRide::class, 'ack']);
         Route::post('api/cancel-report', [DriverRide::class, 'cancelReport']);
 
-        // Foto del vehículo (la sube el propio conductor desde su celular)
-        Route::post('api/vehicle-photo', [DriverRide::class, 'uploadVehiclePhoto']);
-        Route::delete('api/vehicle-photo', [DriverRide::class, 'deleteVehiclePhoto']);
+        // Fotos del conductor (rostro y vehículo). Quedan pendientes hasta que la central apruebe.
+        Route::post('api/photo/{type}', [DriverRide::class, 'uploadPhoto']);
+        Route::delete('api/photo/{type}', [DriverRide::class, 'deletePhoto']);
 
         // Saldo y recargas
         Route::get('api/saldo', [DriverRide::class, 'saldo']);
@@ -128,6 +129,11 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::delete('conductores/{driver}', [DriverController::class, 'destroy'])->name('drivers.destroy');
 
         // Recargas
+        // Moderación de fotos de conductores (rostro y vehículo)
+        Route::get('fotos', [DriverPhotoController::class, 'index'])->name('photos.index');
+        Route::post('fotos/{photo}/aprobar', [DriverPhotoController::class, 'approve'])->name('photos.approve');
+        Route::post('fotos/{photo}/rechazar', [DriverPhotoController::class, 'reject'])->name('photos.reject');
+
         Route::get('recargas', [RechargeController::class, 'index'])->name('recharges.index');
         Route::post('recargas', [RechargeController::class, 'store'])->name('recharges.store');
         Route::post('recargas/{recharge}/aprobar', [RechargeController::class, 'approve'])->name('recharges.approve');

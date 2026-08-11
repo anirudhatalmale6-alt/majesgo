@@ -47,6 +47,7 @@ class DatabaseSeeder extends Seeder
             'min_saldo_alert'  => '5.00',
             'dispatch_radius_km' => '3.0',   // radio para avisar a conductores cercanos
             'demo_enabled'     => '1',       // conductor demo cuando no hay conductores reales conectados
+            'require_photos'   => '1',       // exigir foto de rostro y vehículo aprobadas para conectarse
         ];
         foreach ($defaults as $k => $v) {
             Setting::updateOrCreate(['key' => $k], ['value' => $v]);

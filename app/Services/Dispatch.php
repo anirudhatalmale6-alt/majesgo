@@ -54,6 +54,13 @@ class Dispatch
                 $q->where('last_active_at', '>=', now()->subSeconds($staleS))
                   ->orWhere('is_demo', true);
             })
+            // fotos aprobadas por la central: si el requisito está activo, un conductor sin
+            // rostro o sin vehículo aprobados no entra al despacho aunque esté conectado.
+            // El conductor demo queda exento: es una simulación interna, no lo ve un pasajero real.
+            ->when(DriverPhotos::required(), fn ($q) => $q->where(function ($w) {
+                $w->where('is_demo', true)
+                  ->orWhere(fn ($x) => $x->whereNotNull('photo_path')->whereNotNull('vehicle_photo'));
+            }))
             ->get();
 
         $out = [];

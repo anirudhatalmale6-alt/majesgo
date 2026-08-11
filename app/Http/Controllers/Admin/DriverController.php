@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Driver;
-use App\Services\VehiclePhoto;
+use App\Services\DriverPhotos;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -51,7 +51,7 @@ class DriverController extends Controller
         $data['created_by'] = $request->user()->id;
 
         $driver = Driver::create($data);
-        $this->syncVehiclePhoto($request, $driver);
+        $this->syncPhotos($request, $driver);
 
         // saldo inicial opcional (queda registrado en el historial de movimientos)
         $initial = round((float) $request->input('saldo', 0), 2);
@@ -79,7 +79,7 @@ class DriverController extends Controller
         $data = $this->validateDriver($request, $driver);
         unset($data['password']); // la contraseña se cambia aparte
         $driver->update($data);
-        $this->syncVehiclePhoto($request, $driver);
+        $this->syncPhotos($request, $driver);
 
         return redirect()->route('admin.drivers.show', $driver)->with('ok', 'Datos actualizados.');
     }
@@ -134,16 +134,33 @@ class DriverController extends Controller
 
     /* ---------- helpers ---------- */
 
-    /** Sube la foto nueva del vehículo o quita la actual, según lo que venga del formulario. */
-    private function syncVehiclePhoto(Request $request, Driver $driver): void
+    /**
+     * Sube o quita las fotos desde el panel.
+     *
+     * Lo que carga la central queda aprobado de una vez: ella es la que aprueba.
+     * Igual se registra en driver_photos para que el historial de la foto vigente sea uno solo.
+     */
+    private function syncPhotos(Request $request, Driver $driver): void
     {
-        if ($request->boolean('remove_vehicle_photo')) {
-            VehiclePhoto::clear($driver);
-            return;
-        }
+        $fields = [
+            'vehiculo' => ['file' => 'vehicle_photo', 'remove' => 'remove_vehicle_photo'],
+            'perfil'   => ['file' => 'profile_photo', 'remove' => 'remove_profile_photo'],
+        ];
 
-        if ($request->hasFile('vehicle_photo')) {
-            $driver->update(['vehicle_photo' => VehiclePhoto::store($request->file('vehicle_photo'), $driver)]);
+        foreach ($fields as $type => $f) {
+            $column = DriverPhotos::liveColumn($type);
+
+            if ($request->boolean($f['remove'])) {
+                \App\Services\ImageStore::delete($driver->{$column});
+                $driver->photos()->where('type', $type)->where('status', 'aprobado')->delete();
+                $driver->update([$column => null]);
+                continue;
+            }
+
+            if ($request->hasFile($f['file'])) {
+                $photo = DriverPhotos::submit($driver, $type, $request->file($f['file']));
+                DriverPhotos::approve($photo, $request->user()->id);
+            }
         }
     }
 
@@ -163,16 +180,15 @@ class DriverController extends Controller
             'vehicle_plate'  => ['nullable', 'string', 'max:15'],
             'vehicle_color'  => ['nullable', 'string', 'max:30'],
             'vehicle_year'   => ['nullable', 'string', 'max:5'],
-            'vehicle_photo'  => VehiclePhoto::RULES,
-        ], [
-            'vehicle_photo.uploaded' => 'No se pudo subir la foto: pesa más de lo que admite el servidor. Usa una imagen más liviana.',
-            'vehicle_photo.image'    => 'El archivo de la foto debe ser una imagen.',
-            'vehicle_photo.mimes'    => 'La foto debe ser JPG, PNG o WEBP.',
-            'vehicle_photo.max'      => 'La foto es muy pesada (máx. 12 MB).',
-        ]);
+            'vehicle_photo'  => DriverPhotos::RULES,
+            'profile_photo'  => DriverPhotos::RULES,
+        ], array_merge(
+            \App\Services\ImageStore::messages('vehicle_photo', 'la foto del vehículo'),
+            \App\Services\ImageStore::messages('profile_photo', 'la foto de perfil')
+        ));
 
-        // el archivo se procesa aparte (syncVehiclePhoto); nunca debe llegar al update() del modelo
-        unset($data['vehicle_photo']);
+        // los archivos se procesan aparte (syncPhotos); nunca deben llegar al update() del modelo
+        unset($data['vehicle_photo'], $data['profile_photo']);
 
         return $data;
     }

@@ -40,7 +40,8 @@ class RideController extends Controller
                 return response()->json([
                     'message' => $driver->account_status !== 'activo'
                         ? 'Tu cuenta no está activa. Comunícate con la central.'
-                        : 'Tu saldo no alcanza para la comisión. Recarga para conectarte.',
+                        : (\App\Services\DriverPhotos::blockMessage($driver)
+                            ?: 'Tu saldo no alcanza para la comisión. Recarga para conectarte.'),
                 ], 422);
             }
             $upd = ['status' => 'disponible', 'last_active_at' => now()];
@@ -491,15 +492,25 @@ class RideController extends Controller
      * El conductor sube o reemplaza la foto de su vehículo desde su propio celular.
      * Es la vía práctica: la central no tiene por qué juntar las fotos de cada auto a mano.
      */
-    public function uploadVehiclePhoto(Request $request)
+    /**
+     * El conductor envía su foto de perfil o la de su vehículo.
+     * No se publica: queda pendiente hasta que la central la apruebe.
+     */
+    public function uploadPhoto(Request $request, string $type)
     {
         $driver = $this->driver($request);
 
+        if (! in_array($type, \App\Models\DriverPhoto::TYPES, true)) {
+            return response()->json(['message' => 'Tipo de foto no válido.'], 404);
+        }
+
+        $label = \App\Services\DriverPhotos::label($type);
+
         $request->validate(
-            ['photo' => array_merge(['required'], array_slice(\App\Services\VehiclePhoto::RULES, 1))],
+            ['photo' => array_merge(['required'], array_slice(\App\Services\DriverPhotos::RULES, 1))],
             [
-                'photo.required' => 'Elige una foto de tu vehículo.',
-                'photo.uploaded' => 'No se pudo subir la foto: pesa demasiado. Toma la foto de nuevo.',
+                'photo.required' => "Elige {$label}.",
+                'photo.uploaded' => 'No se pudo subir la foto: pesa demasiado. Tómala de nuevo.',
                 'photo.image'    => 'El archivo debe ser una imagen.',
                 'photo.mimes'    => 'Usa una foto JPG, PNG o WEBP.',
                 'photo.max'      => 'La foto es muy pesada (máx. 12 MB).',
@@ -507,27 +518,41 @@ class RideController extends Controller
         );
 
         try {
-            $path = \App\Services\VehiclePhoto::store($request->file('photo'), $driver);
+            \App\Services\DriverPhotos::submit($driver, $type, $request->file('photo'));
         } catch (\Throwable $e) {
             return response()->json(['message' => 'No se pudo procesar la foto. Intenta con otra.'], 422);
         }
 
-        $driver->update(['vehicle_photo' => $path]);
-
         return response()->json([
-            'ok'            => true,
-            'vehicle_photo' => \App\Services\VehiclePhoto::url($path),
-            'message'       => 'Foto de tu vehículo actualizada.',
+            'ok'      => true,
+            'photos'  => \App\Services\DriverPhotos::states($driver->fresh()),
+            'message' => 'Foto enviada. La central la revisará antes de publicarla.',
         ]);
     }
 
-    /** El conductor quita la foto de su vehículo. */
-    public function deleteVehiclePhoto(Request $request)
+    /** El conductor retira una foto: se va tanto la pendiente como la que estaba publicada. */
+    public function deletePhoto(Request $request, string $type)
     {
         $driver = $this->driver($request);
-        \App\Services\VehiclePhoto::clear($driver);
 
-        return response()->json(['ok' => true, 'vehicle_photo' => null, 'message' => 'Foto eliminada.']);
+        if (! in_array($type, \App\Models\DriverPhoto::TYPES, true)) {
+            return response()->json(['message' => 'Tipo de foto no válido.'], 404);
+        }
+
+        $column = \App\Services\DriverPhotos::liveColumn($type);
+
+        foreach ($driver->photos()->where('type', $type)->get() as $p) {
+            \App\Services\ImageStore::delete($p->path);
+            $p->delete();
+        }
+        \App\Services\ImageStore::delete($driver->{$column});
+        $driver->update([$column => null]);
+
+        return response()->json([
+            'ok'      => true,
+            'photos'  => \App\Services\DriverPhotos::states($driver->fresh()),
+            'message' => 'Foto eliminada.',
+        ]);
     }
 
     public function saldo(Request $request)
@@ -545,6 +570,9 @@ class RideController extends Controller
         return response()->json([
             'saldo'          => (float) $driver->saldo,
             'vehicle_photo'  => \App\Services\VehiclePhoto::url($driver->vehicle_photo),
+            'photos'         => \App\Services\DriverPhotos::states($driver),
+            'photos_required'=> \App\Services\DriverPhotos::required(),
+            'photo_block'    => \App\Services\DriverPhotos::blockMessage($driver),
             'commission_pct' => Fare::commissionPct(),
             'min_saldo'      => Fare::minSaldo(),
             'min_alert'      => (float) Setting::get('min_saldo_alert', 5.00),

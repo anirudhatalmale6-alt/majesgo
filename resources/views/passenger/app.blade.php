@@ -165,6 +165,7 @@
         /* Conductor asignado */
         .drv{display:flex;align-items:center;gap:13px;margin-bottom:14px}
         .drv .av{width:56px;height:56px;border-radius:16px;background:linear-gradient(135deg,var(--verde),var(--verde-d));display:grid;place-items:center;font-size:24px;font-weight:800;flex:none}
+        .drv .av img{width:100%;height:100%;object-fit:cover;object-position:center 30%;border-radius:16px;display:block}
         .drv .nm{font-size:17px;font-weight:700}
         .drv .car2{color:var(--muted);font-size:13px}
         .drv .rate{margin-left:auto;text-align:right}
@@ -341,7 +342,7 @@ window.MG = {
     vapidPublic: @json(config('services.webpush.public_key')),
 };
 </script>
-<script src="/js/passenger.js?v=24"></script>
+<script src="/js/passenger.js?v=25"></script>
 <script src="/js/native.js?v=1"></script>
 </body>
 </html>

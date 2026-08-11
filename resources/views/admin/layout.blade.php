@@ -133,6 +133,14 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 17h14M6 17l1.5-5A2 2 0 0 1 9.4 10.6h5.2a2 2 0 0 1 1.9 1.4L18 17"/><circle cx="7.5" cy="17.5" r="1.5"/><circle cx="16.5" cy="17.5" r="1.5"/></svg>
                 Conductores
             </a>
+            @php($pendingPhotos = \App\Models\DriverPhoto::pending()->count())
+            <a href="{{ route('admin.photos.index') }}" class="{{ request()->routeIs('admin.photos.*')?'on':'' }}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="14" rx="2"/><circle cx="12" cy="13" r="3.2"/><path d="M8 6l1.5-2h5L16 6"/></svg>
+                Fotos
+                @if($pendingPhotos)
+                    <span style="margin-left:auto;background:#FFC107;color:#3a2c00;font-size:11px;font-weight:800;border-radius:999px;padding:2px 8px">{{ $pendingPhotos }}</span>
+                @endif
+            </a>
             <a href="{{ route('admin.recharges.index') }}" class="{{ request()->routeIs('admin.recharges.*')?'on':'' }}">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
                 Recargas

@@ -94,6 +94,20 @@
         </div>
 
         <div class="card">
+            <h3 style="margin-bottom:14px">Fotos de conductores</h3>
+            <div class="field">
+                <label style="display:flex;align-items:center;gap:9px;cursor:pointer">
+                    <input type="checkbox" name="require_photos" value="1" {{ old('require_photos',$settings['require_photos'])=='1' ? 'checked' : '' }} style="width:auto">
+                    <span>Exigir foto de perfil y de vehículo aprobadas para conectarse</span>
+                </label>
+                <div class="muted" style="font-size:12px;margin-top:5px;line-height:1.5">
+                    Con esto activado, un conductor no puede ponerse Disponible hasta que apruebes sus dos fotos en la sección «Fotos».
+                    Si lo desactivas, las fotos se siguen revisando igual (nada se publica sin tu aprobación), pero puede trabajar mientras tanto.
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
             <h3 style="margin-bottom:14px">Despacho de viajes</h3>
             <div class="field">
                 <label>Radio de búsqueda de conductores (km)</label>

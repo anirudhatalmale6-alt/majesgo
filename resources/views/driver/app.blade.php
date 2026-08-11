@@ -181,6 +181,15 @@
         .vehnote{font-size:11.5px;color:var(--muted);text-align:center;margin:8px 0 10px}
         .vehacts{display:flex;gap:10px}
         .vehacts .btn{flex:1}
+        .vehbox{margin-bottom:20px}
+        .vehimg.face{height:200px;object-fit:cover;object-position:center 30%}
+        .ptitle{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13.5px;font-weight:600;margin:0 0 8px}
+        .pchip{font-size:11px;font-weight:700;border-radius:999px;padding:4px 9px;white-space:nowrap}
+        .pchip.wait{color:#ffd98a;background:rgba(255,193,7,.12);border:1px solid rgba(255,193,7,.3)}
+        .pchip.ok{color:#7DE9AC;background:rgba(0,230,118,.1);border:1px solid rgba(0,230,118,.25)}
+        .pchip.bad{color:#ff9a9a;background:rgba(255,82,82,.11);border:1px solid rgba(255,82,82,.3)}
+        .preason{font-size:12px;line-height:1.45;color:#ff9a9a;background:rgba(255,82,82,.08);border:1px solid rgba(255,82,82,.22);border-radius:10px;padding:9px 11px;margin:9px 0 2px}
+        .photoblock{font-size:12.5px;line-height:1.45;color:#ffd98a;background:rgba(255,193,7,.08);border:1px dashed rgba(255,193,7,.4);border-radius:12px;padding:11px 13px;margin-bottom:14px}
         .btn.ghost.danger{color:#ff8a80;border-color:rgba(255,138,128,.35)}
 
         .stars{display:flex;justify-content:center;gap:8px;margin:8px 0 18px}
@@ -416,7 +425,7 @@ window.MG = {
     vapidPublic: @json(config('services.webpush.public_key')),
 };
 </script>
-<script src="/js/driver.js?v=21"></script>
+<script src="/js/driver.js?v=22"></script>
 <script src="/js/native.js?v=1"></script>
 </body>
 </html>

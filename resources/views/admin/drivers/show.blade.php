@@ -32,13 +32,48 @@
                 <div><div class="muted" style="font-size:12px">Viajes completados</div><div style="font-weight:600">{{ $driver->total_trips }}</div></div>
                 <div><div class="muted" style="font-size:12px">Licencia</div><div style="font-weight:600">{{ $driver->license_number ?: '—' }}</div></div>
             </div>
-            <div style="margin-top:16px">
-                <div class="muted" style="font-size:12px;margin-bottom:7px">Foto del vehículo</div>
-                @if($driver->vehicle_photo)
-                    <img src="{{ \App\Services\VehiclePhoto::url($driver->vehicle_photo) }}" alt="Vehículo de {{ $driver->full_name }}"
-                         style="width:260px;max-width:100%;height:176px;object-fit:cover;border-radius:12px;border:1px solid var(--line)">
-                @else
-                    <div style="font-weight:600;color:var(--muted)">Sin foto — el conductor puede subirla desde su app, o cárgala tú en «Editar».</div>
+            @php($photoStates = \App\Services\DriverPhotos::states($driver))
+            @php($missingPhotos = \App\Services\DriverPhotos::missing($driver))
+
+            <div style="margin-top:18px">
+                <div class="between" style="margin-bottom:9px">
+                    <div class="muted" style="font-size:12px">Fotos publicadas (las que ve el pasajero)</div>
+                    @if(\App\Services\DriverPhotos::required())
+                        <span class="badge {{ $missingPhotos ? 'blk' : 'on' }}">
+                            {{ $missingPhotos ? '✗ No puede conectarse: faltan fotos aprobadas' : '✓ Fotos aprobadas' }}
+                        </span>
+                    @endif
+                </div>
+
+                <div style="display:flex;gap:16px;flex-wrap:wrap">
+                    @foreach(['perfil'=>['Rostro','130px'],'vehiculo'=>['Vehículo','260px']] as $t => $meta)
+                        @php($st = $photoStates[$t])
+                        <div>
+                            <div class="muted" style="font-size:11.5px;margin-bottom:5px">{{ $meta[0] }}</div>
+                            @if($st['url'])
+                                <img src="{{ $st['url'] }}" alt="{{ $meta[0] }} de {{ $driver->full_name }}"
+                                     style="width:{{ $meta[1] }};max-width:100%;height:176px;object-fit:cover;border-radius:12px;border:1px solid var(--line);display:block">
+                            @else
+                                <div style="width:{{ $meta[1] }};max-width:100%;height:176px;border-radius:12px;border:1px dashed var(--line);display:grid;place-items:center;color:var(--muted);font-size:12.5px;text-align:center;padding:10px">
+                                    Sin foto publicada
+                                </div>
+                            @endif
+                            <div style="margin-top:7px;font-size:12px">
+                                @if($st['status']=='pendiente')
+                                    <span class="badge sus">Nueva foto pendiente de revisión</span>
+                                @elseif($st['status']=='rechazada')
+                                    <span class="badge blk">Rechazada</span>
+                                @endif
+                                @if($st['reason'])
+                                    <div class="muted" style="margin-top:5px">Motivo: {{ $st['reason'] }}</div>
+                                @endif
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+
+                @if($photoStates['perfil']['status']=='pendiente' || $photoStates['vehiculo']['status']=='pendiente')
+                    <a href="{{ route('admin.photos.index') }}" class="btn ghost sm" style="margin-top:12px;width:auto;display:inline-block">Revisar fotos pendientes</a>
                 @endif
             </div>
         </div>

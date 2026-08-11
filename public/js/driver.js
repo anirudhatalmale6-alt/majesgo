@@ -996,18 +996,10 @@ async function openDrawer() {
       <div class="chip"><div class="v">${d.commission_pct}%</div><div class="l">Comisión</div></div>
     </div>
 
-    <div class="seg">MI VEHÍCULO</div>
-    <div class="vehbox">
-      ${d.vehicle_photo
-        ? `<img class="vehimg" src="${d.vehicle_photo}" alt="Mi vehículo">`
-        : `<div class="vehempty">🚗<span>Aún no subes la foto de tu auto</span></div>`}
-      <div class="vehnote">El pasajero la ve para reconocer tu vehículo cuando llegas.</div>
-      <input type="file" id="vehFile" accept="image/jpeg,image/png,image/webp" capture="environment" hidden>
-      <div class="vehacts">
-        <button class="btn ghost" id="btnVehPick">${d.vehicle_photo ? 'Cambiar foto' : 'Subir foto'}</button>
-        ${d.vehicle_photo ? '<button class="btn ghost danger" id="btnVehDel">Quitar</button>' : ''}
-      </div>
-    </div>
+    <div class="seg">MIS FOTOS</div>
+    ${d.photo_block ? `<div class="photoblock">🔒 ${esc(d.photo_block)}</div>` : ''}
+    ${photoBox('perfil', d.photos)}
+    ${photoBox('vehiculo', d.photos)}
 
     <div class="seg">RECARGAR SALDO</div>
     ${pend}
@@ -1040,9 +1032,67 @@ async function openDrawer() {
   $('#rAmount').addEventListener('input', () => { rTier = null; tierBtns.forEach((x) => x.classList.remove('on')); });
   $('#btnDoRecharge').addEventListener('click', goToPayment);
 
-  $('#btnVehPick').addEventListener('click', () => $('#vehFile').click());
-  $('#vehFile').addEventListener('change', (e) => { if (e.target.files[0]) uploadVehiclePhoto(e.target.files[0]); });
-  const vd = $('#btnVehDel'); if (vd) vd.addEventListener('click', deleteVehiclePhoto);
+  ['perfil', 'vehiculo'].forEach(bindPhotoBox);
+}
+
+/* ---------- Mis fotos (rostro y vehículo) ---------- */
+/*
+ * Ninguna foto se publica sola: al subirla queda pendiente y la central la aprueba.
+ * Mientras tanto se sigue mostrando la que ya estaba aprobada, para que el conductor
+ * no se quede sin foto visible por intentar cambiarla.
+ */
+
+const PHOTO_META = {
+  perfil:   { title: 'Foto de perfil', empty: '🙂', emptyTx: 'Aún no subes tu foto',
+              note: 'El pasajero ve tu rostro para reconocerte. Foto de frente, con buena luz y sin lentes oscuros.',
+              capture: 'user', cls: 'face' },
+  vehiculo: { title: 'Foto del vehículo', empty: '🚗', emptyTx: 'Aún no subes la foto de tu auto',
+              note: 'El pasajero la ve para reconocer tu vehículo cuando llegas. De costado y con la placa visible.',
+              capture: 'environment', cls: '' },
+};
+
+function photoBox(type, photos) {
+  const m = PHOTO_META[type];
+  const p = (photos && photos[type]) || { status: 'ninguna' };
+  const shown = p.pending_url || p.url;
+
+  const chip = {
+    pendiente: '<span class="pchip wait">⏳ En revisión por la central</span>',
+    aprobada:  '<span class="pchip ok">✓ Aprobada</span>',
+    rechazada: '<span class="pchip bad">✕ Rechazada</span>',
+    ninguna:   '',
+  }[p.status] || '';
+
+  // si le rechazaron un cambio pero sigue teniendo una aprobada, hay que decirle las dos cosas
+  const reason = p.reason
+    ? `<div class="preason">Motivo: ${esc(p.reason)}${p.url && p.status === 'aprobada' ? '<br>Sigue vigente tu foto aprobada anterior.' : ''}</div>`
+    : '';
+
+  return `
+    <div class="vehbox" data-ptype="${type}">
+      <div class="ptitle">${m.title} ${chip}</div>
+      ${shown
+        ? `<img class="vehimg ${m.cls}" src="${shown}" alt="${m.title}">`
+        : `<div class="vehempty">${p.status === 'rechazada' ? '↻' : m.empty}<span>${p.status === 'rechazada' ? 'Sube una foto nueva' : m.emptyTx}</span></div>`}
+      ${p.status === 'pendiente' && p.pending_url ? '<div class="vehnote">Esta es la foto que enviaste. Se publicará cuando la central la apruebe.</div>' : ''}
+      ${reason}
+      <div class="vehnote">${m.note}</div>
+      <input type="file" class="pfile" accept="image/jpeg,image/png,image/webp" capture="${m.capture}" hidden>
+      <div class="vehacts">
+        <button class="btn ghost pPick">${shown ? 'Cambiar foto' : 'Subir foto'}</button>
+        ${shown ? '<button class="btn ghost danger pDel">Quitar</button>' : ''}
+      </div>
+    </div>`;
+}
+
+function bindPhotoBox(type) {
+  const box = $(`.vehbox[data-ptype="${type}"]`);
+  if (!box) return;
+  const file = box.querySelector('.pfile');
+  box.querySelector('.pPick').addEventListener('click', () => file.click());
+  file.addEventListener('change', (e) => { if (e.target.files[0]) uploadDriverPhoto(type, e.target.files[0], box); });
+  const del = box.querySelector('.pDel');
+  if (del) del.addEventListener('click', () => deleteDriverPhoto(type, box));
 }
 
 /* ---------- Foto del vehículo ---------- */
@@ -1074,36 +1124,36 @@ function shrinkPhoto(file, maxSide = 1280, quality = 0.85) {
   });
 }
 
-async function uploadVehiclePhoto(file) {
-  const btn = $('#btnVehPick');
+async function uploadDriverPhoto(type, file, box) {
+  const btn = box.querySelector('.pPick');
+  const old = btn.textContent;
   btn.disabled = true; btn.innerHTML = '<span class="spin"></span>';
   try {
     const small = await shrinkPhoto(file);
     const fd = new FormData();
-    fd.append('photo', small, 'vehiculo.jpg');
+    fd.append('photo', small, type + '.jpg');
     // FormData va sin Content-Type: el navegador pone el boundary correcto
-    const res = await fetch('/conductor/api/vehicle-photo', {
+    const res = await fetch('/conductor/api/photo/' + type, {
       method: 'POST',
       headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': MG.csrf },
       body: fd,
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.message || 'No se pudo subir la foto.');
-    toast(data.message || 'Foto actualizada.');
-    if (me) me.vehicle_photo = data.vehicle_photo;
+    toast(data.message || 'Foto enviada a revisión.');
     openDrawer();
   } catch (e) {
     toast(e.message);
-    btn.disabled = false; btn.textContent = 'Subir foto';
+    btn.disabled = false; btn.textContent = old;
   }
 }
 
-async function deleteVehiclePhoto() {
-  const btn = $('#btnVehDel');
+async function deleteDriverPhoto(type, box) {
+  const btn = box.querySelector('.pDel');
   btn.disabled = true; btn.innerHTML = '<span class="spin"></span>';
   try {
-    await api('api/vehicle-photo', null, 'DELETE');
-    if (me) me.vehicle_photo = null;
+    await api('api/photo/' + type, null, 'DELETE');
+    if (me && type === 'vehiculo') me.vehicle_photo = null;
     toast('Foto eliminada.');
     openDrawer();
   } catch (e) { toast(e.message); btn.disabled = false; btn.textContent = 'Quitar'; }

@@ -481,6 +481,9 @@ class RideController extends Controller
                 'rating'  => (float) $driver->rating,
                 'trips'   => $driver->total_trips,
                 'initial' => mb_strtoupper(mb_substr($driver->full_name, 0, 1)),
+                // solo se envían las fotos aprobadas por la central: las columnas del conductor
+                // nunca guardan una foto sin aprobar (ver App\Services\DriverPhotos)
+                'photo'         => \App\Services\ImageStore::url($driver->photo_path),
                 'vehicle_photo' => \App\Services\VehiclePhoto::url($driver->vehicle_photo),
             ] : null,
         ];
