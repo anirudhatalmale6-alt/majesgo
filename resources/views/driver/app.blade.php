@@ -174,6 +174,14 @@
         .fare .l{color:var(--muted);font-size:12.5px}
         .earnnote{text-align:center;font-size:11.5px;color:var(--muted);margin:-6px 0 12px}
         .earnnote.lock{color:#7DE9AC;background:rgba(0,230,118,.09);border:1px solid rgba(0,230,118,.22);border-radius:10px;padding:6px 10px;margin:-6px 0 12px}
+        .vehbox{margin-bottom:14px}
+        .vehimg{width:100%;height:170px;object-fit:cover;border-radius:12px;border:1px solid var(--line);display:block;background:#12151a}
+        .vehempty{width:100%;height:110px;border-radius:12px;border:1px dashed var(--line);background:#12151a;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font-size:30px;color:var(--muted)}
+        .vehempty span{font-size:12.5px}
+        .vehnote{font-size:11.5px;color:var(--muted);text-align:center;margin:8px 0 10px}
+        .vehacts{display:flex;gap:10px}
+        .vehacts .btn{flex:1}
+        .btn.ghost.danger{color:#ff8a80;border-color:rgba(255,138,128,.35)}
 
         .stars{display:flex;justify-content:center;gap:8px;margin:8px 0 18px}
         .stars span{font-size:36px;cursor:pointer;filter:grayscale(1);opacity:.5;transition:.1s}
@@ -371,7 +379,7 @@ window.MG = {
     vapidPublic: @json(config('services.webpush.public_key')),
 };
 </script>
-<script src="/js/driver.js?v=19"></script>
+<script src="/js/driver.js?v=20"></script>
 <script src="/js/native.js?v=1"></script>
 </body>
 </html>

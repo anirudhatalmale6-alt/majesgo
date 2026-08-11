@@ -136,6 +136,12 @@
         .stepper .price{min-width:104px;text-align:center;font-size:22px;font-weight:800}
         .hintprice{font-size:11.5px;color:var(--muted);text-align:center;margin:-6px 0 12px}
         .pricelock{font-size:11.5px;line-height:1.35;color:#7DE9AC;background:rgba(0,230,118,.09);border:1px solid rgba(0,230,118,.22);border-radius:10px;padding:7px 10px;text-align:center;margin:0 0 12px}
+        .vehshot{position:relative;width:100%;height:158px;border-radius:12px;overflow:hidden;border:1px solid var(--line);background:#12151a;margin:0 0 12px;cursor:pointer}
+        .vehshot img{width:100%;height:100%;object-fit:cover;display:block}
+        .vehshot .vplate{position:absolute;right:9px;bottom:9px;background:rgba(0,0,0,.72);color:#fff;font-weight:800;font-size:12.5px;letter-spacing:.6px;padding:5px 9px;border-radius:7px;backdrop-filter:blur(3px)}
+        .vlightbox{position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.93);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:18px}
+        .vlightbox img{max-width:100%;max-height:78vh;object-fit:contain;border-radius:12px}
+        .vlightbox .vcap{color:#F5F7FA;font-size:14px;font-weight:600;text-align:center}
 
         .pay{display:flex;gap:10px;margin-bottom:16px}
         .pay button{flex:1;padding:12px;border-radius:13px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);font-family:inherit;font-weight:600;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px}
@@ -335,7 +341,7 @@ window.MG = {
     vapidPublic: @json(config('services.webpush.public_key')),
 };
 </script>
-<script src="/js/passenger.js?v=23"></script>
+<script src="/js/passenger.js?v=24"></script>
 <script src="/js/native.js?v=1"></script>
 </body>
 </html>

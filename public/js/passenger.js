@@ -751,6 +751,33 @@ function renderRide(r) {
 }
 
 /* ====== Oferta: confirmar o buscar otro conductor ====== */
+/**
+ * Foto del vehículo para que el pasajero reconozca el auto que lo recoge.
+ * Si el conductor todavía no la subió, no se muestra nada (la tarjeta queda como antes).
+ */
+function vehiclePhoto(d) {
+  if (!d || !d.vehicle_photo) return '';
+  return `
+    <div class="vehshot" id="vehShot">
+      <img src="${d.vehicle_photo}" alt="Vehículo de ${esc(d.name || 'tu conductor')}" loading="lazy">
+      ${d.plate ? `<span class="vplate">${esc(d.plate)}</span>` : ''}
+    </div>`;
+}
+
+/** Abre la foto a pantalla completa al tocarla (la placa se lee mejor en grande). */
+function bindVehiclePhoto(d) {
+  const box = $('#vehShot');
+  if (!box || !d || !d.vehicle_photo) return;
+  box.addEventListener('click', () => {
+    const lb = document.createElement('div');
+    lb.className = 'vlightbox';
+    lb.innerHTML = `<img src="${d.vehicle_photo}" alt="Vehículo de ${esc(d.name || 'tu conductor')}">
+      <div class="vcap">${esc(d.vehicle || '')}${d.plate ? ' · ' + esc(d.plate) : ''}${d.color ? ' · ' + esc(d.color) : ''}</div>`;
+    lb.addEventListener('click', () => lb.remove());
+    document.body.appendChild(lb);
+  });
+}
+
 function renderOffer(r) {
   const d = r.driver || {}, off = r.offer || {};
   const timeout = off.timeout || 15;
@@ -764,6 +791,7 @@ function renderOffer(r) {
     <div style="height:5px;background:#2a3038;border-radius:3px;overflow:hidden;margin-bottom:14px">
       <i id="offBar" style="display:block;height:100%;background:#FFC107;width:${left / timeout * 100}%;transition:width 1s linear"></i>
     </div>
+    ${vehiclePhoto(d)}
     <div class="drv">
       <div class="av">${d.initial || '🚗'}</div>
       <div><div class="nm">${esc(d.name || 'Conductor')}</div><div class="car2">${esc(d.vehicle || '')} · ${esc(d.plate || '')} ${d.color ? '· ' + esc(d.color) : ''}</div></div>
@@ -778,6 +806,7 @@ function renderOffer(r) {
       <button class="btn" id="btnAceptar">Aceptar</button>
     </div>
     <div class="sub" style="text-align:center;margin:10px 0 0">Si no respondes a tiempo, buscaremos otro automáticamente.</div>`;
+  bindVehiclePhoto(d);
   $('#btnAceptar').addEventListener('click', confirmOffer);
   $('#btnOtro').addEventListener('click', rejectOffer);
   clearInterval(offerTimer);
@@ -834,6 +863,7 @@ function renderAssigned(r) {
   $('#sheetBody').innerHTML = `
     ${r.is_demo ? '<div class="demo">🧪 Conductor de prueba (demo)</div>' : ''}
     <div class="statusband">${band[0]}<small>${band[1]}</small></div>
+    ${vehiclePhoto(d)}
     <div class="drv">
       <div class="av">${d.initial || '🚗'}</div>
       <div><div class="nm">${esc(d.name || 'Conductor')}</div><div class="car2">${esc(d.vehicle || '')} · ${esc(d.plate || '')} ${d.color ? '· ' + esc(d.color) : ''}</div></div>
@@ -848,6 +878,7 @@ function renderAssigned(r) {
       <button class="btn ghost" id="btnChat">💬 Chat${(rideLastMsgId > chatSeenId && !chatOpen) ? ' <span class="undot"></span>' : ''}</button>
       ${canCancel ? '<button class="btn danger" id="btnCancel">Cancelar</button>' : ''}
     </div>`;
+  bindVehiclePhoto(d);
   const c = $('#btnCancel'); if (c) c.addEventListener('click', cancelRide);
   $('#btnChat').addEventListener('click', () => openChat(d.name));
 }

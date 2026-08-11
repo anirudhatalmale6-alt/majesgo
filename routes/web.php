@@ -91,6 +91,10 @@ Route::prefix('conductor')->name('driver.')->group(function () {
         Route::post('api/ack', [DriverRide::class, 'ack']);
         Route::post('api/cancel-report', [DriverRide::class, 'cancelReport']);
 
+        // Foto del vehículo (la sube el propio conductor desde su celular)
+        Route::post('api/vehicle-photo', [DriverRide::class, 'uploadVehiclePhoto']);
+        Route::delete('api/vehicle-photo', [DriverRide::class, 'deleteVehiclePhoto']);
+
         // Saldo y recargas
         Route::get('api/saldo', [DriverRide::class, 'saldo']);
         Route::post('api/recharge', [DriverRide::class, 'recharge']);

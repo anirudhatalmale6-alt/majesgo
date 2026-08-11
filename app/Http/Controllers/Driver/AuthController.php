@@ -97,6 +97,7 @@ class AuthController extends Controller
             'color'   => $d->vehicle_color,
             'rating'  => (float) $d->rating,
             'trips'   => $d->total_trips,
+            'vehicle_photo' => \App\Services\VehiclePhoto::url($d->vehicle_photo),
             'saldo'   => (float) $d->saldo,
             'status'  => $d->status,
             'account_status' => $d->account_status,

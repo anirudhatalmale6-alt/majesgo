@@ -33,6 +33,24 @@
         <div class="field"></div>
     </div>
 
+    <div class="field">
+        <label>Foto del vehículo</label>
+        @if($driver->vehicle_photo)
+            <div style="display:flex;gap:14px;align-items:flex-start;margin-bottom:10px">
+                <img src="{{ \App\Services\VehiclePhoto::url($driver->vehicle_photo) }}" alt="Vehículo de {{ $driver->full_name }}"
+                     style="width:190px;height:130px;object-fit:cover;border-radius:10px;border:1px solid var(--line)">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--muted)">
+                    <input type="checkbox" name="remove_vehicle_photo" value="1" style="width:auto"> Quitar la foto actual
+                </label>
+            </div>
+        @endif
+        <input class="input" type="file" name="vehicle_photo" accept="image/jpeg,image/png,image/webp">
+        <div class="muted" style="font-size:12px;margin-top:5px">
+            La ve el pasajero para reconocer el auto que lo recoge. JPG, PNG o WEBP, máx. 12 MB;
+            se reescala y comprime automáticamente. El conductor también puede subirla desde su app.
+        </div>
+    </div>
+
     <div style="display:flex;gap:10px;margin-top:8px">
         <button class="btn">{{ $driver->exists ? 'Guardar cambios' : 'Crear conductor' }}</button>
         <a href="{{ $driver->exists ? route('admin.drivers.show',$driver) : route('admin.drivers.index') }}" class="btn ghost">Cancelar</a>

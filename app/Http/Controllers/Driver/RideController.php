@@ -487,6 +487,49 @@ class RideController extends Controller
 
     /* ============ Saldo y recargas ============ */
 
+    /**
+     * El conductor sube o reemplaza la foto de su vehículo desde su propio celular.
+     * Es la vía práctica: la central no tiene por qué juntar las fotos de cada auto a mano.
+     */
+    public function uploadVehiclePhoto(Request $request)
+    {
+        $driver = $this->driver($request);
+
+        $request->validate(
+            ['photo' => array_merge(['required'], array_slice(\App\Services\VehiclePhoto::RULES, 1))],
+            [
+                'photo.required' => 'Elige una foto de tu vehículo.',
+                'photo.uploaded' => 'No se pudo subir la foto: pesa demasiado. Toma la foto de nuevo.',
+                'photo.image'    => 'El archivo debe ser una imagen.',
+                'photo.mimes'    => 'Usa una foto JPG, PNG o WEBP.',
+                'photo.max'      => 'La foto es muy pesada (máx. 12 MB).',
+            ]
+        );
+
+        try {
+            $path = \App\Services\VehiclePhoto::store($request->file('photo'), $driver);
+        } catch (\Throwable $e) {
+            return response()->json(['message' => 'No se pudo procesar la foto. Intenta con otra.'], 422);
+        }
+
+        $driver->update(['vehicle_photo' => $path]);
+
+        return response()->json([
+            'ok'            => true,
+            'vehicle_photo' => \App\Services\VehiclePhoto::url($path),
+            'message'       => 'Foto de tu vehículo actualizada.',
+        ]);
+    }
+
+    /** El conductor quita la foto de su vehículo. */
+    public function deleteVehiclePhoto(Request $request)
+    {
+        $driver = $this->driver($request);
+        \App\Services\VehiclePhoto::clear($driver);
+
+        return response()->json(['ok' => true, 'vehicle_photo' => null, 'message' => 'Foto eliminada.']);
+    }
+
     public function saldo(Request $request)
     {
         $driver = $this->driver($request);
@@ -501,6 +544,7 @@ class RideController extends Controller
 
         return response()->json([
             'saldo'          => (float) $driver->saldo,
+            'vehicle_photo'  => \App\Services\VehiclePhoto::url($driver->vehicle_photo),
             'commission_pct' => Fare::commissionPct(),
             'min_saldo'      => Fare::minSaldo(),
             'min_alert'      => (float) Setting::get('min_saldo_alert', 5.00),

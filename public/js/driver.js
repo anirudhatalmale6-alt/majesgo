@@ -994,6 +994,19 @@ async function openDrawer() {
       <div class="chip"><div class="v">${d.commission_pct}%</div><div class="l">Comisión</div></div>
     </div>
 
+    <div class="seg">MI VEHÍCULO</div>
+    <div class="vehbox">
+      ${d.vehicle_photo
+        ? `<img class="vehimg" src="${d.vehicle_photo}" alt="Mi vehículo">`
+        : `<div class="vehempty">🚗<span>Aún no subes la foto de tu auto</span></div>`}
+      <div class="vehnote">El pasajero la ve para reconocer tu vehículo cuando llegas.</div>
+      <input type="file" id="vehFile" accept="image/jpeg,image/png,image/webp" capture="environment" hidden>
+      <div class="vehacts">
+        <button class="btn ghost" id="btnVehPick">${d.vehicle_photo ? 'Cambiar foto' : 'Subir foto'}</button>
+        ${d.vehicle_photo ? '<button class="btn ghost danger" id="btnVehDel">Quitar</button>' : ''}
+      </div>
+    </div>
+
     <div class="seg">RECARGAR SALDO</div>
     ${pend}
     <div class="tiers" id="tiers">${tiers.map((t) => `<button data-t="${t}">${CUR} ${t}</button>`).join('')}</div>
@@ -1031,6 +1044,74 @@ async function openDrawer() {
   const payBtns = $('#rPay').querySelectorAll('button');
   payBtns.forEach((b) => b.addEventListener('click', () => { rMethod = b.dataset.m; payBtns.forEach((x) => x.classList.toggle('on', x === b)); }));
   $('#btnDoRecharge').addEventListener('click', doRecharge);
+
+  $('#btnVehPick').addEventListener('click', () => $('#vehFile').click());
+  $('#vehFile').addEventListener('change', (e) => { if (e.target.files[0]) uploadVehiclePhoto(e.target.files[0]); });
+  const vd = $('#btnVehDel'); if (vd) vd.addEventListener('click', deleteVehiclePhoto);
+}
+
+/* ---------- Foto del vehículo ---------- */
+
+/**
+ * Reduce la foto en el propio celular antes de subirla.
+ * Una foto de cámara pesa 5-10 MB; así se sube ~300 KB y no le gasta
+ * los megas al conductor ni lo hace esperar con mala señal.
+ * Si algo falla, se sube el archivo original tal cual.
+ */
+function shrinkPhoto(file, maxSide = 1280, quality = 0.85) {
+  return new Promise((resolve) => {
+    try {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const scale = Math.min(maxSide / img.width, maxSide / img.height, 1);
+        if (scale === 1 && file.size < 900 * 1024) { resolve(file); return; }
+        const cv = document.createElement('canvas');
+        cv.width = Math.round(img.width * scale);
+        cv.height = Math.round(img.height * scale);
+        cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+        cv.toBlob((blob) => resolve(blob && blob.size < file.size ? blob : file), 'image/jpeg', quality);
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+      img.src = url;
+    } catch (e) { resolve(file); }
+  });
+}
+
+async function uploadVehiclePhoto(file) {
+  const btn = $('#btnVehPick');
+  btn.disabled = true; btn.innerHTML = '<span class="spin"></span>';
+  try {
+    const small = await shrinkPhoto(file);
+    const fd = new FormData();
+    fd.append('photo', small, 'vehiculo.jpg');
+    // FormData va sin Content-Type: el navegador pone el boundary correcto
+    const res = await fetch('/conductor/api/vehicle-photo', {
+      method: 'POST',
+      headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': MG.csrf },
+      body: fd,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'No se pudo subir la foto.');
+    toast(data.message || 'Foto actualizada.');
+    if (me) me.vehicle_photo = data.vehicle_photo;
+    openDrawer();
+  } catch (e) {
+    toast(e.message);
+    btn.disabled = false; btn.textContent = 'Subir foto';
+  }
+}
+
+async function deleteVehiclePhoto() {
+  const btn = $('#btnVehDel');
+  btn.disabled = true; btn.innerHTML = '<span class="spin"></span>';
+  try {
+    await api('api/vehicle-photo', null, 'DELETE');
+    if (me) me.vehicle_photo = null;
+    toast('Foto eliminada.');
+    openDrawer();
+  } catch (e) { toast(e.message); btn.disabled = false; btn.textContent = 'Quitar'; }
 }
 
 async function doRecharge() {

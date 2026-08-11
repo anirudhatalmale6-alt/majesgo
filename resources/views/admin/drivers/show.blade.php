@@ -32,6 +32,15 @@
                 <div><div class="muted" style="font-size:12px">Viajes completados</div><div style="font-weight:600">{{ $driver->total_trips }}</div></div>
                 <div><div class="muted" style="font-size:12px">Licencia</div><div style="font-weight:600">{{ $driver->license_number ?: '—' }}</div></div>
             </div>
+            <div style="margin-top:16px">
+                <div class="muted" style="font-size:12px;margin-bottom:7px">Foto del vehículo</div>
+                @if($driver->vehicle_photo)
+                    <img src="{{ \App\Services\VehiclePhoto::url($driver->vehicle_photo) }}" alt="Vehículo de {{ $driver->full_name }}"
+                         style="width:260px;max-width:100%;height:176px;object-fit:cover;border-radius:12px;border:1px solid var(--line)">
+                @else
+                    <div style="font-weight:600;color:var(--muted)">Sin foto — el conductor puede subirla desde su app, o cárgala tú en «Editar».</div>
+                @endif
+            </div>
         </div>
 
         {{-- Historial de saldo --}}
