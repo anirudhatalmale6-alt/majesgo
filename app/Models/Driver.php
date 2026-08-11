@@ -50,11 +50,11 @@ class Driver extends Model
         return $this->account_status !== 'activo';
     }
 
-    /** Puede recibir viajes: cuenta activa + saldo suficiente para la comisión. */
+    /** Puede recibir viajes: cuenta activa + saldo suficiente para la comisión mínima. */
     public function canReceiveRides(): bool
     {
         return $this->account_status === 'activo'
-            && $this->saldo >= (float) Setting::get('commission_value', 0.50);
+            && (float) $this->saldo >= \App\Services\Fare::minSaldo();
     }
 
     /**

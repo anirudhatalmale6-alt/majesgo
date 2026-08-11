@@ -22,6 +22,12 @@ class Setting extends Model
     public static function put(string $key, $value): void
     {
         self::updateOrCreate(['key' => $key], ['value' => $value]);
+        self::flushCache();
+    }
+
+    /** Invalida la caché de settings (tras escrituras que no pasan por put(), p.ej. migraciones). */
+    public static function flushCache(): void
+    {
         Cache::forget('settings.all');
     }
 }

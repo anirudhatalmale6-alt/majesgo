@@ -20,7 +20,7 @@ class DashboardController extends Controller
             'recharges_pending' => Recharge::where('status', 'pendiente')->count(),
         ];
 
-        $lowSaldo = Setting::get('commission_value', 0.50);
+        $lowSaldo = \App\Services\Fare::minSaldo();
         $needRecharge = Driver::where('account_status', 'activo')
             ->where('saldo', '<', $lowSaldo)
             ->count();

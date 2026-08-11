@@ -100,7 +100,8 @@ class AuthController extends Controller
             'saldo'   => (float) $d->saldo,
             'status'  => $d->status,
             'account_status' => $d->account_status,
-            'commission'     => (float) Setting::get('commission_value', 0.50),
+            'commission_pct' => \App\Services\Fare::commissionPct(),
+            'min_saldo'      => \App\Services\Fare::minSaldo(),
             'can_receive'    => $d->canReceiveRides(),
         ];
     }

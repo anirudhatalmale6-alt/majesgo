@@ -3,7 +3,9 @@
 
 @section('content')
 @php($cur = \App\Models\Setting::get('currency','S/'))
-@php($com = \App\Models\Setting::get('commission_value','0.50'))
+@php($comPct = \App\Services\Fare::commissionPct())
+@php($tarifaMin = (float) \App\Models\Setting::get('fare_min','10.00'))
+@php($porMin = (float) \App\Models\Setting::get('fare_per_min','1.00'))
 
 <div class="grid stats" style="margin-bottom:18px">
     <div class="stat">
@@ -61,10 +63,11 @@
 
     <div class="grid" style="gap:16px;align-content:start">
         <div class="card" style="background:linear-gradient(135deg,#0d0d0d,#15251a);color:#fff;border:0">
-            <div class="muted" style="color:#9aa6b2;font-size:12.5px">Comisión por carrera</div>
-            <div style="font-size:30px;font-weight:800;margin:4px 0">{{ $cur }} {{ number_format((float)$com,2) }}</div>
-            <div style="color:#aeb7c2;font-size:12.5px">Se descuenta del saldo del conductor por cada viaje completado. Configurable.</div>
-            <a href="{{ route('admin.settings.edit') }}" class="btn amber sm" style="margin-top:12px">Cambiar comisión</a>
+            <div class="muted" style="color:#9aa6b2;font-size:12.5px">Comisión de la app</div>
+            <div style="font-size:30px;font-weight:800;margin:4px 0">{{ rtrim(rtrim(number_format($comPct,2,'.',''),'0'),'.') }}%</div>
+            <div style="color:#aeb7c2;font-size:12.5px">Se descuenta del saldo del conductor al completar el viaje. El {{ rtrim(rtrim(number_format(100-$comPct,2,'.',''),'0'),'.') }}% restante queda para él.</div>
+            <div style="color:#7f8a96;font-size:12px;margin-top:8px">Tarifa: {{ $cur }} {{ number_format($porMin,2) }} por minuto · mínimo {{ $cur }} {{ number_format($tarifaMin,2) }}</div>
+            <a href="{{ route('admin.settings.edit') }}" class="btn amber sm" style="margin-top:12px">Cambiar tarifa y comisión</a>
         </div>
 
         <div class="card">

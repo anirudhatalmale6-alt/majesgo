@@ -7,11 +7,34 @@
 
     <div class="grid" style="grid-template-columns:1fr 1fr;align-items:start">
         <div class="card">
-            <h3 style="margin-bottom:14px">Comisión y saldo</h3>
+            <h3 style="margin-bottom:14px">Tarifa, comisión y saldo</h3>
+            <div class="row">
+                <div class="field">
+                    <label>Precio por minuto ({{ $settings['currency'] }})</label>
+                    <input class="input" type="number" step="0.10" min="0.1" name="fare_per_min" value="{{ old('fare_per_min',$settings['fare_per_min']) }}" required>
+                </div>
+                <div class="field">
+                    <label>Tarifa mínima ({{ $settings['currency'] }})</label>
+                    <input class="input" type="number" step="0.50" min="0.5" name="fare_min" value="{{ old('fare_min',$settings['fare_min']) }}" required>
+                </div>
+            </div>
+            <div class="muted" style="font-size:12px;margin:-6px 0 14px">
+                La tarifa se calcula por el tiempo del viaje. Cualquier carrera de hasta
+                {{ (int) ceil((float)$settings['fare_min'] / max(0.01,(float)$settings['fare_per_min'])) }} minutos
+                cuesta la tarifa mínima; a partir de ahí se suma el precio por minuto.
+                Ejemplo con los valores actuales: 8 min = {{ $settings['currency'] }} {{ number_format((float)$settings['fare_min'],2) }} ·
+                12 min = {{ $settings['currency'] }} {{ number_format(max((float)$settings['fare_min'], 12*(float)$settings['fare_per_min']),2) }}
+            </div>
             <div class="field">
-                <label>Comisión por carrera completada ({{ $settings['currency'] }})</label>
-                <input class="input" type="number" step="0.01" min="0" name="commission_value" value="{{ old('commission_value',$settings['commission_value']) }}" required>
-                <div class="muted" style="font-size:12px;margin-top:5px">Se descuenta del saldo del conductor por cada viaje completado. Ejemplo: 0.50</div>
+                <label>Comisión de la app (%)</label>
+                <input class="input" type="number" step="0.5" min="0" max="50" name="commission_pct" value="{{ old('commission_pct',$settings['commission_pct']) }}" required>
+                <div class="muted" style="font-size:12px;margin-top:5px">
+                    Porcentaje de la tarifa que se descuenta del saldo del conductor al completar el viaje.
+                    Con {{ rtrim(rtrim(number_format((float)$settings['commission_pct'],2,'.',''),'0'),'.') }}%, una carrera de
+                    {{ $settings['currency'] }} {{ number_format((float)$settings['fare_min'],2) }} deja
+                    {{ $settings['currency'] }} {{ number_format((float)$settings['fare_min'] * (float)$settings['commission_pct'] / 100, 2) }}
+                    para la app y {{ $settings['currency'] }} {{ number_format((float)$settings['fare_min'] * (100-(float)$settings['commission_pct']) / 100, 2) }} para el conductor.
+                </div>
             </div>
             <div class="field">
                 <label>Montos de recarga sugeridos</label>

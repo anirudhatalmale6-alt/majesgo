@@ -194,7 +194,7 @@ class RideController extends Controller
             return response()->json(['drivers' => [], 'count' => 0, 'nearest_m' => null]);
         }
 
-        $commission = (float) Setting::get('commission_value', 0.50);
+        $minSaldo   = Fare::minSaldo();
         $staleS     = (int) Setting::get('driver_stale_s', 180);
         $displayKm  = (float) Setting::get('nearby_display_km', 6.0);
         $demoOn     = (string) Setting::get('demo_enabled', '1') === '1';
@@ -202,7 +202,7 @@ class RideController extends Controller
         $q = Driver::query()
             ->where('status', 'disponible')          // libres (los ocupados no se muestran)
             ->where('account_status', 'activo')
-            ->where('saldo', '>=', $commission)
+            ->where('saldo', '>=', $minSaldo)
             ->whereNotNull('lat')->whereNotNull('lng')
             ->where(function ($w) use ($staleS) {
                 $w->where('last_active_at', '>=', now()->subSeconds($staleS))->orWhere('is_demo', true);

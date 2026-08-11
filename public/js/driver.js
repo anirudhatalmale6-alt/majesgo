@@ -33,7 +33,12 @@ let map, meMarker, oMarker, dMarker, routeLine;
 let me = null, online = false, ride = null, myPos = null;
 let dstats = null; // estadísticas del conductor (ganancias del día, horas, aceptación, etc.)
 let dSheetState = 'open', dSheetDragging = false; // panel inferior colapsable
-let reqCode = null, reqTimer = null, poll = null, lastPostAt = 0, commission = 0.5;
+let reqCode = null, reqTimer = null, poll = null, lastPostAt = 0;
+let commissionPct = 5, minSaldo = 0.5;   // comisión = % de la tarifa (la fija el panel)
+
+/** Comisión que se le descuenta al conductor por una tarifa dada. */
+function commissionFor(price) { return Math.round((Number(price) || 0) * commissionPct) / 100; }
+
 let offerLabels = []; // etiquetas resaltadas (recojo + destino) durante la oferta
 
 // ---- modo navegación (pantalla completa tipo GPS) ----
@@ -269,7 +274,8 @@ async function boot() {
   if (!me) { const m = await api('api/me'); me = m.driver; }
   if (!map) initMap();
   startGeo();
-  commission = me.commission || 0.5;
+  if (typeof me.commission_pct === 'number') commissionPct = me.commission_pct;
+  if (typeof me.min_saldo === 'number') minSaldo = me.min_saldo;
   online = (me.status === 'disponible' || me.status === 'ocupado');
   updateSaldo(me.saldo, me.can_receive);
   $('#sheet').classList.remove('hidden');
@@ -464,7 +470,7 @@ function navUpdate(pos) {
 function renderNavAction() {
   const r = ride; if (!r) { $('#navAction').innerHTML = ''; return; }
   const p = r.passenger || {};
-  const earn = r.offered_price - (r.commission || commission);
+  const earn = r.offered_price - (r.commission != null ? r.commission : commissionFor(r.offered_price));
   $('#navPax').innerHTML = '👤 <b>' + esc(p.name || 'Pasajero') + '</b>';
   $('#navFare').innerHTML = 'Recibes <b>' + money(earn) + '</b>';
   let html = '';
@@ -522,7 +528,7 @@ function pushLocation() {
 function renderHome() {
   clearTrip();
   closeChat(); chatLastId = 0; chatSeenId = 0; rideLastMsgId = 0; arrivedFor = null;
-  const lowSaldo = me.saldo < commission;
+  const lowSaldo = me.saldo < minSaldo;
   const b = $('#sheetBody');
   b.innerHTML = `
     <div id="homeEssential">
@@ -530,7 +536,7 @@ function renderHome() {
         ? `<div class="onlinebar"><span class="odot"></span><span>EN LÍNEA · buscando viajes</span></div>
            <div class="slide off" id="slide"><div class="knob" id="knob"><svg viewBox="0 0 24 24" fill="none" stroke="#5a1414" stroke-width="2.6" stroke-linecap="round"><path d="M12 3.2v8.4"/><path d="M6.7 6.7a7.5 7.5 0 1 0 10.6 0"/></svg></div><span class="slidetext" id="slidetext">Desliza para desconectarte</span></div>`
         : `<div class="slide" id="slide"><div class="knob" id="knob"><svg viewBox="0 0 24 24" fill="none" stroke="#0f5132" stroke-width="3" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></div><span class="slidetext" id="slidetext">Desliza para conectarte</span></div>`}
-      ${lowSaldo ? `<div class="warn red" style="margin-top:12px">⚠️ Tu saldo (${money(me.saldo)}) no alcanza para la comisión de ${money(commission)}. Recarga para recibir viajes.</div>` : ''}
+      ${lowSaldo ? `<div class="warn red" style="margin-top:12px">⚠️ Tu saldo (${money(me.saldo)}) no alcanza para la comisión mínima de ${money(minSaldo)}. Recarga para recibir viajes.</div>` : ''}
       <div class="essrow">
         <div class="statcell earn"><div class="sv g" id="stEarn">${dstats ? money(dstats.today_earnings) : '…'}</div><div class="sl">Ganancias del día</div></div>
         <div class="statcell saldocell"><div class="sv a" id="stSaldo">${money(me.saldo)}</div><div class="sl">Saldo</div><button class="minibtn" id="btnRecharge">Recargar</button></div>
@@ -672,7 +678,7 @@ async function tick() {
   if (online) {
     try {
       const d = await api('api/pending');
-      commission = d.commission || commission;
+      if (typeof d.commission_pct === 'number') commissionPct = d.commission_pct;
       const reqs = d.requests || [];
       // si la solicitud mostrada ya no existe (el pasajero canceló o la tomó otro), quitarla
       if (reqCode && !reqs.some((x) => x.code === reqCode)) hideRequest();
@@ -715,7 +721,8 @@ function handleCurrent(r) {
 function showRequest(req) {
   reqCode = req.code;
   const wrap = $('#reqwrap'); wrap.classList.remove('hidden');
-  const earn = req.offered_price - (commission || 0);
+  const reqCom = commissionFor(req.offered_price);
+  const earn = req.offered_price - reqCom;
   $('#reqcard').innerHTML = `
     <div class="reqhead">
       <span class="ping"><i></i> Nuevo viaje</span>
@@ -726,7 +733,7 @@ function showRequest(req) {
       <div class="n"><span class="cur">${CUR}</span> ${Number(req.offered_price).toFixed(2)}</div>
       <div class="l">${req.payment_method === 'yape' ? '💜 Pago con Yape' : '💵 Pago en efectivo'} · sugerido ${money(req.suggested_price)}</div>
     </div>
-    <div class="earnnote">Recibes ${money(earn)} (comisión ${money(commission)})</div>
+    <div class="earnnote">Recibes ${money(earn)} (comisión ${money(reqCom)} · ${commissionPct}%)</div>
     <div class="drv">
       <div class="av">${req.passenger.initial || 'P'}</div>
       <div><div class="nm">${esc(req.passenger.name)}</div><div class="car2">⭐ ${(req.passenger.rating || 5).toFixed(1)} · ${req.passenger.trips || 0} viajes</div></div>
@@ -825,7 +832,7 @@ function renderRide(r) {
   const p = r.passenger || {};
   const goingToDest = r.status === 'a_bordo';
   const navTarget = goingToDest ? r.dest : r.origin;
-  const earn = r.offered_price - (r.commission || commission);
+  const earn = r.offered_price - (r.commission != null ? r.commission : commissionFor(r.offered_price));
 
   let primary = '';
   if (r.status === 'en_camino' || r.status === 'aceptado') primary = `<button class="btn amber" id="btnArrive">Llegué al punto</button>`;
@@ -910,7 +917,7 @@ async function completeRide() {
   const b = $('#btnComplete'); b.disabled = true; b.innerHTML = '<span class="spin"></span>';
   try {
     const r = await api('api/complete', {});
-    ride = r.ride; if (typeof r.saldo === 'number') { me.saldo = r.saldo; updateSaldo(r.saldo, r.saldo >= commission); }
+    ride = r.ride; if (typeof r.saldo === 'number') { me.saldo = r.saldo; updateSaldo(r.saldo, r.saldo >= minSaldo); }
     renderCompleted(ride);
   } catch (e) { toast(e.message); b.disabled = false; b.textContent = 'Finalizar viaje'; }
 }
@@ -923,14 +930,15 @@ async function cancelRide() {
 }
 
 function renderCompleted(r) {
-  const earn = (r.final_price || r.offered_price) - (r.commission || commission);
+  const fp = r.final_price || r.offered_price;
+  const earn = fp - (r.commission != null ? r.commission : commissionFor(fp));
   $('#sheetBody').innerHTML = `
     <div style="text-align:center"><div style="font-size:42px">✅</div><h2>Viaje completado</h2></div>
     <div class="fare"><div class="n"><span class="cur">${CUR}</span> ${Number(r.final_price || r.offered_price).toFixed(2)}</div>
       <div class="l">${r.payment_method === 'yape' ? 'Cobras por Yape' : 'Cobras en efectivo'}</div></div>
     <div class="routeinfo">
       <div class="chip"><div class="v g">${money(earn)}</div><div class="l">Para ti</div></div>
-      <div class="chip"><div class="v" style="color:#ff9d9d">- ${money(r.commission || commission)}</div><div class="l">Comisión</div></div>
+      <div class="chip"><div class="v" style="color:#ff9d9d">- ${money(r.commission != null ? r.commission : commissionFor(fp))}</div><div class="l">Comisión</div></div>
       <div class="chip"><div class="v a">${money(me.saldo)}</div><div class="l">Tu saldo</div></div>
     </div>
     <div class="sub" style="text-align:center">¿Cómo estuvo el pasajero?</div>
@@ -982,7 +990,7 @@ async function openDrawer() {
     <div class="routeinfo">
       <div class="chip"><div class="v a">${money(h.today.earnings)}</div><div class="l">Ganado hoy</div></div>
       <div class="chip"><div class="v">${h.today.trips}</div><div class="l">Viajes hoy</div></div>
-      <div class="chip"><div class="v">${money(d.commission)}</div><div class="l">Comisión</div></div>
+      <div class="chip"><div class="v">${d.commission_pct}%</div><div class="l">Comisión</div></div>
     </div>
 
     <div class="seg">RECARGAR SALDO</div>

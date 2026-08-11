@@ -10,6 +10,7 @@ use App\Models\Recharge;
 use App\Models\Ride;
 use App\Models\Setting;
 use App\Services\Dispatch;
+use App\Services\Fare;
 use App\Services\Routing;
 use App\Services\WebPushSender;
 use Illuminate\Http\Request;
@@ -191,9 +192,9 @@ class RideController extends Controller
         usort($out, fn ($a, $b) => $a['to_pickup_m'] <=> $b['to_pickup_m']);
 
         return response()->json([
-            'requests'   => $out,
-            'commission' => (float) Setting::get('commission_value', 0.50),
-            'currency'   => Setting::get('currency', 'S/'),
+            'requests'       => $out,
+            'commission_pct' => Fare::commissionPct(),
+            'currency'       => Setting::get('currency', 'S/'),
         ]);
     }
 
@@ -405,13 +406,14 @@ class RideController extends Controller
             return response()->json(['message' => 'No hay un viaje para finalizar.'], 422);
         }
 
-        $commission = (float) Setting::get('commission_value', 0.50);
+        $finalPrice = (float) $ride->offered_price;
+        $commission = Fare::commission($finalPrice);
 
         $ride->forceFill([
             'status'       => 'completado',
             'started_at'   => $ride->started_at ?? now(),
             'completed_at' => now(),
-            'final_price'  => $ride->offered_price,
+            'final_price'  => $finalPrice,
             'commission'   => $commission,
         ])->save();
 
@@ -496,9 +498,10 @@ class RideController extends Controller
         ]);
 
         return response()->json([
-            'saldo'       => (float) $driver->saldo,
-            'commission'  => (float) Setting::get('commission_value', 0.50),
-            'min_alert'   => (float) Setting::get('min_saldo_alert', 5.00),
+            'saldo'          => (float) $driver->saldo,
+            'commission_pct' => Fare::commissionPct(),
+            'min_saldo'      => Fare::minSaldo(),
+            'min_alert'      => (float) Setting::get('min_saldo_alert', 5.00),
             'can_receive' => $driver->canReceiveRides(),
             'currency'    => Setting::get('currency', 'S/'),
             'yape_number' => Setting::get('yape_number', ''),
@@ -667,7 +670,7 @@ class RideController extends Controller
             'cancelled_by' => $ride->cancelled_by,
             'offered_price'=> (float) $ride->offered_price,
             'final_price'  => $ride->final_price !== null ? (float) $ride->final_price : null,
-            'commission'   => $ride->commission !== null ? (float) $ride->commission : (float) Setting::get('commission_value', 0.50),
+            'commission'   => $ride->commission !== null ? (float) $ride->commission : Fare::commission((float) $ride->offered_price),
             'payment_method' => $ride->payment_method,
             'distance_m'   => $ride->distance_m,
             'duration_s'   => $ride->duration_s,

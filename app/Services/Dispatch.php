@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Driver;
 use App\Models\Ride;
 use App\Models\Setting;
+use App\Services\Fare;
 use App\Services\WebPushSender;
 
 /**
@@ -37,13 +38,14 @@ class Dispatch
     public static function eligibleDrivers(float $lat, float $lng, ?float $radiusKm = null, array $excludeIds = []): array
     {
         $radiusKm ??= (float) Setting::get('dispatch_radius_km', 5.0);
-        $commission = (float) Setting::get('commission_value', 0.50);
+        // saldo mínimo = comisión de la carrera más barata posible (tarifa mínima)
+        $minSaldo = Fare::minSaldo();
         $staleS = (int) Setting::get('driver_stale_s', 60);
 
         $drivers = Driver::query()
             ->where('status', 'disponible')
             ->where('account_status', 'activo')
-            ->where('saldo', '>=', $commission)
+            ->where('saldo', '>=', $minSaldo)
             ->whereNotNull('lat')
             ->whereNotNull('lng')
             // solo conductores realmente activos (la app reporta ubicación cada pocos segundos);

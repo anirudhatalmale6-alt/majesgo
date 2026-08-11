@@ -88,7 +88,7 @@ class DemoSim
         if ($ride->status === 'completado') {
             return;
         }
-        $commission = (float) Setting::get('commission_value', 0.50);
+        $commission = Fare::commission((float) $ride->offered_price);
 
         $ride->forceFill([
             'status'       => 'completado',

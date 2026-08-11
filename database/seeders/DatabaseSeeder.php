@@ -29,7 +29,10 @@ class DatabaseSeeder extends Seeder
             'app_slogan'       => 'Tu taxi en un toque.',
             'city'             => 'Majes - El Pedregal, Arequipa',
             'currency'         => 'S/',
-            'commission_value' => '0.50',   // comisión por carrera completada (configurable)
+            'fare_per_min'     => '1.00',   // tarifa: S/ por minuto de viaje
+            'fare_min'         => '10.00',  // tarifa mínima (carreras de hasta 10 min)
+            'commission_pct'   => '5',      // % de la tarifa que se lleva la app
+            'commission_min'   => '0.00',   // piso opcional de comisión (0 = sin piso)
             'saldo_tiers'      => '20,50,100',
             'yape_number'      => '',
             'yape_holder'      => '',
