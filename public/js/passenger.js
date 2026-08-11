@@ -228,6 +228,8 @@ function initMap() {
     attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 20, subdomains: 'abcd',
   }).addTo(map);
   L.control.zoom({ position: 'bottomleft' }).addTo(map);
+  // puntos de referencia (grifos, mercados, hoteles): ayudan al pasajero a ubicarse
+  if (window.MGPois) window.MGPois.attach(map);
   const bm = $('#btnMapMode'); if (bm) bm.addEventListener('click', toggleMapMode);
   applyMapMode();
 

@@ -246,6 +246,18 @@
         .hidden{display:none !important}
         .spin{width:20px;height:20px;border:2.5px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;display:inline-block}
         @keyframes sp{to{transform:rotate(360deg)}}
+    
+        /* ===== Puntos de referencia del mapa (grifos, mercados, hoteles...) ===== */
+        .poi{background:none!important;border:0!important}
+        .poichip{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;
+            background:#eef1f5;box-shadow:0 2px 6px rgba(0,0,0,.55)}
+        .poi.p1 .poichip{border:2px solid var(--amarillo,#FFC107)}
+        .poichip svg{width:13px;height:13px}
+        .poilbl{position:absolute;top:24px;left:50%;transform:translateX(-50%);
+            font-size:10px;font-weight:700;color:#e8ecf1;white-space:nowrap;pointer-events:none;
+            text-shadow:0 1px 3px #000,0 1px 7px #000,0 0 9px #000}
+        /* en el mapa claro el texto blanco no se lee: se invierte */
+        #app.lightmap .poilbl{color:#1d2129;text-shadow:0 1px 3px #fff,0 1px 7px #fff,0 0 9px #fff}
     </style>
 </head>
 <body>
@@ -342,7 +354,8 @@ window.MG = {
     vapidPublic: @json(config('services.webpush.public_key')),
 };
 </script>
-<script src="/js/passenger.js?v=25"></script>
+<script src="/js/pois.js?v=2"></script>
+<script src="/js/passenger.js?v=26"></script>
 <script src="/js/native.js?v=1"></script>
 </body>
 </html>

@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\DriverController;
 use App\Http\Controllers\Admin\DriverPhotoController;
 use App\Http\Controllers\Admin\RechargeController;
+use App\Http\Controllers\Admin\MapPoiController;
 use App\Http\Controllers\Admin\PlaceController;
 use App\Http\Controllers\Admin\SettingController;
 use App\Http\Controllers\Passenger\AuthController as PassengerAuth;
@@ -20,6 +21,9 @@ Route::get('/', fn () => redirect()->route('admin.login'));
 
 // Política de privacidad (pública) — requerida por Google Play
 Route::view('/privacidad', 'legal.privacy')->name('privacy');
+
+// Puntos de referencia del mapa: los piden la app del pasajero y la del conductor
+Route::get('api/map-pois', [GeocodeController::class, 'mapPois'])->name('map.pois');
 
 /*
 | App del PASAJERO (PWA instalable) — Hito 2
@@ -133,6 +137,13 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('fotos', [DriverPhotoController::class, 'index'])->name('photos.index');
         Route::post('fotos/{photo}/aprobar', [DriverPhotoController::class, 'approve'])->name('photos.approve');
         Route::post('fotos/{photo}/rechazar', [DriverPhotoController::class, 'reject'])->name('photos.reject');
+
+        // Puntos de referencia del mapa (los iconos que ven pasajero y conductor)
+        Route::get('referencias', [MapPoiController::class, 'index'])->name('pois.index');
+        Route::post('referencias', [MapPoiController::class, 'store'])->name('pois.store');
+        Route::put('referencias/{poi}', [MapPoiController::class, 'update'])->name('pois.update');
+        Route::post('referencias/{poi}/visibilidad', [MapPoiController::class, 'toggle'])->name('pois.toggle');
+        Route::delete('referencias/{poi}', [MapPoiController::class, 'destroy'])->name('pois.destroy');
 
         Route::get('recargas', [RechargeController::class, 'index'])->name('recharges.index');
         Route::post('recargas', [RechargeController::class, 'store'])->name('recharges.store');

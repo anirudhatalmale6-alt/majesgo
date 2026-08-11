@@ -99,6 +99,17 @@ class GeocodeController extends Controller
         return response()->json(['zones' => array_values($out)]);
     }
 
+    /**
+     * Puntos de referencia del mapa (grifos, mercados, hoteles…).
+     * Los consumen las dos apps; son datos públicos, se cachean en el navegador un día.
+     */
+    public function mapPois()
+    {
+        return response()
+            ->json(['pois' => \App\Models\MapPoi::forMap()])
+            ->header('Cache-Control', 'public, max-age=86400');
+    }
+
     /** Nombre de la zona local cuyo círculo contiene el punto (la más cercana), o null. */
     private function customPlaceAt(float $lat, float $lng): ?string
     {

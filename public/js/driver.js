@@ -304,6 +304,8 @@ function initMap() {
     attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 20, subdomains: 'abcd',
   }).addTo(map);
   L.control.zoom({ position: 'bottomleft' }).addTo(map);
+  // mismos puntos de referencia que ve el pasajero, para hablar el mismo idioma en el chat
+  if (window.MGPois) window.MGPois.attach(map);
   $('#btnMenu').addEventListener('click', openDrawer);
   const bell = $('#btnBell'); if (bell) bell.addEventListener('click', openDrawer);
   const bm = $('#btnMapMode'); if (bm) bm.addEventListener('click', toggleMapMode);
