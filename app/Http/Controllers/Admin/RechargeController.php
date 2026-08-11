@@ -27,7 +27,7 @@ class RechargeController extends Controller
         $data = $request->validate([
             'driver_id' => ['required', 'exists:drivers,id'],
             'amount'    => ['required', 'numeric', 'min:0.5'],
-            'method'    => ['required', 'in:yape,transferencia,admin'],
+            'method'    => ['required', 'in:yape,plin,transferencia,admin'],
             'reference' => ['nullable', 'string', 'max:60'],
             'note'      => ['nullable', 'string', 'max:255'],
         ]);

@@ -36,8 +36,15 @@ class Recharge extends Model
     {
         return [
             'yape'          => 'Yape',
+            'plin'          => 'Plin',
             'transferencia' => 'Transferencia',
             'admin'         => 'Carga manual',
         ][$this->method] ?? $this->method;
+    }
+
+    /** URL del comprobante que adjuntó el conductor, o null si no adjuntó ninguno. */
+    public function receiptUrl(): ?string
+    {
+        return \App\Services\Receipt::url($this->receipt_path);
     }
 }

@@ -58,10 +58,39 @@
         </div>
 
         <div class="card">
-            <h3 style="margin-bottom:14px">Yape para recargas</h3>
-            <div class="muted" style="font-size:12.5px;margin-bottom:12px">Datos que verá el conductor al recargar su saldo por Yape.</div>
-            <div class="field"><label>Número de Yape</label><input class="input" name="yape_number" value="{{ old('yape_number',$settings['yape_number']) }}" placeholder="9XXXXXXXX"></div>
-            <div class="field"><label>Titular de la cuenta</label><input class="input" name="yape_holder" value="{{ old('yape_holder',$settings['yape_holder']) }}" placeholder="Nombre del titular"></div>
+            <h3 style="margin-bottom:14px">Datos de pago para recargas</h3>
+            <div class="muted" style="font-size:12.5px;margin-bottom:14px">
+                Esto es lo que ve el conductor en su app al recargar saldo, con botón de copiar en cada dato.
+                Deja en blanco el medio que no uses y no aparecerá en la app.
+            </div>
+
+            <div style="font-weight:700;font-size:13px;margin:2px 0 10px">💜 Yape</div>
+            <div class="row">
+                <div class="field"><label>Número de Yape</label><input class="input" name="yape_number" value="{{ old('yape_number',$settings['yape_number']) }}" placeholder="9XXXXXXXX"></div>
+                <div class="field"><label>Titular</label><input class="input" name="yape_holder" value="{{ old('yape_holder',$settings['yape_holder']) }}" placeholder="Nombre del titular"></div>
+            </div>
+
+            <div style="font-weight:700;font-size:13px;margin:14px 0 10px">💙 Plin</div>
+            <div class="row">
+                <div class="field"><label>Número de Plin</label><input class="input" name="plin_number" value="{{ old('plin_number',$settings['plin_number']) }}" placeholder="9XXXXXXXX"></div>
+                <div class="field"><label>Titular</label><input class="input" name="plin_holder" value="{{ old('plin_holder',$settings['plin_holder']) }}" placeholder="Nombre del titular"></div>
+            </div>
+
+            <div style="font-weight:700;font-size:13px;margin:14px 0 10px">🏦 Transferencia bancaria</div>
+            <div class="row">
+                <div class="field"><label>Banco</label><input class="input" name="bank_name" value="{{ old('bank_name',$settings['bank_name']) }}" placeholder="BCP, Interbank, BBVA…"></div>
+                <div class="field"><label>Titular</label><input class="input" name="bank_holder" value="{{ old('bank_holder',$settings['bank_holder']) }}" placeholder="Nombre del titular"></div>
+            </div>
+            <div class="row">
+                <div class="field"><label>Número de cuenta</label><input class="input" name="bank_account" value="{{ old('bank_account',$settings['bank_account']) }}" placeholder="000-00000000-0-00"></div>
+                <div class="field"><label>CCI (interbancario)</label><input class="input" name="bank_cci" value="{{ old('bank_cci',$settings['bank_cci']) }}" placeholder="00200000000000000000"></div>
+            </div>
+
+            <div class="field" style="margin-top:14px">
+                <label>Mensaje adicional (opcional)</label>
+                <textarea class="input" name="recharge_note" rows="2" placeholder="Ej: Las recargas se validan de 8am a 10pm.">{{ old('recharge_note',$settings['recharge_note']) }}</textarea>
+                <div class="muted" style="font-size:12px;margin-top:5px">Se muestra al conductor debajo de los datos de pago.</div>
+            </div>
         </div>
 
         <div class="card">

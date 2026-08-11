@@ -229,6 +229,34 @@
         .hitem .rt{font-size:13.5px;margin:5px 0}
         .hitem .pr{font-weight:700;color:var(--amarillo)}
         .pend{background:rgba(255,193,7,.08);border:1px dashed rgba(255,193,7,.4);border-radius:12px;padding:10px 13px;font-size:12.5px;color:#ffd98a;margin-bottom:10px}
+        .pend .vlink{display:inline-block;margin-top:6px;color:#ffd98a;text-decoration:underline;font-weight:600}
+
+        /* ===== Pantalla de pago de la recarga ===== */
+        .paypanel{z-index:50}
+        .payamt{background:linear-gradient(135deg,#1e2228,#15181c);border:1px solid var(--line);border-radius:18px;padding:15px;margin-bottom:14px;text-align:center}
+        .payamt .n{font-size:31px;font-weight:800;color:var(--amarillo);line-height:1.1}
+        .payamt .l{color:var(--muted);font-size:12px;margin-top:3px}
+        .paystep{display:flex;align-items:center;gap:9px;font-weight:700;font-size:13.5px;margin:18px 0 10px}
+        .paystep i{width:22px;height:22px;flex:0 0 22px;border-radius:50%;background:var(--amarillo);color:#111;font-style:normal;font-size:12px;font-weight:800;display:grid;place-items:center}
+        .paycard{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:4px 14px;margin-bottom:10px}
+        .payrow{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--line)}
+        .payrow:last-child{border-bottom:0}
+        .payrow .pd{min-width:0;flex:1}
+        .payrow .pl{color:var(--muted);font-size:11.5px;margin-bottom:2px}
+        .payrow .pv{font-size:15px;font-weight:600;word-break:break-all}
+        .payrow .pv.big{font-size:19px;font-weight:800;letter-spacing:.4px}
+        .copybtn{flex:0 0 auto;padding:9px 13px;border-radius:10px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
+        .copybtn.done{border-color:var(--verde);color:var(--verde)}
+        .paynote{color:var(--muted);font-size:12px;line-height:1.45;margin:-2px 0 4px}
+        .vouch{border:1px dashed var(--line);border-radius:14px;padding:16px;text-align:center;margin-bottom:10px;background:var(--panel-2)}
+        .vouch .ic{font-size:26px}
+        .vouch .tx{color:var(--muted);font-size:12.5px;margin-top:5px;line-height:1.4}
+        .vouchprev{position:relative;border-radius:14px;overflow:hidden;border:1px solid var(--line);margin-bottom:10px}
+        .vouchprev img{display:block;width:100%;max-height:230px;object-fit:contain;background:#0b0d10}
+        .vouchprev .rm{position:absolute;top:8px;right:8px;background:rgba(10,12,16,.82);border:1px solid var(--line);color:#fff;border-radius:10px;padding:7px 11px;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer}
+        .chk{display:flex;align-items:flex-start;gap:10px;padding:12px 13px;border-radius:12px;border:1px solid var(--line);background:var(--panel-2);margin-bottom:12px;cursor:pointer;font-size:13px;line-height:1.4}
+        .chk input{width:19px;height:19px;flex:0 0 19px;margin-top:1px;accent-color:var(--verde)}
+        .btn.amber[disabled]{opacity:.45;cursor:not-allowed}
 
         /* ===== Modo navegación ===== */
         .navmode{position:absolute;inset:0;z-index:44;background:#0b1a10}
@@ -353,6 +381,15 @@
         <div class="dbody" id="drawerBody"><p class="sub" style="text-align:center;color:var(--muted)">Cargando…</p></div>
     </div>
 
+    <!-- Pago de la recarga: datos para Yape/Plin/transferencia + comprobante (lo llena driver.js) -->
+    <div class="drawer paypanel" id="payPanel">
+        <div class="dhead">
+            <button class="iconbtn" id="payBack" style="background:#1c2026"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+            <h2>Pagar mi recarga</h2>
+        </div>
+        <div class="dbody" id="payBody"></div>
+    </div>
+
     <!-- Chat con el pasajero -->
     <div class="chat" id="chat">
         <div class="chead">
@@ -379,7 +416,7 @@ window.MG = {
     vapidPublic: @json(config('services.webpush.public_key')),
 };
 </script>
-<script src="/js/driver.js?v=20"></script>
+<script src="/js/driver.js?v=21"></script>
 <script src="/js/native.js?v=1"></script>
 </body>
 </html>

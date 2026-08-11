@@ -34,8 +34,16 @@ class DatabaseSeeder extends Seeder
             'commission_pct'   => '5',      // % de la tarifa que se lleva la app
             'commission_min'   => '0.00',   // piso opcional de comisión (0 = sin piso)
             'saldo_tiers'      => '20,50,100',
+            // Datos de pago que ve el conductor al recargar (los llena la central en Configuración)
             'yape_number'      => '',
             'yape_holder'      => '',
+            'plin_number'      => '',
+            'plin_holder'      => '',
+            'bank_name'        => '',
+            'bank_account'     => '',
+            'bank_cci'         => '',
+            'bank_holder'      => '',
+            'recharge_note'    => '',
             'min_saldo_alert'  => '5.00',
             'dispatch_radius_km' => '3.0',   // radio para avisar a conductores cercanos
             'demo_enabled'     => '1',       // conductor demo cuando no hay conductores reales conectados

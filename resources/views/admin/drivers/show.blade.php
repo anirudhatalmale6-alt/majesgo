@@ -86,7 +86,7 @@
                 <div class="row">
                     <div class="field"><label>Monto ({{ $cur }})</label><input class="input" name="amount" type="number" step="0.5" min="0.5" placeholder="20.00" required></div>
                     <div class="field"><label>Método</label>
-                        <select class="input" name="method"><option value="admin">Carga manual</option><option value="yape">Yape</option><option value="transferencia">Transferencia</option></select>
+                        <select class="input" name="method"><option value="admin">Carga manual</option><option value="yape">Yape</option><option value="plin">Plin</option><option value="transferencia">Transferencia</option></select>
                     </div>
                 </div>
                 <div class="field"><label>Referencia (opcional)</label><input class="input" name="reference" placeholder="N° de operación"></div>

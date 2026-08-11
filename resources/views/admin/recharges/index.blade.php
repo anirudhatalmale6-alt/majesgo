@@ -12,17 +12,26 @@
             <option value="rechazado" @selected(request('estado')=='rechazado')>Rechazadas</option>
         </select>
     </form>
-    <div class="muted">Las recargas por Yape/transferencia las validas aquí; el saldo se acredita solo al aprobar.</div>
+    <div class="muted">Las recargas por Yape/Plin/transferencia las validas aquí; el saldo se acredita solo al aprobar.</div>
 </div>
 
 <div class="card" style="padding:0">
     <table>
-        <thead><tr><th>Conductor</th><th>Método</th><th>Referencia</th><th style="text-align:right">Monto</th><th>Estado</th><th>Fecha</th><th style="text-align:right">Acción</th></tr></thead>
+        <thead><tr><th>Conductor</th><th>Método</th><th>Comprobante</th><th>Referencia</th><th style="text-align:right">Monto</th><th>Estado</th><th>Fecha</th><th style="text-align:right">Acción</th></tr></thead>
         <tbody>
         @forelse($recharges as $r)
             <tr>
                 <td><div style="font-weight:600">{{ $r->driver->full_name ?? '—' }}</div><div class="muted" style="font-size:12px">{{ $r->driver->code ?? '' }}</div></td>
                 <td>{{ $r->methodLabel() }}</td>
+                <td>
+                    @if($r->receiptUrl())
+                        <img src="{{ $r->receiptUrl() }}" alt="Comprobante de {{ $r->driver->full_name ?? '' }}" class="vouchthumb"
+                             data-full="{{ $r->receiptUrl() }}"
+                             style="width:56px;height:56px;object-fit:cover;border-radius:9px;border:1px solid var(--line);cursor:zoom-in;display:block">
+                    @else
+                        <span class="muted" style="font-size:12px">Sin comprobante</span>
+                    @endif
+                </td>
                 <td class="muted">{{ $r->reference ?: '—' }}</td>
                 <td style="text-align:right"><span class="money">{{ $cur }} {{ number_format($r->amount,2) }}</span></td>
                 <td>
@@ -40,10 +49,25 @@
                 </td>
             </tr>
         @empty
-            <tr><td colspan="7" class="muted" style="text-align:center;padding:30px">No hay recargas registradas.</td></tr>
+            <tr><td colspan="8" class="muted" style="text-align:center;padding:30px">No hay recargas registradas.</td></tr>
         @endforelse
         </tbody>
     </table>
 </div>
 <div class="pagi">{{ $recharges->links() }}</div>
+
+{{-- Ver el comprobante en grande: hay que poder leer el monto y el número de operación antes de aprobar --}}
+<div id="vouchbox" style="display:none;position:fixed;inset:0;z-index:90;background:rgba(8,10,14,.86);align-items:center;justify-content:center;padding:30px;cursor:zoom-out">
+    <img id="vouchfull" alt="Comprobante" style="max-width:min(680px,92vw);max-height:88vh;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.6)">
+</div>
+<script>
+    (function () {
+        var box = document.getElementById('vouchbox'), full = document.getElementById('vouchfull');
+        document.querySelectorAll('.vouchthumb').forEach(function (t) {
+            t.addEventListener('click', function () { full.src = t.dataset.full; box.style.display = 'flex'; });
+        });
+        box.addEventListener('click', function () { box.style.display = 'none'; full.src = ''; });
+        document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { box.style.display = 'none'; full.src = ''; } });
+    })();
+</script>
 @endsection

@@ -21,6 +21,13 @@ class SettingController extends Controller
             'saldo_tiers'      => Setting::get('saldo_tiers', '20,50,100'),
             'yape_number'      => Setting::get('yape_number', ''),
             'yape_holder'      => Setting::get('yape_holder', ''),
+            'plin_number'      => Setting::get('plin_number', ''),
+            'plin_holder'      => Setting::get('plin_holder', ''),
+            'bank_name'        => Setting::get('bank_name', ''),
+            'bank_account'     => Setting::get('bank_account', ''),
+            'bank_cci'         => Setting::get('bank_cci', ''),
+            'bank_holder'      => Setting::get('bank_holder', ''),
+            'recharge_note'    => Setting::get('recharge_note', ''),
             'min_saldo_alert'  => Setting::get('min_saldo_alert', '5.00'),
             'dispatch_radius_km' => Setting::get('dispatch_radius_km', '3.0'),
             'demo_enabled'     => Setting::get('demo_enabled', '1'),
@@ -42,6 +49,13 @@ class SettingController extends Controller
             'saldo_tiers'      => ['required', 'string', 'max:60'],
             'yape_number'      => ['nullable', 'string', 'max:20'],
             'yape_holder'      => ['nullable', 'string', 'max:120'],
+            'plin_number'      => ['nullable', 'string', 'max:20'],
+            'plin_holder'      => ['nullable', 'string', 'max:120'],
+            'bank_name'        => ['nullable', 'string', 'max:60'],
+            'bank_account'     => ['nullable', 'string', 'max:40'],
+            'bank_cci'         => ['nullable', 'string', 'max:40'],
+            'bank_holder'      => ['nullable', 'string', 'max:120'],
+            'recharge_note'    => ['nullable', 'string', 'max:400'],
             'min_saldo_alert'  => ['required', 'numeric', 'min:0'],
             'dispatch_radius_km' => ['required', 'numeric', 'min:0.5', 'max:50'],
             'demo_enabled'     => ['nullable'],
@@ -50,7 +64,8 @@ class SettingController extends Controller
         $data['demo_enabled'] = $request->boolean('demo_enabled') ? '1' : '0';
 
         foreach ($data as $k => $v) {
-            Setting::put($k, $v);
+            // los campos opcionales vacíos llegan como null: se guardan como cadena vacía
+            Setting::put($k, $v === null ? '' : (string) $v);
         }
 
         return back()->with('ok', 'Configuración guardada.');

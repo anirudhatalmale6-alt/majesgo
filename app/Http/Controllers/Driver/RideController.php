@@ -552,37 +552,130 @@ class RideController extends Controller
             'currency'    => Setting::get('currency', 'S/'),
             'yape_number' => Setting::get('yape_number', ''),
             'yape_holder' => Setting::get('yape_holder', ''),
+            'payment'     => $this->paymentMethods(),
+            'recharge_note' => (string) Setting::get('recharge_note', ''),
             'tiers'       => array_values(array_filter(array_map('trim', explode(',', (string) Setting::get('saldo_tiers', '20,50,100'))))),
             'movements'   => $moves,
             'pending'     => $driver->recharges()->where('status', 'pendiente')->latest()->get()->map(fn ($r) => [
-                'amount' => (float) $r->amount,
-                'method' => $r->methodLabel(),
-                'date'   => $r->created_at->format('d/m/Y H:i'),
+                'amount'  => (float) $r->amount,
+                'method'  => $r->methodLabel(),
+                'date'    => $r->created_at->format('d/m/Y H:i'),
+                'receipt' => $r->receiptUrl(),
             ]),
         ]);
     }
 
-    /** El conductor solicita una recarga (queda pendiente hasta que el admin la valide). */
+    /**
+     * Medios de pago habilitados para recargar saldo, con los datos que el conductor copia.
+     * Solo se devuelven los que la central llenó en Configuración: si no hay número de Plin,
+     * el conductor no ve la pestaña de Plin y no puede quedarse esperando a un dato que no existe.
+     */
+    private function paymentMethods(): array
+    {
+        $methods = [];
+
+        if ($yape = trim((string) Setting::get('yape_number', ''))) {
+            $methods[] = [
+                'key' => 'yape', 'label' => 'Yape', 'icon' => '💜',
+                'fields' => [
+                    ['label' => 'Número de Yape', 'value' => $yape, 'copy' => true, 'big' => true],
+                    ['label' => 'Titular', 'value' => trim((string) Setting::get('yape_holder', '')), 'copy' => false],
+                ],
+            ];
+        }
+
+        if ($plin = trim((string) Setting::get('plin_number', ''))) {
+            $methods[] = [
+                'key' => 'plin', 'label' => 'Plin', 'icon' => '💙',
+                'fields' => [
+                    ['label' => 'Número de Plin', 'value' => $plin, 'copy' => true, 'big' => true],
+                    ['label' => 'Titular', 'value' => trim((string) Setting::get('plin_holder', '')), 'copy' => false],
+                ],
+            ];
+        }
+
+        $account = trim((string) Setting::get('bank_account', ''));
+        $cci     = trim((string) Setting::get('bank_cci', ''));
+        if ($account || $cci) {
+            $methods[] = [
+                'key' => 'transferencia', 'label' => 'Transferencia', 'icon' => '🏦',
+                'fields' => array_values(array_filter([
+                    ['label' => 'Banco', 'value' => trim((string) Setting::get('bank_name', '')), 'copy' => false],
+                    $account ? ['label' => 'Número de cuenta', 'value' => $account, 'copy' => true, 'big' => true] : null,
+                    $cci ? ['label' => 'CCI (interbancario)', 'value' => $cci, 'copy' => true] : null,
+                    ['label' => 'Titular', 'value' => trim((string) Setting::get('bank_holder', '')), 'copy' => false],
+                ], fn ($f) => $f && $f['value'] !== '')),
+            ];
+        }
+
+        return $methods;
+    }
+
+    /**
+     * El conductor envía su recarga a revisión (queda pendiente hasta que el admin la valide).
+     *
+     * Llega como multipart porque puede traer la foto del voucher. La recarga solo se registra
+     * si el conductor ya pagó: o adjunta el comprobante, o declara el pago con su número de
+     * operación. Así la central no recibe pedidos "en blanco" que tendría que perseguir.
+     */
     public function recharge(Request $request)
     {
         $driver = $this->driver($request);
+
         $data = $request->validate([
             'amount'    => ['required', 'numeric', 'min:1', 'max:1000'],
-            'method'    => ['required', 'in:yape,transferencia'],
+            'method'    => ['required', 'in:yape,plin,transferencia'],
             'reference' => ['nullable', 'string', 'max:60'],
-        ]);
+            'confirmed' => ['nullable'],
+            'receipt'   => \App\Services\Receipt::RULES,
+        ], \App\Services\Receipt::messages());
+
+        $hasReceipt = $request->hasFile('receipt');
+
+        if (! $hasReceipt && ! $request->boolean('confirmed')) {
+            return response()->json([
+                'message' => 'Adjunta la foto de tu comprobante o confirma que ya hiciste el pago.',
+            ], 422);
+        }
+
+        // doble toque en «Enviar»: no duplicar la misma recarga en el panel de la central
+        $duplicate = $driver->recharges()
+            ->where('status', 'pendiente')
+            ->where('amount', round($data['amount'], 2))
+            ->where('created_at', '>=', now()->subMinutes(10))
+            ->first();
+
+        if ($duplicate) {
+            return response()->json([
+                'ok'      => true,
+                'message' => 'Ya tienes esta recarga en revisión. La central la validará pronto.',
+                'code'    => $duplicate->id,
+            ]);
+        }
+
+        $receiptPath = null;
+        if ($hasReceipt) {
+            try {
+                $receiptPath = \App\Services\Receipt::store($request->file('receipt'), $driver);
+            } catch (\Throwable $e) {
+                return response()->json(['message' => 'No se pudo procesar el comprobante. Toma la foto de nuevo.'], 422);
+            }
+        }
 
         $recharge = Recharge::create([
-            'driver_id' => $driver->id,
-            'amount'    => round($data['amount'], 2),
-            'method'    => $data['method'],
-            'reference' => $data['reference'] ?? null,
-            'status'    => 'pendiente',
+            'driver_id'    => $driver->id,
+            'amount'       => round($data['amount'], 2),
+            'method'       => $data['method'],
+            'reference'    => $data['reference'] ?: null,
+            'receipt_path' => $receiptPath,
+            'status'       => 'pendiente',
         ]);
 
         return response()->json([
             'ok'      => true,
-            'message' => 'Recarga enviada. La central la validará y se acreditará tu saldo.',
+            'message' => $receiptPath
+                ? 'Comprobante enviado. La central validará tu recarga y se acreditará tu saldo.'
+                : 'Recarga enviada a revisión. La central la validará y se acreditará tu saldo.',
             'code'    => $recharge->id,
         ]);
     }

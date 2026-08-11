@@ -967,7 +967,7 @@ function updateSaldo(saldo, canReceive) {
   const st = $('#stSaldo'); if (st) st.textContent = money(saldo); // el saldo vive en el panel inferior
 }
 
-let rTier = null, rMethod = 'yape';
+let rTier = null, saldoData = null;
 async function openDrawer() {
   $('#drawer').classList.add('open');
   $('#drawerBody').innerHTML = '<p class="sub" style="text-align:center;color:var(--muted)">Cargando…</p>';
@@ -976,10 +976,12 @@ async function openDrawer() {
   catch (e) { $('#drawerBody').innerHTML = '<p class="sub" style="text-align:center">No se pudo cargar.</p>'; return; }
   updateSaldo(d.saldo, d.can_receive);
   const tiers = (d.tiers && d.tiers.length) ? d.tiers : ['20', '50', '100'];
-  rTier = null; rMethod = 'yape';
+  rTier = null; saldoData = d;
 
-  const pend = (d.pending && d.pending.length)
-    ? `<div class="pend">⏳ Recarga pendiente de ${money(d.pending[0].amount)} (${d.pending[0].method}). La central la validará pronto.</div>` : '';
+  const p = (d.pending && d.pending.length) ? d.pending[0] : null;
+  const pend = p
+    ? `<div class="pend">⏳ Recarga en revisión de ${money(p.amount)} (${p.method}). La central la validará pronto.
+        ${p.receipt ? `<a class="vlink" href="${p.receipt}" target="_blank" rel="noopener">Ver mi comprobante</a>` : ''}</div>` : '';
 
   $('#drawerBody').innerHTML = `
     <div class="balcard">
@@ -1011,13 +1013,8 @@ async function openDrawer() {
     ${pend}
     <div class="tiers" id="tiers">${tiers.map((t) => `<button data-t="${t}">${CUR} ${t}</button>`).join('')}</div>
     <input class="field" id="rAmount" type="number" inputmode="decimal" placeholder="Otro monto (${CUR})" min="1">
-    <div class="pay2" id="rPay">
-      <button data-m="yape" class="on">💜 Yape</button>
-      <button data-m="transferencia">🏦 Transferencia</button>
-    </div>
-    <input class="field" id="rRef" type="text" placeholder="N° de operación (opcional)">
-    ${d.yape_number ? `<div class="statesub" style="margin:-2px 0 10px">Yapea al ${esc(d.yape_number)}${d.yape_holder ? ' · ' + esc(d.yape_holder) : ''}, luego registra tu recarga aquí.</div>` : ''}
-    <button class="btn amber" id="btnDoRecharge">Enviar recarga</button>
+    <button class="btn amber" id="btnDoRecharge">Continuar al pago</button>
+    <div class="paynote" style="margin-top:8px;text-align:center">En el siguiente paso verás a qué número yapear y podrás subir tu comprobante.</div>
 
     <div class="seg">MOVIMIENTOS</div>
     ${d.movements.length ? d.movements.map((m) => `
@@ -1041,9 +1038,7 @@ async function openDrawer() {
     tierBtns.forEach((x) => x.classList.toggle('on', x === b));
   }));
   $('#rAmount').addEventListener('input', () => { rTier = null; tierBtns.forEach((x) => x.classList.remove('on')); });
-  const payBtns = $('#rPay').querySelectorAll('button');
-  payBtns.forEach((b) => b.addEventListener('click', () => { rMethod = b.dataset.m; payBtns.forEach((x) => x.classList.toggle('on', x === b)); }));
-  $('#btnDoRecharge').addEventListener('click', doRecharge);
+  $('#btnDoRecharge').addEventListener('click', goToPayment);
 
   $('#btnVehPick').addEventListener('click', () => $('#vehFile').click());
   $('#vehFile').addEventListener('change', (e) => { if (e.target.files[0]) uploadVehiclePhoto(e.target.files[0]); });
@@ -1114,16 +1109,189 @@ async function deleteVehiclePhoto() {
   } catch (e) { toast(e.message); btn.disabled = false; btn.textContent = 'Quitar'; }
 }
 
-async function doRecharge() {
+/* ================= PAGO DE LA RECARGA ================= */
+/*
+ * El conductor primero elige el monto (drawer) y recién aquí ve a dónde pagar.
+ * Antes la recarga quedaba "pendiente" sin que él supiera a qué número yapear,
+ * así que la central recibía pedidos de recarga sin ningún pago detrás.
+ */
+
+let pay = null; // { amount, method, file, previewUrl, confirmed }
+
+function goToPayment() {
   const amount = parseFloat($('#rAmount').value);
-  if (!amount || amount < 1) { toast('Ingresa un monto válido.'); return; }
-  const btn = $('#btnDoRecharge'); btn.disabled = true; btn.innerHTML = '<span class="spin"></span>';
-  try {
-    const r = await api('api/recharge', { amount, method: rMethod, reference: $('#rRef').value.trim() });
-    toast(r.message || 'Recarga enviada.');
-    openDrawer();
-  } catch (e) { toast(e.message); btn.disabled = false; btn.textContent = 'Enviar recarga'; }
+  if (!amount || amount < 1) { toast('Elige o escribe cuánto quieres recargar.'); return; }
+  if (amount > 1000) { toast(`El máximo por recarga es ${money(1000)}.`); return; }
+
+  const methods = (saldoData && saldoData.payment) || [];
+  if (!methods.length) {
+    toast('La central aún no cargó sus datos de pago. Comunícate con ella.');
+    return;
+  }
+
+  pay = { amount, method: methods[0].key, file: null, previewUrl: null, confirmed: false };
+  $('#payPanel').classList.add('open');
+  renderPay();
 }
+
+function closePay() {
+  $('#payPanel').classList.remove('open');
+  if (pay && pay.previewUrl) URL.revokeObjectURL(pay.previewUrl);
+  pay = null;
+}
+
+function renderPay() {
+  const methods = (saldoData && saldoData.payment) || [];
+  const active = methods.find((m) => m.key === pay.method) || methods[0];
+  pay.method = active.key;
+
+  const note = (saldoData && saldoData.recharge_note) || '';
+
+  $('#payBody').innerHTML = `
+    <div class="payamt">
+      <div class="n">${money(pay.amount)}</div>
+      <div class="l">Monto a recargar</div>
+    </div>
+
+    <div class="paystep"><i>1</i> Paga con el medio que prefieras</div>
+    ${methods.length > 1 ? `<div class="pay2" id="payTabs">
+      ${methods.map((m) => `<button data-m="${m.key}" class="${m.key === active.key ? 'on' : ''}">${m.icon} ${esc(m.label)}</button>`).join('')}
+    </div>` : ''}
+
+    <div class="paycard">
+      ${active.fields.map((f, i) => `
+        <div class="payrow">
+          <div class="pd">
+            <div class="pl">${esc(f.label)}</div>
+            <div class="pv ${f.big ? 'big' : ''}">${esc(f.value)}</div>
+          </div>
+          ${f.copy ? `<button class="copybtn" data-copy="${i}">Copiar</button>` : ''}
+        </div>`).join('')}
+    </div>
+    <div class="paynote">Paga exactamente ${money(pay.amount)} desde tu app. ${note ? esc(note) : ''}</div>
+
+    <div class="paystep"><i>2</i> Adjunta tu comprobante</div>
+    <input type="file" id="vFile" accept="image/jpeg,image/png,image/webp" hidden>
+    ${pay.previewUrl
+      ? `<div class="vouchprev"><img src="${pay.previewUrl}" alt="Comprobante"><button class="rm" id="vRemove">Quitar</button></div>
+         <button class="btn ghost" id="vPick" style="margin-bottom:10px">Cambiar comprobante</button>`
+      : `<div class="vouch"><div class="ic">🧾</div><div class="tx">La captura de tu Yape, Plin o el voucher del banco.<br>Es lo que la central revisa para acreditar tu saldo.</div></div>
+         <button class="btn ghost" id="vPick" style="margin-bottom:10px">Adjuntar comprobante</button>`}
+
+    <input class="field" id="vRef" type="text" inputmode="numeric" placeholder="N° de operación (opcional)" maxlength="60" value="${pay.reference ? esc(pay.reference) : ''}">
+
+    ${pay.previewUrl ? '' : `
+      <label class="chk">
+        <input type="checkbox" id="vConfirm" ${pay.confirmed ? 'checked' : ''}>
+        <span>Ya realicé el pago y no tengo el comprobante a la mano. Entiendo que la central puede tardar más en validarlo.</span>
+      </label>`}
+
+    <div class="paystep"><i>3</i> Envía tu recarga</div>
+    <button class="btn amber" id="vSend" ${(pay.previewUrl || pay.confirmed) ? '' : 'disabled'}>Enviar recarga a revisión</button>
+    <div class="paynote" style="margin-top:9px;text-align:center">Tu saldo se acredita cuando la central valide el pago.</div>
+  `;
+
+  const tabs = $('#payTabs');
+  if (tabs) {
+    tabs.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
+      pay.reference = $('#vRef').value.trim();
+      pay.method = b.dataset.m;
+      renderPay(); // el comprobante ya elegido se conserva: vive en `pay`, no en el DOM
+    }));
+  }
+
+  $('#payBody').querySelectorAll('.copybtn').forEach((b) => b.addEventListener('click', () => {
+    copyText(active.fields[+b.dataset.copy].value, b);
+  }));
+
+  $('#vPick').addEventListener('click', () => $('#vFile').click());
+  $('#vFile').addEventListener('change', async (e) => {
+    const f = e.target.files[0];
+    if (!f) return;
+    if (!/^image\//.test(f.type)) { toast('Elige una imagen (captura o foto del voucher).'); return; }
+    const small = await shrinkPhoto(f, 1600, 0.88);
+    if (pay.previewUrl) URL.revokeObjectURL(pay.previewUrl);
+    pay.reference = $('#vRef').value.trim();
+    pay.file = small;
+    pay.previewUrl = URL.createObjectURL(small);
+    renderPay();
+  });
+
+  const rm = $('#vRemove');
+  if (rm) rm.addEventListener('click', () => {
+    URL.revokeObjectURL(pay.previewUrl);
+    pay.reference = $('#vRef').value.trim();
+    pay.file = null; pay.previewUrl = null;
+    renderPay();
+  });
+
+  const cf = $('#vConfirm');
+  if (cf) cf.addEventListener('change', () => {
+    pay.confirmed = cf.checked;
+    $('#vSend').disabled = !cf.checked;
+  });
+
+  $('#vSend').addEventListener('click', sendRecharge);
+}
+
+/** Copia al portapapeles. El WebView de Android a veces no expone navigator.clipboard: por eso el respaldo. */
+function copyText(text, btn) {
+  const done = () => {
+    const old = btn.textContent;
+    btn.textContent = '✓ Copiado'; btn.classList.add('done');
+    setTimeout(() => { btn.textContent = old; btn.classList.remove('done'); }, 1600);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
+  } else {
+    fallbackCopy(text, done);
+  }
+}
+
+function fallbackCopy(text, done) {
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.cssText = 'position:fixed;top:-1000px;opacity:0';
+    document.body.appendChild(ta);
+    ta.select(); ta.setSelectionRange(0, text.length);
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    ok ? done() : toast('Copia el dato manualmente: ' + text);
+  } catch (e) { toast('Copia el dato manualmente: ' + text); }
+}
+
+async function sendRecharge() {
+  const btn = $('#vSend');
+  btn.disabled = true; btn.innerHTML = '<span class="spin"></span>';
+  try {
+    const fd = new FormData();
+    fd.append('amount', pay.amount);
+    fd.append('method', pay.method);
+    fd.append('reference', $('#vRef').value.trim());
+    fd.append('confirmed', pay.confirmed ? '1' : '0');
+    if (pay.file) fd.append('receipt', pay.file, 'comprobante.jpg');
+
+    // FormData va sin Content-Type: el navegador pone el boundary correcto
+    const res = await fetch('/conductor/api/recharge', {
+      method: 'POST',
+      headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': MG.csrf },
+      body: fd,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'No se pudo enviar la recarga.');
+
+    toast(data.message || 'Recarga enviada a revisión.');
+    closePay();
+    openDrawer();
+  } catch (e) {
+    toast(e.message);
+    btn.disabled = false; btn.textContent = 'Enviar recarga a revisión';
+  }
+}
+
+$('#payBack').addEventListener('click', closePay);
 
 $('#navClose').addEventListener('click', closeNav);
 $('#navRecenter').addEventListener('click', () => {
