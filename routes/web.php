@@ -131,6 +131,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('conductores/{driver}/clave', [DriverController::class, 'resetPassword'])->name('drivers.password');
         Route::post('conductores/{driver}/saldo', [DriverController::class, 'adjustSaldo'])->name('drivers.saldo');
         Route::delete('conductores/{driver}', [DriverController::class, 'destroy'])->name('drivers.destroy');
+        Route::post('conductores/{id}/restaurar', [DriverController::class, 'restore'])->name('drivers.restore');
+        Route::delete('conductores/{id}/definitivo', [DriverController::class, 'forceDestroy'])->name('drivers.forceDestroy');
 
         // Recargas
         // Moderación de fotos de conductores (rostro y vehículo)

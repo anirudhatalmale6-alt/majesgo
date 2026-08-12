@@ -3,10 +3,15 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
 
 class Driver extends Model
 {
+    // Baja reversible: el conductor sale del panel y de la app, pero sus viajes,
+    // recargas y movimientos de saldo se conservan (ver la migración de deleted_at).
+    use SoftDeletes;
+
     protected $guarded = ['id'];
 
     protected $hidden = ['password'];
@@ -95,6 +100,21 @@ class Driver extends Model
 
             return $movement;
         });
+    }
+
+    /**
+     * ¿Tiene algo que perder si se borra de verdad?
+     *
+     * Cuenta como historial haber trabajado (viajes, comisiones cobradas) o haber pagado
+     * (recargas). NO cuenta el «Saldo inicial» que la central le carga al crear la cuenta:
+     * ese ajuste lo lleva todo conductor nuevo desde el primer segundo, y si lo tomáramos
+     * como historial jamás se podría borrar del todo una cuenta creada por error.
+     */
+    public function hasHistory(): bool
+    {
+        return $this->rides()->exists()
+            || $this->recharges()->exists()
+            || $this->movements()->whereIn('type', ['comision', 'recarga'])->exists();
     }
 
     public function statusLabel(): string

@@ -144,6 +144,21 @@
             <div class="muted" style="font-size:12px;margin-top:8px">Suspendido/Bloqueado deja de recibir viajes al instante.</div>
         </div>
 
+        {{-- Dar de baja --}}
+        <div class="card">
+            <h3 style="margin-bottom:10px">Dar de baja</h3>
+            <div class="muted" style="font-size:12.5px;margin-bottom:12px;line-height:1.5">
+                Deja de aparecer en el panel y no puede entrar a la app.
+                <b>Sus viajes, recargas y movimientos de saldo se conservan</b>, y puedes restaurarlo
+                cuando quieras desde el filtro «Dados de baja» en la lista de conductores.
+            </div>
+            <form method="POST" action="{{ route('admin.drivers.destroy',$driver) }}"
+                  onsubmit="return confirm('Dar de baja a {{ $driver->full_name }}. Podrás restaurarlo después. ¿Continuar?')">
+                @csrf @method('DELETE')
+                <button class="btn danger" style="width:100%">Dar de baja a este conductor</button>
+            </form>
+        </div>
+
         {{-- Reset password --}}
         <div class="card">
             <h3 style="margin-bottom:10px">Restablecer contraseña</h3>

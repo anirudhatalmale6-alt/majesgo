@@ -24,7 +24,11 @@ class DriverController extends Controller
             });
         }
         if ($status = $request->get('estado')) {
-            $q->where('account_status', $status);
+            if ($status === 'eliminados') {
+                $q->onlyTrashed();
+            } else {
+                $q->where('account_status', $status);
+            }
         }
 
         $drivers = $q->latest()->paginate(15)->withQueryString();
@@ -125,11 +129,55 @@ class DriverController extends Controller
         return back()->with('ok', 'Saldo ajustado. Nuevo saldo: S/ ' . number_format($driver->saldo, 2));
     }
 
+    /**
+     * Da de baja al conductor: sale del panel y no puede entrar a la app,
+     * pero sus viajes, recargas y movimientos de saldo se conservan.
+     */
     public function destroy(Driver $driver)
     {
+        if ($driver->activeRide()) {
+            return back()->withErrors(['driver' => "{$driver->full_name} tiene un viaje en curso. Espera a que termine o cancélalo antes de darlo de baja."]);
+        }
+
         $name = $driver->full_name;
+        $driver->update(['status' => 'desconectado']);   // que no quede colgado en el mapa
         $driver->delete();
-        return redirect()->route('admin.drivers.index')->with('ok', "Conductor {$name} eliminado.");
+
+        return redirect()->route('admin.drivers.index')
+            ->with('ok', "{$name} fue dado de baja. Su historial se conserva y puedes restaurarlo desde el filtro «Eliminados».");
+    }
+
+    /** Vuelve a habilitar a un conductor dado de baja. */
+    public function restore(int $id)
+    {
+        $driver = Driver::onlyTrashed()->findOrFail($id);
+        $driver->restore();
+
+        return back()->with('ok', "{$driver->full_name} fue restaurado. Revisa su estado de cuenta antes de que vuelva a trabajar.");
+    }
+
+    /**
+     * Borrado definitivo. Solo se permite si el conductor nunca hizo un viaje ni movió
+     * saldo: si tuviera historial, borrarlo se llevaría por delante sus recargas y
+     * movimientos (van en cascada) y dejaría viajes completados sin conductor.
+     */
+    public function forceDestroy(int $id)
+    {
+        $driver = Driver::onlyTrashed()->findOrFail($id);
+
+        if ($driver->hasHistory()) {
+            return back()->withErrors(['driver' => "{$driver->full_name} tiene viajes o movimientos de saldo registrados. No se puede borrar definitivamente sin perder ese historial; se queda dado de baja."]);
+        }
+
+        $name = $driver->full_name;
+        foreach ($driver->photos as $photo) {
+            \App\Services\ImageStore::delete($photo->path);
+        }
+        \App\Services\ImageStore::delete($driver->photo_path);
+        \App\Services\ImageStore::delete($driver->vehicle_photo);
+        $driver->forceDelete();
+
+        return redirect()->route('admin.drivers.index')->with('ok', "{$name} fue borrado definitivamente.");
     }
 
     /* ---------- helpers ---------- */
@@ -168,6 +216,21 @@ class DriverController extends Controller
     {
         $id = $driver?->id;
 
+        // El teléfono es único en la tabla e incluye a los dados de baja. Sin este aviso,
+        // al recrear a un conductor que se dio de baja sale un "ya está en uso" que no
+        // explica nada y no se ve por ningún lado quién lo tiene.
+        $digits = preg_replace('/\D/', '', (string) $request->input('phone'));
+        $trashed = Driver::onlyTrashed()
+            ->where('phone', strlen($digits) > 9 ? substr($digits, -9) : $digits)
+            ->when($id, fn ($q) => $q->where('id', '!=', $id))
+            ->first();
+
+        if ($trashed) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'phone' => "Ese teléfono es de {$trashed->full_name} ({$trashed->code}), que está dado de baja. Restáuralo desde el filtro «Eliminados» o bórralo definitivamente antes de reutilizar el número.",
+            ]);
+        }
+
         $data = $request->validate([
             'full_name'      => ['required', 'string', 'max:120'],
             'dni'            => ['nullable', 'string', 'max:20'],
@@ -196,7 +259,8 @@ class DriverController extends Controller
     private function nextCode(): string
     {
         // mayor sufijo numérico entre los códigos con forma MG-#### (ignora MG-DEMO u otros no numéricos)
-        $max = Driver::pluck('code')
+        // withTrashed: un MG-0007 dado de baja sigue ocupando su código en la tabla
+        $max = Driver::withTrashed()->pluck('code')
             ->filter(fn ($c) => preg_match('/^MG-\d+$/', (string) $c))
             ->map(fn ($c) => (int) Str::afterLast($c, '-'))
             ->max() ?? 0;
