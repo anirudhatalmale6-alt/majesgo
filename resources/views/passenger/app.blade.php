@@ -44,14 +44,10 @@
         .meperson svg{width:20px;height:20px;fill:#fff;display:block}
         .taxicar{font-size:22px;filter:drop-shadow(0 3px 4px rgba(0,0,0,.45))}
         .zonemk{pointer-events:none}
-        .zonemk .zpin{display:none;position:absolute;left:-9px;top:-26px;width:18px;height:26px;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5))}
+        .zonemk .zpin{display:block;position:absolute;left:-7px;top:-20px;width:14px;height:20px;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5))}
         .zonemk .zpin path{fill:#3d7bd6} .zonemk .zpin circle{fill:#fff}
-        .zonemk .zname{display:none;position:absolute;left:11px;top:-22px;white-space:nowrap;max-width:140px;overflow:hidden;text-overflow:ellipsis;font-size:11px;font-weight:700;color:#dfe7ff;background:rgba(20,26,40,.72);border:1px solid rgba(138,180,255,.4);padding:2px 8px;border-radius:9px;box-shadow:0 1px 4px rgba(0,0,0,.45)}
-        /* nivel de detalle por zoom: pines desde 'zmid', nombres desde 'znear' (evita saturar) */
-        #app.zmid .zonemk .zpin,#app.znear .zonemk .zpin{display:block}
-        #app.znear .zonemk .zname{display:block}
+        .zonemk .zname{display:block;position:absolute;left:0;transform:translateX(-50%);top:6px;white-space:nowrap;max-width:140px;overflow:hidden;text-overflow:ellipsis;font-size:11px;font-weight:700;color:#dfe7ff;background:rgba(20,26,40,.72);border:1px solid rgba(138,180,255,.4);padding:2px 8px;border-radius:9px;box-shadow:0 1px 4px rgba(0,0,0,.45)}
         /* zonas PRINCIPALES: su pin y su nombre se ven SIEMPRE, incluso de lejos */
-        .zonemk.zprimary .zpin,.zonemk.zprimary .zname{display:block}
         .zonemk.zprimary .zpin path{fill:#009d4f} /* verde para distinguir las principales */
         #app.lightmap .zonemk .zname{color:#173a70;background:rgba(255,255,255,.9);border-color:rgba(60,110,200,.45)}
         .nearbypill{position:absolute;top:calc(env(safe-area-inset-top) + 62px);left:50%;transform:translateX(-50%);z-index:19;background:rgba(13,13,13,.80);backdrop-filter:blur(8px);color:#fff;font-size:12.5px;font-weight:600;padding:7px 14px;border-radius:20px;box-shadow:0 2px 10px rgba(0,0,0,.35);white-space:nowrap;pointer-events:none;max-width:88vw;overflow:hidden;text-overflow:ellipsis}
@@ -354,8 +350,8 @@ window.MG = {
     vapidPublic: @json(config('services.webpush.public_key')),
 };
 </script>
-<script src="/js/pois.js?v=2"></script>
-<script src="/js/passenger.js?v=26"></script>
+<script src="/js/pois.js?v=5"></script>
+<script src="/js/passenger.js?v=27"></script>
 <script src="/js/native.js?v=1"></script>
 </body>
 </html>

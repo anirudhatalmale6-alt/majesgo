@@ -70,19 +70,41 @@ class GeocodeController extends Controller
         // 0) ZONAS LOCALES de MajesGo primero (aparecen arriba en las sugerencias)
         $custom = $this->customPlaceSearch($q);
 
+        // 0.b) PUNTOS DE REFERENCIA (grifos, mercados, farmacias…): la gente escribe
+        // "inkafarma" o "el ovalo" antes que una dirección con calle y número.
+        $pois = $this->mapPoiSearch($q);
+
         $ck = 'geo:sea:' . mb_strtolower($q);
         $google = Cache::remember($ck, now()->addDays(7), fn () => $this->googleSearch($q));
         if ($google === null) {
             Cache::forget($ck);
         }
 
-        $results = array_merge($custom, $google ?? []);
+        $results = array_merge($custom, $pois, $google ?? []);
         // si no hay ni zonas locales ni Google, devolver null para que el frontend use Nominatim
         if (! $results) {
             return response()->json(['results' => null]);
         }
 
         return response()->json(['results' => array_slice($results, 0, 8)]);
+    }
+
+    /** Puntos de referencia que coinciden con el texto escrito. */
+    private function mapPoiSearch(string $q): array
+    {
+        return \App\Models\MapPoi::query()
+            ->where('active', true)
+            ->where('name', 'like', '%' . $q . '%')
+            ->orderBy('priority')
+            ->limit(4)
+            ->get()
+            ->map(fn ($p) => [
+                'label' => $p->name,
+                'full'  => $p->categoryLabel() . ' · El Pedregal',
+                'lat'   => (float) $p->lat,
+                'lng'   => (float) $p->lng,
+            ])
+            ->all();
     }
 
     /** Zonas locales activas (para dibujar sus nombres en el mapa del pasajero). */

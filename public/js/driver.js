@@ -310,38 +310,62 @@ function initMap() {
   const bell = $('#btnBell'); if (bell) bell.addEventListener('click', openDrawer);
   const bm = $('#btnMapMode'); if (bm) bm.addEventListener('click', toggleMapMode);
   applyMapMode();
-  map.on('zoomend', applyZoneZoom);
-  setupDSheetDrag();
+    setupDSheetDrag();
   const ro = new ResizeObserver(() => { if (!dSheetDragging) applyDSheetSnap(false); });
   ro.observe($('#sheet'));
 }
 
 /* ============ Zonas locales (nombres en el mapa; ayuda al conductor a ubicarse) ============ */
-let zoneLayer = null;
-const ZONE_ZOOM_PINS = 13, ZONE_ZOOM_LABELS = 16; // nombres solo al acercar más (evita que se pisen)
-function applyZoneZoom() {
-  const app = document.getElementById('app');
-  if (!app || !map) return;
+/*
+ * Se dibujaban las 63 zonas a la vez y los nombres se pisaban unos con otros. Ahora en cada
+ * movimiento se calcula qué cabe en pantalla, con el mismo criterio que los puntos de referencia.
+ */
+let zoneLayer = null, zoneData = [];
+const ZONE_MIN_ZOOM = 13;
+
+function drawZones() {
+  if (!map || !zoneLayer) return;
+  zoneLayer.clearLayers();
+
   const z = map.getZoom();
-  app.classList.toggle('zmid', z >= ZONE_ZOOM_PINS && z < ZONE_ZOOM_LABELS);
-  app.classList.toggle('znear', z >= ZONE_ZOOM_LABELS);
+  if (z < ZONE_MIN_ZOOM || !zoneData.length) return;
+
+  const onlyPrimary = z < 16;
+  const items = zoneData.filter((s) => (onlyPrimary ? s.primary : true));
+  const pin = '<svg class="zpin" viewBox="0 0 24 34"><path d="M12 0C5.4 0 0 5.4 0 12c0 8 12 22 12 22s12-14 12-22C24 5.4 18.6 0 12 0z"/><circle cx="12" cy="12" r="4"/></svg>';
+
+  MGPois.place(map, items, {
+    layer: 'zonas',
+    max: z >= 16 ? 26 : 14,
+    spacing: z >= 16 ? [44, 36] : [58, 46],
+    labels: z >= 15,
+    maxLabels: z >= 16 ? 14 : 9,
+    text: (s) => s.name,
+    maxChars: 20,
+    labelOffset: 8,
+  }).forEach((o) => {
+    const s = o.item;
+    const label = o.label ? '<span class="zname">' + esc(o.label) + '</span>' : '';
+    L.marker([s.lat, s.lng], {
+      icon: L.divIcon({
+        className: 'zonemk' + (s.primary ? ' zprimary' : ''),
+        html: pin + label,
+        iconSize: [0, 0], iconAnchor: [0, 0],
+      }),
+      interactive: false,
+      zIndexOffset: s.primary ? 260 : 200,
+    }).addTo(zoneLayer);
+  });
 }
+
 async function loadZones() {
   let d;
   try { d = await api('api/zones'); } catch (e) { return; }
-  if (zoneLayer) { zoneLayer.remove(); zoneLayer = null; }
-  const zones = d.zones || [];
-  if (!zones.length) return;
-  zoneLayer = L.layerGroup().addTo(map);
-  const pin = '<svg class="zpin" viewBox="0 0 24 34"><path d="M12 0C5.4 0 0 5.4 0 12c0 8 12 22 12 22s12-14 12-22C24 5.4 18.6 0 12 0z"/><circle cx="12" cy="12" r="4"/></svg>';
-  zones.forEach((z) => {
-    const cls = 'zonemk' + (z.primary ? ' zprimary' : '');
-    L.marker([z.lat, z.lng], {
-      icon: L.divIcon({ className: cls, html: pin + '<span class="zname">' + esc(z.name) + '</span>', iconSize: [0, 0], iconAnchor: [0, 0] }),
-      interactive: false, zIndexOffset: z.primary ? 260 : 200,
-    }).addTo(zoneLayer);
-  });
-  applyZoneZoom();
+  zoneData = d.zones || [];
+  if (!zoneData.length) return;
+  if (!zoneLayer) zoneLayer = L.layerGroup().addTo(map);
+  map.on('zoomend moveend', drawZones);
+  drawZones();
 }
 function icon(cls, html, size, anchor) {
   return L.divIcon({ className: '', html: '<div class="' + cls + '">' + (html || '') + '</div>', iconSize: size, iconAnchor: anchor });

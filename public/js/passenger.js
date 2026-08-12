@@ -143,31 +143,60 @@ async function boot() {
 }
 
 /* ============ Zonas locales (nombres visibles en el mapa) ============ */
-const ZONE_ZOOM_PINS = 13;   // desde este zoom se ven los pines
-const ZONE_ZOOM_LABELS = 16; // desde este zoom se ven los nombres (más alto = menos se pisan)
-function applyZoneZoom() {
-  const app = document.getElementById('app');
-  if (!app || !map) return;
+/*
+ * 63 zonas con su nombre encima dejaban el mapa ilegible: se dibujaban TODAS a la vez
+ * porque las marcadas como principales se saltaban el límite de zoom. Ahora se decide
+ * en cada movimiento qué cabe en pantalla, igual que con los puntos de referencia.
+ */
+const ZONE_MIN_ZOOM = 13;    // más lejos que esto el mapa se lee mejor sin zonas
+let zoneData = [];
+
+function drawZones() {
+  if (!map || !zoneLayer) return;
+  zoneLayer.clearLayers();
+
   const z = map.getZoom();
-  app.classList.toggle('zmid', z >= ZONE_ZOOM_PINS && z < ZONE_ZOOM_LABELS);
-  app.classList.toggle('znear', z >= ZONE_ZOOM_LABELS);
+  if (z < ZONE_MIN_ZOOM || !zoneData.length) return;
+
+  // de lejos solo las zonas principales y sin nombre; al acercar, nombres y luego todas
+  const onlyPrimary = z < 16;
+  const withLabels = z >= 15;
+  const items = zoneData.filter((s) => (onlyPrimary ? s.primary : true));
+
+  const pin = '<svg class="zpin" viewBox="0 0 24 34"><path d="M12 0C5.4 0 0 5.4 0 12c0 8 12 22 12 22s12-14 12-22C24 5.4 18.6 0 12 0z"/><circle cx="12" cy="12" r="4"/></svg>';
+
+  MGPois.place(map, items, {
+    layer: 'zonas',
+    max: z >= 16 ? 26 : 14,
+    spacing: z >= 16 ? [44, 36] : [58, 46],
+    labels: withLabels,
+    maxLabels: z >= 16 ? 14 : 9,
+    text: (s) => s.name,
+    maxChars: 20,
+    labelOffset: 8,
+  }).forEach((o) => {
+    const s = o.item;
+    const label = o.label ? '<span class="zname">' + esc(o.label) + '</span>' : '';
+    L.marker([s.lat, s.lng], {
+      icon: L.divIcon({
+        className: 'zonemk' + (s.primary ? ' zprimary' : ''),
+        html: pin + label,
+        iconSize: [0, 0], iconAnchor: [0, 0],
+      }),
+      interactive: false,
+      zIndexOffset: s.primary ? 260 : 200,
+    }).addTo(zoneLayer);
+  });
 }
+
 async function loadZones() {
   let d;
   try { d = await api('api/zones'); } catch (e) { return; }
-  if (zoneLayer) { zoneLayer.remove(); zoneLayer = null; }
-  const zones = d.zones || [];
-  if (!zones.length) return;
-  zoneLayer = L.layerGroup().addTo(map);
-  const pin = '<svg class="zpin" viewBox="0 0 24 34"><path d="M12 0C5.4 0 0 5.4 0 12c0 8 12 22 12 22s12-14 12-22C24 5.4 18.6 0 12 0z"/><circle cx="12" cy="12" r="4"/></svg>';
-  zones.forEach((z) => {
-    const cls = 'zonemk' + (z.primary ? ' zprimary' : '');
-    L.marker([z.lat, z.lng], {
-      icon: L.divIcon({ className: cls, html: pin + '<span class="zname">' + esc(z.name) + '</span>', iconSize: [0, 0], iconAnchor: [0, 0] }),
-      interactive: false, zIndexOffset: z.primary ? 260 : 200,
-    }).addTo(zoneLayer);
-  });
-  applyZoneZoom(); // aplicar el nivel de detalle según el zoom actual
+  zoneData = d.zones || [];
+  if (!zoneData.length) return;
+  if (!zoneLayer) zoneLayer = L.layerGroup().addTo(map);
+  map.on('zoomend moveend', drawZones);
+  drawZones();
 }
 
 /* ============ Taxis disponibles cerca (tiempo real) ============ */
@@ -237,7 +266,6 @@ function initMap() {
   // zoom/paneo). Ahora se usa el pin central fijo + botón "Confirmar ubicación" (estilo Uber/InDrive).
   // si el usuario mueve el mapa a mano, dejamos de recentrar automáticamente
   map.on('dragstart', () => { followMe = false; });
-  map.on('zoomend', applyZoneZoom); // mostrar/ocultar nombres de zonas según el zoom (evita saturar)
 
   const ro = new ResizeObserver(() => { if (!sheetDragging) applySheetSnap(false); });
   ro.observe($('#sheet'));

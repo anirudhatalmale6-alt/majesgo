@@ -52,6 +52,84 @@
   }
 
   /**
+   * Decide qué se dibuja y qué lleva nombre, para que nada se encime.
+   *
+   * Reparte por la pantalla, no por el mapa: descarta lo que caiga a menos de `spacing`
+   * píxeles de algo ya colocado, y escribe el nombre solo si su caja no pisa otra ya escrita.
+   * Devuelve [{x, y, item, label}] — label es '' si no hubo sitio para el texto.
+   */
+  /**
+   * Espacio ocupado en la vista actual, COMPARTIDO entre capas.
+   *
+   * Las zonas y los puntos de referencia se dibujan por separado y en el mismo instante;
+   * sin esto, una etiqueta de zona podía caer justo encima de la de un comercio.
+   * Cada capa reemplaza SOLO lo suyo al redibujarse (el mapa lanza el evento varias veces
+   * por gesto, y si acumulara sus propias marcas se bloquearía a sí misma y no dibujaría nada).
+   */
+  var frame = { key: '', layers: {} };
+
+  function viewKey(map) {
+    var c = map.getCenter(), sz = map.getSize();
+    return map.getZoom() + ':' + c.lat.toFixed(5) + ':' + c.lng.toFixed(5) + ':' + sz.x + 'x' + sz.y;
+  }
+
+  function place(map, items, opts) {
+    opts = opts || {};
+    var id = opts.layer || 'default';
+    var sx = (opts.spacing || [34, 30])[0], sy = (opts.spacing || [34, 30])[1];
+    var max = opts.max || 100, maxLabels = opts.maxLabels == null ? 999 : opts.maxLabels;
+
+    var key = viewKey(map);
+    if (frame.key !== key) { frame = { key: key, layers: {} }; }
+    frame.layers[id] = { spots: [], boxes: [] };   // esta capa se redibuja entera
+
+    // lo que ocupan las OTRAS capas en esta misma vista
+    var spots = [], boxes = [];
+    for (var k in frame.layers) {
+      if (k === id) continue;
+      spots = spots.concat(frame.layers[k].spots);
+      boxes = boxes.concat(frame.layers[k].boxes);
+    }
+
+    var mine = frame.layers[id];
+    var bounds = map.getBounds();
+    var placed = [], nLabels = 0;
+
+    for (var i = 0; i < items.length && placed.length < max; i++) {
+      var it = items[i];
+      var lat = it.y != null ? it.y : it.lat, lng = it.x != null ? it.x : it.lng;
+      if (!bounds.contains([lat, lng])) continue;
+
+      var pt = map.latLngToContainerPoint([lat, lng]);
+      var taken = spots.concat(mine.spots);
+      var clash = false;
+      for (var j = 0; j < taken.length; j++) {
+        if (Math.abs(pt.x - taken[j].x) < sx && Math.abs(pt.y - taken[j].y) < sy) { clash = true; break; }
+      }
+      if (clash) continue;
+
+      var label = '';
+      if (opts.labels && nLabels < maxLabels) {
+        var txt = String(opts.text ? opts.text(it) : (it.name || ''));
+        var lim = opts.maxChars || 22;
+        if (txt.length > lim) txt = txt.slice(0, lim - 1).trim() + '…';
+        var w = txt.length * 6.4 + 8;
+        var off = opts.labelOffset == null ? 22 : opts.labelOffset;
+        var box = { x1: pt.x - w / 2, x2: pt.x + w / 2, y1: pt.y + off, y2: pt.y + off + 16 };
+        var free = boxes.concat(mine.boxes).every(function (b) {
+          return box.x2 < b.x1 || box.x1 > b.x2 || box.y2 < b.y1 || box.y1 > b.y2;
+        });
+        if (free && txt) { mine.boxes.push(box); label = txt; nLabels++; }
+      }
+
+      mine.spots.push({ x: pt.x, y: pt.y });
+      placed.push({ x: pt.x, y: pt.y, item: it, label: label });
+    }
+
+    return placed;
+  }
+
+  /**
    * Conecta la capa a un mapa de Leaflet. Devuelve un objeto con destroy() por si
    * hay que soltarla (el modo navegación del conductor usa su propio mapa).
    */
@@ -70,35 +148,20 @@
       if (z < minZoom) return;                                   // vista lejana: sin ruido
 
       var maxPrio = z >= 18 ? 3 : (z >= 17 ? 2 : 1);             // aparecen por importancia
-      var bounds = map.getBounds();
-      var placed = [], labels = [];
-
-      for (var i = 0; i < data.length && placed.length < maxItems; i++) {
-        var p = data[i];
-        if (p.p > maxPrio || !bounds.contains([p.y, p.x])) continue;
-
-        var pt = map.latLngToContainerPoint([p.y, p.x]);
-        var clash = false;
-        for (var j = 0; j < placed.length; j++) {
-          if (Math.abs(pt.x - placed[j].x) < 34 && Math.abs(pt.y - placed[j].y) < 30) { clash = true; break; }
-        }
-        if (clash) continue;
-        placed.push({ x: pt.x, y: pt.y, p: p });
-      }
+      var placed = place(map, data.filter(function (p) { return p.p <= maxPrio; }), {
+        layer: 'pois',
+        max: maxItems,
+        spacing: [34, 30],
+        labels: z >= 17,
+        maxLabels: 999,
+        text: function (p) { return p.n; },
+        maxChars: 22,
+        labelOffset: 22
+      });
 
       placed.forEach(function (o) {
-        var p = o.p, label = '';
-        if (z >= 17) {
-          // los nombres largos ("Institución Educativa Mundo Mágico Y San Diego") tapan media
-          // pantalla: se recortan, y el ancho se estima con holgura para que no se pisen
-          var txt = p.n.length > 22 ? p.n.slice(0, 21).trim() + '…' : p.n;
-          var w = txt.length * 6.4 + 6;
-          var box = { x1: o.x - w / 2, x2: o.x + w / 2, y1: o.y + 22, y2: o.y + 38 };
-          var free = labels.every(function (b) {
-            return box.x2 < b.x1 || box.x1 > b.x2 || box.y2 < b.y1 || box.y1 > b.y2;
-          });
-          if (free) { labels.push(box); label = '<span class="poilbl">' + esc(txt) + '</span>'; }
-        }
+        var p = o.item;
+        var label = o.label ? '<span class="poilbl">' + esc(o.label) + '</span>' : '';
         L.marker([p.y, p.x], {
           interactive: false,               // no debe robarle el toque al mapa ni a los marcadores del viaje
           keyboard: false,
@@ -129,5 +192,5 @@
     };
   }
 
-  global.MGPois = { attach: attach };
+  global.MGPois = { attach: attach, place: place };
 })(window);
