@@ -105,6 +105,59 @@ class Dispatch
         ]);
     }
 
+    /* ---------- Límite de la búsqueda ---------- */
+
+    /**
+     * Cuánto tiempo se busca conductor antes de darse por vencido.
+     *
+     * ⚠ Este MISMO valor decide hasta cuándo el viaje le aparece a los conductores
+     * (Driver\RideController::pending). Si se separan, el pasajero puede quedarse mirando
+     * "Buscando tu taxi…" un viaje que ningún conductor ve ya: fue exactamente el problema
+     * reportado el 2026-08-13 (10 minutos buscando algo imposible).
+     */
+    public static function searchTimeoutS(): int
+    {
+        return max(30, (int) Setting::get('search_timeout_s', 180));
+    }
+
+    /** Segundos que le quedan a la búsqueda de este viaje (0 = se acabó). */
+    public static function searchSecondsLeft(Ride $ride): int
+    {
+        if (! $ride->requested_at) {
+            return 0;
+        }
+        $waited = now()->getTimestamp() - $ride->requested_at->getTimestamp();
+
+        return max(0, self::searchTimeoutS() - $waited);
+    }
+
+    /**
+     * Cierra las búsquedas que ya pasaron del límite: el viaje pasa a 'sin_conductor' y el
+     * pasajero deja de esperar. Se llama desde el sondeo del pasajero y también desde el de
+     * los conductores, para que el viaje se cierre aunque el pasajero haya cerrado la app.
+     *
+     * @return int cuántos viajes se cerraron
+     */
+    public static function expireStaleSearches(): int
+    {
+        $stale = Ride::where('status', 'solicitando')
+            ->where('requested_at', '<', now()->subSeconds(self::searchTimeoutS()))
+            ->get();
+
+        foreach ($stale as $ride) {
+            $ride->forceFill(['status' => 'sin_conductor', 'cancelled_at' => now()])->save();
+
+            defer(fn () => WebPushSender::toOwner('passenger', (int) $ride->passenger_id, [
+                'title' => 'No encontramos conductor',
+                'body'  => 'Ningún conductor tomó tu viaje. Toca para intentar de nuevo.',
+                'url'   => '/app',
+                'tag'   => 'ride-nodriver',
+            ]));
+        }
+
+        return $stale->count();
+    }
+
     /**
      * Si una oferta ('ofrecido') pasó del tiempo límite sin respuesta del pasajero,
      * se libera: vuelve a 'solicitando', se excluye a ese conductor y se le libera.

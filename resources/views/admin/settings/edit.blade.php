@@ -213,6 +213,18 @@
                     la haga rentable: si quieres que lleguen carreras a conductores muy lejanos, sube este número.
                 </div>
             </div>
+            @php $stO = (int) old('search_timeout_s', $settings['search_timeout_s']); @endphp
+            <div class="field">
+                <label>Tiempo máximo de búsqueda (segundos)</label>
+                <input class="input" type="number" step="10" min="30" max="1800" name="search_timeout_s" value="{{ old('search_timeout_s',$settings['search_timeout_s']) }}" required>
+                <div class="muted" style="font-size:12px;margin-top:5px">
+                    Cuánto busca la app antes de darse por vencida. Pasado ese tiempo el pasajero ve
+                    «No encontramos conductor» y puede intentar de nuevo, en vez de quedarse mirando la pantalla
+                    de búsqueda para siempre. Es también hasta cuándo el viaje le aparece a los conductores:
+                    las dos cosas usan este mismo número, para que nunca queden desfasadas.<br>
+                    Ahora: <b>{{ intdiv($stO, 60) }} min {{ $stO % 60 ? ($stO % 60).' s' : '' }}</b>. Recomendado entre 2 y 5 minutos.
+                </div>
+            </div>
             <div class="field">
                 <label style="display:flex;align-items:center;gap:9px;cursor:pointer">
                     <input type="checkbox" name="demo_enabled" value="1" {{ old('demo_enabled',$settings['demo_enabled'])=='1' ? 'checked' : '' }} style="width:auto">

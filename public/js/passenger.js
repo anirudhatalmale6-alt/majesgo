@@ -43,6 +43,7 @@ let chatOpen = false, chatLastId = 0, chatSeenId = 0, chatPoll = null, rideLastM
 let mapLight = false, baseTile = null;
 let sheetState = 'peek', sheetDragging = false; // arranca COMPACTO (solo la barra principal) para ver más mapa
 let refOpen = false; // el campo de referencia solo se muestra si el pasajero lo pide
+let searchLeft = null; // {seconds_left, timeout} de la búsqueda en curso, tal como lo manda el servidor
 const SHEET_PEEK = 96; // respaldo: px visibles si no hay bloque "esencial" para medir
 
 /* Icono de persona/pasajero para la ubicación actual del usuario (se distingue del origen) */
@@ -812,6 +813,7 @@ async function tick() {
   catch (e) { if (poll) pollTimer = setTimeout(tick, 2500); return; }
   const r = data.ride;
   if (!r) { stopPolling(); resetAfterRide(); return; }
+  searchLeft = data.search ? data.search : null; // cuánto le queda a la búsqueda (si está buscando)
   renderRide(r);
   if (!poll) return;                         // renderRide pudo detener el sondeo (fin de viaje)
   // en viaje sondeamos más seguido para una ubicación más fluida
@@ -837,9 +839,12 @@ function renderRide(r) {
   if (r.status !== 'ofrecido') { clearInterval(offerTimer); offerKey = null; }
 
   if (r.status === 'completado') { ackRide(r); renderCompleted(r); return; }
-  if (r.status === 'cancelado' || r.status === 'sin_conductor') {
+  // Se acabó el tiempo de búsqueda: pantalla propia con la opción de reintentar, en vez de
+  // devolverlo a "¿A dónde vamos?" con un aviso que se va solo y perdiendo el destino.
+  if (r.status === 'sin_conductor') { renderNoDriver(r); return; }
+  if (r.status === 'cancelado') {
     ackRide(r); stopPolling();
-    toast(r.status === 'cancelado' ? 'El viaje fue cancelado.' : r.status_label);
+    toast('El viaje fue cancelado.');
     resetAfterRide(); return;
   }
   if (r.status === 'solicitando') { renderSearching(r); return; }
@@ -975,16 +980,79 @@ async function rejectOffer() {
   } catch (e) { toast(e.message || 'No se pudo.'); }
 }
 
+/** mm:ss para la cuenta regresiva de la búsqueda */
+function mmss(s) {
+  s = Math.max(0, Math.round(s));
+  return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+}
+
 function renderSearching(r) {
   $('#sheetBody').classList.remove('hascta'); // sin botón fijo: estas pantallas no tienen acción principal al pie
+  // La búsqueda tiene fin y el pasajero tiene que verlo: sin esto se quedaba 10 minutos
+  // mirando "Buscando tu taxi…" un viaje que los conductores ya ni recibían.
+  const left = searchLeft ? searchLeft.seconds_left : null;
   $('#sheetBody').innerHTML = `
     <div class="searching">
       <div class="radar"><span></span><span></span><span></span><b>🚕</b></div>
       <h2>Buscando tu taxi…</h2>
       <div class="sub">Avisando a los conductores cercanos con tu oferta de ${money(r.offered_price)}.</div>
+      ${left != null ? `<div class="sub" style="margin-top:6px">Seguimos buscando <b id="schLeft">${mmss(left)}</b> más. Si nadie la toma, te avisamos.</div>` : ''}
     </div>
     <button class="btn danger" id="btnCancel">Cancelar</button>`;
   $('#btnCancel').addEventListener('click', cancelRide);
+}
+
+/**
+ * Se acabó el tiempo y nadie tomó el viaje.
+ *
+ * No se usa resetAfterRide() a propósito: eso borra el destino y el pasajero tendría que
+ * volver a escribirlo todo. Aquí se conserva el viaje para reintentarlo de un toque, que es
+ * lo que la gente quiere hacer cuando no consiguió taxi.
+ */
+function renderNoDriver(r) {
+  // No se marca como visto todavía: si el pasajero recarga la app, esta pantalla debe volver
+  // a salir con su botón de reintentar. Se marca cuando toca una de las dos opciones.
+  stopPolling();
+  curRide = r;
+  sheetState = 'open';
+  $('#sheetBody').classList.add('hascta');
+  $('#sheetBody').innerHTML = `
+    <div class="searching">
+      <div class="nodrv">🚕</div>
+      <h2>No encontramos conductor</h2>
+      <div class="sub">Ningún conductor tomó tu viaje a ${esc((r.dest && r.dest.address) || 'tu destino')} por ${money(r.offered_price)}.
+        Puedes intentar de nuevo, o cambiar el viaje y subir un poco tu oferta para que sea más probable que lo tomen.</div>
+    </div>
+    <div class="sheetcta">
+      <div class="acts">
+        <button class="btn ghost" id="btnNuevoViaje">Cambiar viaje</button>
+        <button class="btn" id="btnReintentar">Intentar de nuevo</button>
+      </div>
+    </div>`;
+  $('#btnNuevoViaje').addEventListener('click', () => { ackRide(r); curRide = null; resetAfterRide(); });
+  $('#btnReintentar').addEventListener('click', () => { ackRide(r); retryRide(r); });
+  requestAnimationFrame(() => applySheetSnap(false));
+}
+
+/** Vuelve a pedir el MISMO viaje (mismo origen, destino, precio y forma de pago). */
+async function retryRide(r) {
+  const b = $('#btnReintentar');
+  if (b) { b.disabled = true; b.innerHTML = '<span class="spin"></span>'; }
+  try {
+    await api('api/rides', {
+      origin_lat: r.origin.lat, origin_lng: r.origin.lng, origin_address: r.origin.address || 'Mi ubicación',
+      reference: r.reference || null,
+      dest_lat: r.dest.lat, dest_lng: r.dest.lng, dest_address: r.dest.address || 'Destino',
+      offered_price: r.offered_price, payment_method: r.payment_method,
+    });
+    // el destino vuelve al estado de la app para que el resto de pantallas lo tengan
+    dest = { lat: r.dest.lat, lng: r.dest.lng, address: r.dest.address };
+    price = Number(r.offered_price);
+    startPolling();
+  } catch (e) {
+    toast(e.message || 'No se pudo pedir de nuevo.');
+    if (b) { b.disabled = false; b.textContent = 'Intentar de nuevo'; }
+  }
 }
 
 function renderAssigned(r) {

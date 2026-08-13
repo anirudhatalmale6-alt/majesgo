@@ -147,10 +147,16 @@ class RideController extends Controller
         // así un viaje reasignado (el pasajero rechazó a otro chofer) vuelve a sonarle.
         $dismissed = (array) $request->session()->get('dismissed_map', []);
 
+        // Cerrar de paso las búsquedas vencidas: así el viaje se da por perdido aunque el
+        // pasajero haya cerrado la app (su celular ya no está sondeando para cerrarlo).
+        Dispatch::expireStaleSearches();
+
+        // La ventana es la MISMA que el límite de búsqueda del pasajero (ver Dispatch): si
+        // fueran distintas, uno seguiría esperando un viaje que el otro ya no puede ver.
         $rides = Ride::where('status', 'solicitando')
             ->whereNull('driver_id')
             ->where('is_demo', false)
-            ->where('requested_at', '>=', now()->subMinutes(3))
+            ->where('requested_at', '>=', now()->subSeconds(Dispatch::searchTimeoutS()))
             ->latest('id')
             ->get();
 

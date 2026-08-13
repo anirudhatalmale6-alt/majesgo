@@ -190,6 +190,9 @@
         .radar span{position:absolute;inset:0;border-radius:50%;border:2px solid var(--verde);opacity:0;animation:pulse 2s ease-out infinite}
         .radar span:nth-child(2){animation-delay:.6s}.radar span:nth-child(3){animation-delay:1.2s}
         .radar b{position:absolute;inset:0;display:grid;place-items:center;font-size:38px}
+        /* Se acabó el tiempo de búsqueda: mismo lugar que el radar, pero apagado */
+        .nodrv{width:96px;height:96px;margin:6px auto 14px;border-radius:50%;display:grid;place-items:center;
+            font-size:38px;filter:grayscale(1);opacity:.55;border:2px solid var(--line)}
         @keyframes pulse{0%{transform:scale(.4);opacity:.8}100%{transform:scale(1);opacity:0}}
 
         /* Conductor asignado */
@@ -386,7 +389,7 @@ window.MG = {
 };
 </script>
 <script src="/js/pois.js?v=5"></script>
-<script src="/js/passenger.js?v=33"></script>
+<script src="/js/passenger.js?v=34"></script>
 <script src="/js/native.js?v=1"></script>
 </body>
 </html>

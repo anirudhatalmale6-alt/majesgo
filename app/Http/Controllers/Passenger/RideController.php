@@ -86,6 +86,10 @@ class RideController extends Controller
     {
         $passenger = $this->passenger($request);
 
+        // Una búsqueda vencida no puede bloquear un pedido nuevo: si el pasajero cerró la app
+        // mientras buscaba, al volver a pedir se cierra sola y puede seguir.
+        Dispatch::expireStaleSearches();
+
         if ($passenger->activeRide()) {
             return response()->json(['message' => 'Ya tienes un viaje en curso.'], 422);
         }
@@ -135,6 +139,10 @@ class RideController extends Controller
     public function current(Request $request)
     {
         $passenger = $this->passenger($request);
+
+        // Cierra las búsquedas que ya pasaron del límite (la suya incluida) antes de contestar.
+        Dispatch::expireStaleSearches();
+
         $ride = $passenger->activeRide();
 
         if (! $ride) {
@@ -172,7 +180,7 @@ class RideController extends Controller
 
             // Si hay conductores reales en línea, esperamos a que uno ofrezca desde su app.
             if ($realOnline) {
-                return response()->json(['ride' => $this->payload($ride, null)]);
+                return response()->json(['ride' => $this->payload($ride, null), 'search' => $this->searchInfo($ride)]);
             }
 
             // Sin conductores reales: conductor de prueba (si está habilitado). También pasa por confirmación.
@@ -185,7 +193,7 @@ class RideController extends Controller
                 }
             }
 
-            return response()->json(['ride' => $this->payload($ride, null)]);
+            return response()->json(['ride' => $this->payload($ride, null), 'search' => $this->searchInfo($ride)]);
         }
 
         // Viaje asignado / en curso → el conductor demo avanza según el tiempo transcurrido
@@ -343,6 +351,15 @@ class RideController extends Controller
     }
 
     /** Datos de la oferta: segundos restantes + ETA al recojo. */
+    /** Cuánto le queda a la búsqueda, para que el pasajero vea que tiene fin. */
+    private function searchInfo(Ride $ride): array
+    {
+        return [
+            'seconds_left' => Dispatch::searchSecondsLeft($ride),
+            'timeout'      => Dispatch::searchTimeoutS(),
+        ];
+    }
+
     private function offerInfo(Ride $ride): array
     {
         $timeout = (int) Setting::get('offer_timeout_s', 15);
@@ -515,6 +532,8 @@ class RideController extends Controller
             'duration_s'   => $ride->duration_s,
             'origin'       => ['lat' => (float) $ride->origin_lat, 'lng' => (float) $ride->origin_lng, 'address' => $ride->origin_address],
             'dest'         => ['lat' => (float) $ride->dest_lat, 'lng' => (float) $ride->dest_lng, 'address' => $ride->dest_address],
+            // se devuelve para poder repetir el viaje tal cual si nadie lo tomó (renderNoDriver)
+            'reference'    => $ride->reference,
             'route_to_pickup' => $ride->route_to_pickup,
             'route_trip'   => $ride->route_trip,
             'driver_pos'   => $pos,
