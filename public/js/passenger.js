@@ -42,6 +42,7 @@ let meWatchId = null, followMe = true, originPinned = false, lastGeoAt = 0, last
 let chatOpen = false, chatLastId = 0, chatSeenId = 0, chatPoll = null, rideLastMsgId = 0;
 let mapLight = false, baseTile = null;
 let sheetState = 'peek', sheetDragging = false; // arranca COMPACTO (solo la barra principal) para ver más mapa
+let refOpen = false; // el campo de referencia solo se muestra si el pasajero lo pide
 const SHEET_PEEK = 96; // respaldo: px visibles si no hay bloque "esencial" para medir
 
 /* Icono de persona/pasajero para la ubicación actual del usuario (se distingue del origen) */
@@ -655,16 +656,28 @@ function approachFee() {
   return (a && a.enabled) ? (Number(a.fee) || 0) : 0;
 }
 
+/**
+ * Aviso del recojo en una sola línea (el panel ya va cargado; los textos largos lo estiraban).
+ * Con radio gratuito en 0 no tiene sentido decir "si viene de más de 0 km".
+ */
 function approachHint() {
   const a = quote && quote.approach;
   if (!a || !a.enabled) return '';
   if (a.distance_m == null) {
-    return `<div class="hintprice">Al precio se le suma el recojo si el conductor viene de más de ${a.free_km} km. Lo verás antes de aceptar.</div>`;
+    return a.free_km > 0
+      ? `<div class="hintprice">Se suma el recojo si el conductor viene de más de ${a.free_km} km.</div>`
+      : `<div class="hintprice">Se suma el recojo del conductor. Lo verás antes de aceptar.</div>`;
   }
   if (!a.fee) {
-    return `<div class="hintprice">✅ Hay un conductor a ${(a.distance_m / 1000).toFixed(1)} km: el recojo no tiene costo (primeros ${a.free_km} km gratis).</div>`;
+    return `<div class="hintprice">✅ Recojo sin costo (conductor a ${(a.distance_m / 1000).toFixed(1)} km).</div>`;
   }
-  return `<div class="hintprice">+ ${money(a.fee)} de recojo aprox. (el conductor más cercano está a ${(a.distance_m / 1000).toFixed(1)} km). El monto exacto lo confirmas antes de aceptar.</div>`;
+  return `<div class="hintprice">+ ${money(a.fee)} de recojo aprox. · conductor a ${(a.distance_m / 1000).toFixed(1)} km</div>`;
+}
+
+/** Texto del botón principal: viaje + recojo estimado. Una sola fórmula para los dos sitios. */
+function requestLabel() {
+  const ap = approachFee();
+  return `Buscar taxi · ${money(price + ap)}${ap > 0 ? ' aprox.' : ''}`;
 }
 
 function renderPlanning() {
@@ -677,21 +690,25 @@ function renderPlanning() {
   const b = $('#sheetBody');
   const hasRoute = quote && dest;
   if (hasRoute) sheetState = 'open'; // con ruta lista se abre para ver precio y "Buscar taxi"
+  // Con ruta el botón «Buscar taxi» va fijo al pie del panel (ver .sheetcta): antes quedaba
+  // debajo del corte en pantallas altas y el pasajero tenía que descubrir que se desplazaba.
+  b.classList.toggle('hascta', !!hasRoute);
+  const showRef = !!reference || refOpen;
   b.innerHTML = `
     <div id="planEssential">
       <h2>¿A dónde vamos?</h2>
-      <div class="fieldrow"><span class="dot o"></span><div class="fcol"><label class="flbl" for="oIn">¿Dónde te recogemos?</label><input id="oIn" value="${(origin && origin.address) ? esc(origin.address) : 'Mi ubicación'}" placeholder="Tu punto de recojo"></div><button class="mapbtn o" id="oMap" title="Elegir el recojo en el mapa" aria-label="Elegir el recojo en el mapa">${pinBtn('#00C853')}</button></div>
-      <div class="sugg">
-        <div class="fieldrow"><span class="dot d"></span><div class="fcol"><label class="flbl" for="dIn">¿A dónde vas?</label><input id="dIn" placeholder="Escríbelo o elígelo en el mapa" value="${dest && dest.address ? esc(dest.address) : ''}"></div><button class="mapbtn d" id="dMap" title="Elegir destino en el mapa" aria-label="Elegir destino en el mapa">${pinBtn('#ff5252')}</button></div>
-        <div class="suggbox" id="sugg"></div>
+      <div class="fieldgroup">
+        <div class="fieldrow"><span class="dot o"></span><div class="fcol"><label class="flbl" for="oIn">¿Dónde te recogemos?</label><input id="oIn" value="${(origin && origin.address) ? esc(origin.address) : 'Mi ubicación'}" placeholder="Tu punto de recojo"></div><button class="mapbtn o" id="oMap" title="Elegir el recojo en el mapa" aria-label="Elegir el recojo en el mapa">${pinBtn('#00C853')}</button></div>
+        <div class="sugg">
+          <div class="fieldrow"><span class="dot d"></span><div class="fcol"><label class="flbl" for="dIn">¿A dónde vas?</label><input id="dIn" placeholder="Escríbelo o elígelo en el mapa" value="${dest && dest.address ? esc(dest.address) : ''}"></div><button class="mapbtn d" id="dMap" title="Elegir destino en el mapa" aria-label="Elegir destino en el mapa">${pinBtn('#ff5252')}</button></div>
+          <div class="suggbox" id="sugg"></div>
+        </div>
+        ${showRef ? `<div class="fieldrow"><span class="dot" style="background:#FFC107"></span><div class="fcol"><label class="flbl" for="refIn">Referencia del recojo (opcional)</label><input id="refIn" placeholder="Casa, color, algo cercano…" value="${reference ? esc(reference) : ''}"></div></div>` : ''}
       </div>
+      ${showRef ? '' : '<button type="button" class="linkbtn" id="refToggle">+ Agregar una referencia del recojo</button>'}
     </div>
-    <div class="fieldrow"><span class="dot" style="background:#FFC107"></span><div class="fcol"><label class="flbl" for="refIn">Referencia del recojo (opcional)</label><input id="refIn" placeholder="Casa, color, algo cercano…" value="${reference ? esc(reference) : ''}"></div></div>
     ${hasRoute ? `
-      <div class="routeinfo">
-        <div class="chip"><div class="v">${(quote.distance_m / 1000).toFixed(1)} km</div><div class="l">Distancia</div></div>
-        <div class="chip"><div class="v">${Math.max(1, Math.round(quote.duration_s / 60))} min</div><div class="l">Tiempo aprox.</div></div>
-      </div>
+      <div class="metaline">${(quote.distance_m / 1000).toFixed(1)} km · ${Math.max(1, Math.round(quote.duration_s / 60))} min aprox.</div>
       <div class="prow"><span class="lbl">Tu precio</span>
         <div class="stepper">
           <button id="minus">−</button>
@@ -699,14 +716,14 @@ function renderPlanning() {
           <button id="plus">+</button>
         </div>
       </div>
-      <div class="hintprice">Sugerido: ${money(quote.suggested)} · puedes ofrecer desde ${money(quote.floor)}</div>
+      <div class="hintprice">Sugerido ${money(quote.suggested)} · desde ${money(quote.floor)}</div>
       ${approachHint()}
-      <div class="pricelock">🔒 Precio fijo: pagas este monto al llegar, aunque haya tráfico o demoras.</div>
+      <div class="pricelock">🔒 Precio fijo: pagas este monto al llegar.</div>
       <div class="pay">
         <button data-m="efectivo" class="${method === 'efectivo' ? 'on' : ''}">💵 Efectivo</button>
         <button data-m="yape" class="${method === 'yape' ? 'on' : ''}">💜 Yape</button>
       </div>
-      <button class="btn" id="btnReq">Buscar taxi · ${money(price + approachFee())}${approachFee() > 0 ? ' aprox.' : ''}</button>
+      <div class="sheetcta"><button class="btn" id="btnReq">${requestLabel()}</button></div>
     ` : `
       <button class="btn ghost" id="pickDest" style="margin-top:10px"><span class="btnpin">${pinBtn('#ff5252')}</span> Elegir destino en el mapa</button>
       <div class="hintprice" style="margin-top:8px">O escríbelo arriba, o toca el pin del campo Destino para elegirlo en el mapa.</div>`}
@@ -728,6 +745,11 @@ function renderPlanning() {
     });
   }
   const refIn = $('#refIn'); if (refIn) refIn.addEventListener('input', () => { reference = refIn.value; });
+  // La referencia es opcional y casi nadie la llena: se muestra solo si la piden (o si ya tiene texto)
+  const refT = $('#refToggle'); if (refT) refT.addEventListener('click', () => {
+    refOpen = true; openSheet(); renderPlanning();
+    const el = $('#refIn'); if (el) el.focus();
+  });
   if (hasRoute) {
     $('#minus').addEventListener('click', () => bump(-0.5));
     $('#plus').addEventListener('click', () => bump(0.5));
@@ -741,7 +763,9 @@ function renderPlanning() {
 function bump(d) {
   price = Math.max(quote.floor, Math.round((price + d) * 2) / 2);
   $('#priceLbl').textContent = money(price);
-  $('#btnReq').textContent = 'Buscar taxi · ' + money(price);
+  // requestLabel() y no money(price) a secas: si no, tocar +/− borraba el recojo del botón
+  // y el pasajero veía un total distinto al que iba a pagar.
+  $('#btnReq').textContent = requestLabel();
 }
 function esc(s) { return (s || '').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
 
@@ -756,7 +780,7 @@ async function doRequest() {
       offered_price: price, payment_method: method,
     });
     startPolling();
-  } catch (e) { toast(e.message); btn.disabled = false; btn.textContent = 'Buscar taxi · ' + money(price); }
+  } catch (e) { toast(e.message); btn.disabled = false; btn.textContent = requestLabel(); }
 }
 
 /* ================= POLLING / VIAJE ================= */
@@ -864,6 +888,7 @@ function renderOffer(r) {
   // ANTES de aceptar, para que nadie confirme un monto que no vio.
   const apFee = Number(r.approach_fee) || 0;
   const cFee  = Number(r.counter_offer) || 0;
+  $('#sheetBody').classList.remove('hascta'); // sin botón fijo: estas pantallas no tienen acción principal al pie
   $('#sheetBody').innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
       <span style="color:#00C853;font-weight:700;font-size:14px">✅ ¡Conductor encontrado!</span>
@@ -928,6 +953,7 @@ async function rejectOffer() {
 }
 
 function renderSearching(r) {
+  $('#sheetBody').classList.remove('hascta'); // sin botón fijo: estas pantallas no tienen acción principal al pie
   $('#sheetBody').innerHTML = `
     <div class="searching">
       <div class="radar"><span></span><span></span><span></span><b>🚕</b></div>
@@ -948,6 +974,7 @@ function renderAssigned(r) {
   };
   const band = bands[r.status] || [r.status_label, ''];
   const canCancel = r.status !== 'a_bordo';
+  $('#sheetBody').classList.remove('hascta'); // sin botón fijo: estas pantallas no tienen acción principal al pie
   $('#sheetBody').innerHTML = `
     ${r.is_demo ? '<div class="demo">🧪 Conductor de prueba (demo)</div>' : ''}
     <div class="statusband">${band[0]}<small>${band[1]}</small></div>
@@ -978,6 +1005,7 @@ function renderAssigned(r) {
 
 function renderCompleted(r) {
   stopPolling();
+  $('#sheetBody').classList.remove('hascta'); // sin botón fijo: estas pantallas no tienen acción principal al pie
   $('#sheetBody').innerHTML = `
     <div style="text-align:center"><div style="font-size:44px">✅</div><h2>¡Llegaste!</h2><div class="sub">Gracias por viajar con MajesGo.</div></div>
     <div class="fare-big"><div class="n">${money(r.final_price || rideTotal(r))}</div><div class="l">${r.payment_method === 'yape' ? 'Pagas con Yape' : 'Pagas en efectivo'}</div></div>
@@ -1060,7 +1088,7 @@ function resetAfterRide() {
   stopPolling();
   clearInterval(offerTimer); offerKey = null;
   closeChat(); chatLastId = 0; chatSeenId = 0; rideLastMsgId = 0;
-  dest = null; quote = null; price = null; reference = '';
+  dest = null; quote = null; price = null; reference = ''; refOpen = false;
   if (dMarker) { dMarker.remove(); dMarker = null; }
   if (routeLine) { routeLine.remove(); routeLine = null; }
   if (carMarker) { carMarker.remove(); carMarker = null; }

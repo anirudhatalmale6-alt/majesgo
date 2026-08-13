@@ -91,8 +91,15 @@
         /* Bottom sheet */
         .sheet{position:absolute;left:0;right:0;bottom:0;z-index:22;background:var(--panel);
             border-radius:22px 22px 0 0;box-shadow:0 -10px 40px rgba(0,0,0,.5);
-            padding:0 18px calc(env(safe-area-inset-bottom) + 18px);max-height:82dvh;overflow-y:auto;
+            padding:0 18px;max-height:78dvh;overflow-y:auto;
             transition:transform .28s cubic-bezier(.4,0,.2,1);will-change:transform}
+        /* El respiro inferior vive en el cuerpo, no en el panel: así el botón fijo (.sheetcta)
+           puede pegarse al borde real del panel sin que la separación se lo lleve fuera de vista. */
+        #sheetBody{padding-bottom:calc(env(safe-area-inset-bottom) + 18px)}
+        #sheetBody.hascta{padding-bottom:0}
+        /* Acción principal siempre visible aunque el contenido se desplace */
+        .sheetcta{position:sticky;bottom:0;margin:0 -18px;padding:9px 18px calc(env(safe-area-inset-bottom) + 14px);
+            background:var(--panel);box-shadow:0 -10px 16px -10px rgba(0,0,0,.85);z-index:4}
         .grab{width:100%;height:30px;margin:0 0 4px;cursor:grab;touch-action:none;position:relative;display:block;
             position:sticky;top:0;background:var(--panel);z-index:3}
         .grab::after{content:"";position:absolute;left:50%;top:12px;transform:translateX(-50%);width:42px;height:5px;border-radius:3px;background:#3a414a}
@@ -104,6 +111,14 @@
         #planEssential .fieldrow{margin-bottom:8px}
 
         .fieldrow{display:flex;align-items:center;gap:11px;background:var(--panel-2);border:1px solid var(--line);border-radius:13px;padding:12px 13px;margin-bottom:10px}
+        /* Recojo + destino + referencia en UNA tarjeta: un solo marco en vez de tres */
+        .fieldgroup{background:var(--panel-2);border:1px solid var(--line);border-radius:13px;margin-bottom:10px}
+        #planEssential .fieldgroup .fieldrow{background:none;border:0;border-radius:0;margin:0;padding:10px 13px}
+        #planEssential .fieldgroup .fieldrow ~ .fieldrow,
+        #planEssential .fieldgroup .sugg .fieldrow{border-top:1px solid var(--line)}
+        .linkbtn{display:block;width:100%;background:none;border:0;color:var(--muted);font-family:inherit;
+            font-size:12px;text-align:left;padding:2px 2px 8px;cursor:pointer}
+        .linkbtn:active{color:var(--text)}
         .fieldrow .dot{width:11px;height:11px;border-radius:50%;flex:none}
         .fieldrow .dot.o{background:var(--verde)} .fieldrow .dot.d{background:#ff5252}
         .fieldrow input{flex:1;background:none;border:0;color:#fff;font-family:inherit;font-size:14.5px;outline:none;min-width:0}
@@ -116,14 +131,23 @@
 
         .sugg{position:relative}
         .suggbox{position:absolute;left:0;right:0;top:100%;margin-top:-6px;background:var(--panel-2);border:1px solid var(--line);border-radius:0 0 13px 13px;z-index:5;max-height:210px;overflow-y:auto}
-        .suggbox div{padding:11px 14px;border-bottom:1px solid var(--line);font-size:13.5px;cursor:pointer}
-        .suggbox div:hover{background:#232830}
+        /* Hijo directo: con `.suggbox div` el título y el subtítulo de cada lugar recibían su
+           propio relleno y su propia raya, y cada sugerencia ocupaba 106px en vez de 60 */
+        .suggbox > div{padding:9px 14px;border-bottom:1px solid var(--line);font-size:13.5px;cursor:pointer}
+        .suggbox > div:last-child{border-bottom:0}
+        .suggbox > div:hover{background:#232830}
+        /* Sin resultados no debe quedar el marco vacío: dentro de la tarjeta agrupada se veía
+           como una raya suelta bajo el destino */
+        .suggbox:empty{display:none}
         .suggbox .t{font-weight:600}.suggbox .s{color:var(--muted);font-size:11.5px}
         .suggbox .nohit{color:var(--muted);font-size:12.5px;cursor:default;border-bottom:none;line-height:1.4}
 
         .routeinfo{display:flex;gap:10px;margin:4px 0 14px}
         .chip{flex:1;background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:10px;text-align:center}
         .chip .v{font-size:17px;font-weight:800}.chip .l{color:var(--muted);font-size:11px}
+        /* Distancia y tiempo del viaje que se está armando: una línea en vez de dos tarjetas
+           (el panel tapaba casi todo el mapa y el botón principal quedaba fuera de pantalla) */
+        .metaline{text-align:center;color:var(--muted);font-size:12px;margin:0 0 10px}
 
         .prow{display:flex;align-items:center;justify-content:space-between;background:var(--panel-2);border:1px solid var(--line);border-radius:14px;padding:8px 10px;margin-bottom:12px}
         .prow .lbl{font-size:12px;color:var(--muted);padding-left:6px}
@@ -147,8 +171,8 @@
         .vlightbox img{max-width:100%;max-height:78vh;object-fit:contain;border-radius:12px}
         .vlightbox .vcap{color:#F5F7FA;font-size:14px;font-weight:600;text-align:center}
 
-        .pay{display:flex;gap:10px;margin-bottom:16px}
-        .pay button{flex:1;padding:12px;border-radius:13px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);font-family:inherit;font-weight:600;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px}
+        .pay{display:flex;gap:10px;margin-bottom:10px}
+        .pay button{flex:1;padding:10px;border-radius:13px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);font-family:inherit;font-weight:600;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px}
         .pay button.on{border-color:var(--verde);background:rgba(0,200,83,.12);color:#fff}
 
         .btn{width:100%;border:0;cursor:pointer;font-family:inherit;font-weight:700;font-size:16px;padding:15px;border-radius:14px;background:var(--verde);color:#fff;display:flex;align-items:center;justify-content:center;gap:9px;transition:.15s}
@@ -359,7 +383,7 @@ window.MG = {
 };
 </script>
 <script src="/js/pois.js?v=5"></script>
-<script src="/js/passenger.js?v=30"></script>
+<script src="/js/passenger.js?v=31"></script>
 <script src="/js/native.js?v=1"></script>
 </body>
 </html>
