@@ -179,6 +179,16 @@
         .breakdown .tot{border-top:1px solid var(--line);margin-top:4px;padding-top:6px}
         .breakdown .tot span{color:#F5F7FA;font-weight:600}
         .breakdown .tot b{color:#00E676;font-size:14.5px}
+        /* Aviso ámbar: con contraoferta el precio todavía no está cerrado */
+        .earnnote.warn{color:#FFD97A;background:rgba(255,193,7,.10);border:1px solid rgba(255,193,7,.28);border-radius:10px;padding:6px 10px;margin:-6px 0 12px}
+        /* Contraoferta: importes cerrados que el conductor puede pedir de más */
+        .bumps{margin:2px 0 12px}
+        .bumps .bl{color:var(--muted);font-size:11.5px;text-align:center;margin-bottom:7px}
+        .bumps .brow{display:flex;gap:8px;justify-content:center}
+        .bump{flex:1;max-width:150px;min-height:44px;border:1px solid var(--line);background:#12151a;color:#F5F7FA;
+              border-radius:11px;font-size:14px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent}
+        .bump:active{transform:scale(.97)}
+        .bump.on{background:rgba(255,193,7,.16);border-color:var(--amarillo);color:#FFD97A}
         .vehbox{margin-bottom:14px}
         .vehimg{width:100%;height:170px;object-fit:cover;border-radius:12px;border:1px solid var(--line);display:block;background:#12151a}
         .vehempty{width:100%;height:110px;border-radius:12px;border:1px dashed var(--line);background:#12151a;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font-size:30px;color:var(--muted)}
@@ -443,7 +453,7 @@ window.MG = {
 };
 </script>
 <script src="/js/pois.js?v=5"></script>
-<script src="/js/driver.js?v=25"></script>
+<script src="/js/driver.js?v=26"></script>
 <script src="/js/native.js?v=1"></script>
 </body>
 </html>

@@ -35,6 +35,8 @@ class SettingController extends Controller
             'approach_free_km' => Setting::get('approach_free_km', '3'),
             'approach_per_km'  => Setting::get('approach_per_km', '1.00'),
             'approach_max'     => Setting::get('approach_max', '15.00'),
+            'counter_offer_enabled' => Setting::get('counter_offer_enabled', '1'),
+            'counter_offer_options' => Setting::get('counter_offer_options', '3,5'),
             'demo_enabled'     => Setting::get('demo_enabled', '1'),
             'require_photos'   => Setting::get('require_photos', '1'),
         ];
@@ -69,6 +71,9 @@ class SettingController extends Controller
             'approach_free_km' => ['required', 'numeric', 'min:0', 'max:50'],
             'approach_per_km'  => ['required', 'numeric', 'min:0', 'max:50'],
             'approach_max'     => ['required', 'numeric', 'min:0', 'max:200'],
+            'counter_offer_enabled' => ['nullable'],
+            // lista de importes "3,5": Fare::counterOptions() la limpia y limita a 4
+            'counter_offer_options' => ['nullable', 'string', 'max:40', 'regex:/^[0-9.,\s]*$/'],
             'demo_enabled'     => ['nullable'],
             'require_photos'   => ['nullable'],
         ]);
@@ -76,6 +81,7 @@ class SettingController extends Controller
         $data['demo_enabled']   = $request->boolean('demo_enabled') ? '1' : '0';
         $data['require_photos'] = $request->boolean('require_photos') ? '1' : '0';
         $data['approach_enabled'] = $request->boolean('approach_enabled') ? '1' : '0';
+        $data['counter_offer_enabled'] = $request->boolean('counter_offer_enabled') ? '1' : '0';
 
         foreach ($data as $k => $v) {
             // los campos opcionales vacíos llegan como null: se guardan como cadena vacía

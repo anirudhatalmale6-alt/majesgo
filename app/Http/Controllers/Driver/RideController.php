@@ -205,6 +205,7 @@ class RideController extends Controller
             'requests'       => $out,
             'commission_pct' => Fare::commissionPct(),
             'approach'       => Fare::approachRules(),
+            'counter'        => Fare::counterRules(), // importes que puede añadir al aceptar
             'currency'       => Setting::get('currency', 'S/'),
         ]);
     }
@@ -213,7 +214,15 @@ class RideController extends Controller
     public function accept(Request $request)
     {
         $driver = $this->driver($request);
-        $data = $request->validate(['code' => ['required', 'string']]);
+        $data = $request->validate([
+            'code' => ['required', 'string'],
+            // ajuste opcional que pide el conductor; se valida contra la lista de la central
+            'bump' => ['nullable', 'numeric'],
+        ]);
+
+        // Fuera de la transacción: si el monto no es uno de los configurados, se cobra 0
+        // (nunca se rechaza el viaje por eso — el conductor igual quiere la carrera).
+        $counterOffer = Fare::counterOffer((float) ($data['bump'] ?? 0));
 
         if (! $driver->canReceiveRides()) {
             return response()->json(['message' => 'No puedes aceptar viajes ahora (revisa tu saldo o estado).'], 422);
@@ -222,7 +231,7 @@ class RideController extends Controller
             return response()->json(['message' => 'Ya tienes un viaje en curso.'], 422);
         }
 
-        $ride = DB::transaction(function () use ($data, $driver) {
+        $ride = DB::transaction(function () use ($data, $driver, $counterOffer) {
             $ride = Ride::where('code', $data['code'])
                 ->where('status', 'solicitando')
                 ->whereNull('driver_id')
@@ -255,6 +264,7 @@ class RideController extends Controller
                 'route_to_pickup' => $toPickup['geometry'],
                 'approach_m'      => (int) round($approachM),
                 'approach_fee'    => $approachFee,
+                'counter_offer'   => $counterOffer,
                 'is_demo'         => false,
             ])->save();
 
@@ -857,6 +867,7 @@ class RideController extends Controller
             'offered_price'=> (float) $ride->offered_price,
             'approach_m'   => $ride->approach_m !== null ? (int) $ride->approach_m : null,
             'approach_fee' => (float) $ride->approach_fee,
+            'counter_offer'=> (float) $ride->counter_offer,
             'total_price'  => $ride->totalPrice(),
             'final_price'  => $ride->final_price !== null ? (float) $ride->final_price : null,
             'commission'   => $ride->commission !== null ? (float) $ride->commission : Fare::commission($ride->totalPrice()),

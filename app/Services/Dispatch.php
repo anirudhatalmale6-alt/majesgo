@@ -143,6 +143,8 @@ class Dispatch
             // el siguiente lo fije con SU distancia (si no, el pasajero pagaría el recojo de otro)
             'approach_m'          => null,
             'approach_fee'        => 0,
+            // lo mismo con el ajuste: era la contraoferta de ESE conductor, no la del siguiente
+            'counter_offer'       => 0,
             'is_demo'             => false,
             // Re-emisión "fresca": renueva la ventana de búsqueda y hace que las omisiones
             // (descartes por tiempo) previas de OTROS conductores ya no cuenten → vuelve a sonar.

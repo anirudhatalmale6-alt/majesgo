@@ -38,13 +38,16 @@ let commissionPct = 5, minSaldo = 0.5;   // comisión = % de la tarifa (la fija 
 
 /** Comisión que se le descuenta al conductor por una tarifa dada. */
 function commissionFor(price) { return Math.round((Number(price) || 0) * commissionPct) / 100; }
-// Total pactado del viaje = tramo A→B + acercamiento del conductor hasta el pasajero.
-// Los viajes anteriores al costo de aproximación no traen el campo: ahí el total es el viaje.
+// Total pactado del viaje = tramo A→B + acercamiento hasta el pasajero + ajuste del conductor.
+// Los viajes anteriores a esos campos no los traen: ahí el total es solo el viaje.
 function rideTotal(r) {
   if (!r) return 0;
   if (r.total_price != null) return Number(r.total_price);
-  return (Number(r.offered_price) || 0) + (Number(r.approach_fee) || 0);
+  return (Number(r.offered_price) || 0) + (Number(r.approach_fee) || 0) + (Number(r.counter_offer) || 0);
 }
+// Importes que el conductor puede añadir al aceptar (los define la central). [] = apagado.
+let counterOptions = [];
+let reqBump = 0; // ajuste elegido en la tarjeta que está en pantalla
 
 let offerLabels = []; // etiquetas resaltadas (recojo + destino) durante la oferta
 
@@ -712,6 +715,7 @@ async function tick() {
     try {
       const d = await api('api/pending');
       if (typeof d.commission_pct === 'number') commissionPct = d.commission_pct;
+      counterOptions = (d.counter && d.counter.enabled && Array.isArray(d.counter.options)) ? d.counter.options : [];
       const reqs = d.requests || [];
       // si la solicitud mostrada ya no existe (el pasajero canceló o la tomó otro), quitarla
       if (reqCode && !reqs.some((x) => x.code === reqCode)) hideRequest();
@@ -753,13 +757,11 @@ function handleCurrent(r) {
 /* ================= SOLICITUD ENTRANTE ================= */
 function showRequest(req) {
   reqCode = req.code;
+  reqBump = 0; // cada solicitud arranca sin ajuste
   const wrap = $('#reqwrap'); wrap.classList.remove('hidden');
   // El total incluye el acercamiento hasta el pasajero, calculado con la distancia de ESTE
   // conductor: por eso la cifra grande puede ser mayor que lo que ofreció el pasajero.
   const apFee = Number(req.approach_fee) || 0;
-  const total = req.total_price != null ? Number(req.total_price) : Number(req.offered_price) + apFee;
-  const reqCom = commissionFor(total);
-  const earn = total - reqCom;
   $('#reqcard').innerHTML = `
     <div class="reqhead">
       <span class="ping"><i></i> Nuevo viaje</span>
@@ -767,17 +769,12 @@ function showRequest(req) {
     </div>
     <div class="bar"><i id="reqBar"></i></div>
     <div class="fare">
-      <div class="n"><span class="cur">${CUR}</span> ${total.toFixed(2)}</div>
+      <div class="n"><span class="cur">${CUR}</span> <span id="reqTotal">0.00</span></div>
       <div class="l">${req.payment_method === 'yape' ? '💜 Pago con Yape' : '💵 Pago en efectivo'}${apFee > 0 ? '' : ` · sugerido ${money(req.suggested_price)}`}</div>
     </div>
-    ${apFee > 0
-      ? `<div class="breakdown">
-           <div><span>Viaje (recojo → destino)</span><b>${money(req.offered_price)}</b></div>
-           <div><span>Tu acercamiento · ${km(req.approach_m != null ? req.approach_m : req.to_pickup_m)}</span><b>+ ${money(apFee)}</b></div>
-         </div>`
-      : ''}
-    <div class="earnnote">Recibes ${money(earn)} (comisión ${money(reqCom)} · ${commissionPct}%)</div>
-    <div class="earnnote lock">🔒 Precio cerrado: cobras ${money(total)} aunque el viaje demore más.</div>
+    <div class="breakdown hidden" id="reqBd"></div>
+    <div class="earnnote" id="reqEarn"></div>
+    <div class="earnnote lock" id="reqLock"></div>
     <div class="drv">
       <div class="av">${req.passenger.initial || 'P'}</div>
       <div><div class="nm">${esc(req.passenger.name)}</div><div class="car2">⭐ ${(req.passenger.rating || 5).toFixed(1)} · ${req.passenger.trips || 0} viajes</div></div>
@@ -787,10 +784,19 @@ function showRequest(req) {
       : `<div class="addr"><span class="dot o"></span><div class="tx">${esc(req.origin.address || 'Punto de recojo')}<small>Recojo · a ${km(req.to_pickup_m)}</small></div></div>`}
     ${req.reference ? `<div class="addr"><span class="dot" style="background:var(--amarillo)"></span><div class="tx">${esc(req.reference)}<small>Referencia del pasajero</small></div></div>` : ''}
     <div class="addr"><span class="dot d"></span><div class="tx">${esc(req.dest.address || 'Destino')}<small>Destino · ${km(req.trip_distance_m)} · ${mins(req.trip_duration_s)}</small></div></div>
+    ${counterOptions.length
+      ? `<div class="bumps" id="reqBumps">
+           <div class="bl">¿Te queda justo? Puedes pedir un poco más:</div>
+           <div class="brow">
+             ${counterOptions.map((b) => `<button type="button" class="bump" data-b="${b}">+ ${CUR} ${Number(b).toFixed(2)}</button>`).join('')}
+           </div>
+         </div>`
+      : ''}
     <div class="acts">
       <button class="btn ghost" id="reqNo">Rechazar</button>
       <button class="btn" id="reqYes">Aceptar</button>
     </div>`;
+  paintReq(req);
   // vista previa en el mapa: recojo + destino + RUTA (para que el conductor mire el mapa, no la dirección escrita)
   setPin('o', [req.origin.lat, req.origin.lng]);
   setPin('d', [req.dest.lat, req.dest.lng]);
@@ -806,6 +812,14 @@ function showRequest(req) {
 
   $('#reqYes').addEventListener('click', () => acceptRequest(req));
   $('#reqNo').addEventListener('click', () => rejectRequest(req.code));
+  // los botones de ajuste se activan/desactivan: volver a tocar el elegido lo quita
+  document.querySelectorAll('#reqBumps .bump').forEach((b) => {
+    b.addEventListener('click', () => {
+      const v = Number(b.dataset.b) || 0;
+      reqBump = (reqBump === v) ? 0 : v;
+      paintReq(req);
+    });
+  });
 
   // cuenta regresiva 28s
   let left = 28;
@@ -816,6 +830,54 @@ function showRequest(req) {
     if (left <= 0) { rejectRequest(req.code, true); }
   }, 1000);
 }
+/**
+ * Repinta las cifras de la tarjeta según el ajuste elegido (reqBump).
+ * Solo toca los nodos de importes: la cuenta regresiva y el mapa se quedan como están.
+ */
+function paintReq(req) {
+  const apFee = Number(req.approach_fee) || 0;
+  const base  = req.total_price != null ? Number(req.total_price) : Number(req.offered_price) + apFee;
+  const total = base + reqBump;
+  const com   = commissionFor(total);
+
+  const t = $('#reqTotal'); if (t) t.textContent = total.toFixed(2);
+
+  // desglose: solo aparece si hay algo que desglosar (acercamiento o ajuste)
+  const bd = $('#reqBd');
+  if (bd) {
+    if (apFee > 0 || reqBump > 0) {
+      bd.classList.remove('hidden');
+      bd.innerHTML =
+        `<div><span>Viaje (recojo → destino)</span><b>${money(req.offered_price)}</b></div>` +
+        (apFee > 0 ? `<div><span>Tu acercamiento · ${km(req.approach_m != null ? req.approach_m : req.to_pickup_m)}</span><b>+ ${money(apFee)}</b></div>` : '') +
+        (reqBump > 0 ? `<div><span>Lo que pides de más</span><b>+ ${money(reqBump)}</b></div>` : '');
+    } else {
+      bd.classList.add('hidden');
+      bd.innerHTML = '';
+    }
+  }
+
+  const e = $('#reqEarn');
+  if (e) e.textContent = `Recibes ${money(total - com)} (comisión ${money(com)} · ${commissionPct}%)`;
+
+  // Con ajuste el precio NO está cerrado todavía: el pasajero puede irse con otro conductor.
+  // Decírselo aquí evita que crea que ya ganó la carrera por tocar «+5».
+  const lock = $('#reqLock');
+  if (lock) {
+    lock.classList.toggle('warn', reqBump > 0);
+    lock.textContent = reqBump > 0
+      ? `El pasajero verá ${money(total)} y puede aceptarte o buscar otro conductor.`
+      : `🔒 Precio cerrado: cobras ${money(total)} aunque el viaje demore más.`;
+  }
+
+  document.querySelectorAll('#reqBumps .bump').forEach((b) => {
+    b.classList.toggle('on', Number(b.dataset.b) === reqBump && reqBump > 0);
+  });
+
+  const yes = $('#reqYes');
+  if (yes && !yes.disabled) yes.textContent = reqBump > 0 ? `Pedir ${money(total)}` : 'Aceptar';
+}
+
 function addOfferLabel(latlng, text, variant) {
   const m = L.marker(latlng, {
     icon: L.divIcon({ className: 'offerzone', html: '<span class="ozlabel ' + variant + '">📍 ' + esc(text) + '</span>', iconSize: [0, 0], iconAnchor: [0, 0] }),
@@ -835,11 +897,12 @@ function hideRequest() {
 }
 async function acceptRequest(req) {
   const btn = $('#reqYes'); btn.disabled = true; btn.innerHTML = '<span class="spin"></span>';
+  const bump = reqBump; // congelar: el servidor lo valida igual contra la lista de la central
   try {
-    const r = await api('api/accept', { code: req.code });
+    const r = await api('api/accept', { code: req.code, bump });
     hideRequest();
     ride = r.ride; online = true; me.status = 'ocupado';
-    toast('Enviado. Esperando que el pasajero confirme…');
+    toast(bump > 0 ? `Enviado con ${money(bump)} más. Esperando al pasajero…` : 'Enviado. Esperando que el pasajero confirme…');
     renderRide(ride);
   } catch (e) {
     hideRequest();
@@ -924,6 +987,9 @@ function renderWaitingConfirm(r) {
       <h2>Esperando confirmación…</h2>
       <div class="statesub" style="margin-top:4px">${esc(p.name || 'El pasajero')} está confirmando tu viaje. Un momento por favor.</div>
     </div>
+    ${Number(r.counter_offer) > 0
+      ? `<div class="earnnote warn" style="margin:10px 0 0">Le pediste ${money(r.counter_offer)} más. Si no acepta, el viaje pasa a otro conductor.</div>`
+      : ''}
     <div class="drv" style="margin-top:8px">
       <div class="av">${p.initial || 'P'}</div>
       <div><div class="nm">${esc(p.name || 'Pasajero')}</div><div class="car2">Recojo: ${esc(r.origin.address || 'Punto marcado')}${r.reference ? ' · ' + esc(r.reference) : ''}</div></div>

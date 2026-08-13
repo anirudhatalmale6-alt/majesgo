@@ -13,6 +13,7 @@ class Ride extends Model
         'offered_price'    => 'decimal:2',
         'final_price'      => 'decimal:2',
         'approach_fee'     => 'decimal:2',
+        'counter_offer'    => 'decimal:2',
         'commission'       => 'decimal:2',
         'route_to_pickup'  => 'array',
         'route_trip'       => 'array',
@@ -60,12 +61,17 @@ class Ride extends Model
     }
 
     /**
-     * Total pactado: tramo A→B + costo de aproximación del conductor que tomó el viaje.
-     * Mientras nadie lo haya tomado, approach_fee es 0 y el total es solo el viaje.
+     * Total pactado: tramo A→B + costo de aproximación + ajuste (contraoferta) del conductor
+     * que tomó el viaje. Mientras nadie lo haya tomado, los dos últimos son 0 y el total es
+     * solo el viaje.
      */
     public function totalPrice(): float
     {
-        return \App\Services\Fare::total((float) $this->offered_price, (float) $this->approach_fee);
+        return \App\Services\Fare::total(
+            (float) $this->offered_price,
+            (float) $this->approach_fee,
+            (float) $this->counter_offer,
+        );
     }
 
     public function statusLabel(): string

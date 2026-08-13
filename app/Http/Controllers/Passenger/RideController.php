@@ -506,6 +506,8 @@ class RideController extends Controller
             // Costo de aproximación del conductor que tomó el viaje (0 mientras nadie lo tome).
             'approach_m'   => $ride->approach_m !== null ? (int) $ride->approach_m : null,
             'approach_fee' => (float) $ride->approach_fee,
+            // Ajuste que pidió el conductor al aceptar (0 = tomó el viaje al precio ofrecido).
+            'counter_offer'=> (float) $ride->counter_offer,
             'total_price'  => $ride->totalPrice(),
             'final_price'  => $ride->final_price !== null ? (float) $ride->final_price : null,
             'payment_method' => $ride->payment_method,

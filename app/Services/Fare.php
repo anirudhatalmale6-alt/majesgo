@@ -18,15 +18,20 @@ use App\Models\Setting;
  *   - Radio gratuito configurable (3 km por defecto); pasado ese radio, S/ 1.00 por km extra.
  *   - Se calcula con la distancia REAL del conductor que toma el viaje, no de uno hipotético.
  *
+ * CONTRAOFERTA DEL CONDUCTOR (regla vigente desde 2026-08-13):
+ *   - Al aceptar, el conductor puede añadir uno de los importes cerrados que fija la central
+ *     (+3 / +5 por defecto). No escribe montos libres: elige entre botones.
+ *   - El pasajero ve el desglose y confirma o busca otro conductor. No hay regateo de ida y vuelta.
+ *
  * COMISIÓN: porcentaje de la tarifa (5% por defecto); el 95% restante queda para el conductor.
- * Se aplica sobre el total cobrado (viaje + aproximación), que es lo que el conductor recibe.
+ * Se aplica sobre el total cobrado (viaje + aproximación + ajuste), que es lo que el pasajero paga.
  *
  * El pasajero puede proponer su propio precio (estilo inDrive), nunca por debajo de floor().
  *
  * ⚠ PRECIO CERRADO — REGLA DE NEGOCIO INNEGOCIABLE
  * suggest() sirve ÚNICAMENTE para proponer un precio ANTES de solicitar el viaje.
  * Una vez que el pasajero confirma al conductor, el total pactado
- * (rides.offered_price + rides.approach_fee) queda congelado: paga exactamente ese monto
+ * (rides.offered_price + rides.approach_fee + rides.counter_offer) queda congelado: paga ese monto
  * aunque el viaje demore el triple por tráfico. NUNCA llames a suggest() al finalizar un viaje
  * ni recalcules la tarifa con el tiempo real transcurrido — final_price siempre se copia de
  * total() sobre lo ya guardado (ver Driver\RideController::complete).
@@ -113,10 +118,10 @@ class Fare
         return round(min($fee, $max), 2);
     }
 
-    /** Total que paga el pasajero: tramo A→B + acercamiento. */
-    public static function total(float $tripPrice, float $approachFee): float
+    /** Total que paga el pasajero: tramo A→B + acercamiento + ajuste del conductor. */
+    public static function total(float $tripPrice, float $approachFee, float $counterOffer = 0.0): float
     {
-        return round($tripPrice + $approachFee, 2);
+        return round($tripPrice + $approachFee + $counterOffer, 2);
     }
 
     /** Parámetros vigentes del acercamiento (para mostrarlos en las apps). */
@@ -127,6 +132,65 @@ class Fare
             'free_km' => (float) Setting::get('approach_free_km', 3.0),
             'per_km'  => (float) Setting::get('approach_per_km', 1.00),
             'max'     => (float) Setting::get('approach_max', 15.00),
+        ];
+    }
+
+    /* ---------- Contraoferta del conductor (importes cerrados, no negociación) ---------- */
+
+    public static function counterEnabled(): bool
+    {
+        return (string) Setting::get('counter_offer_enabled', '1') === '1'
+            && self::counterOptions() !== [];
+    }
+
+    /**
+     * Importes que el conductor puede añadir, definidos por la central ("3,5" por defecto).
+     *
+     * Es una lista CERRADA a propósito: el conductor elige entre dos o tres botones, no escribe
+     * un monto. Así el pasajero nunca ve un precio inesperado y no hace falta un ida y vuelta
+     * de regateo (que sería otra pantalla y otro tiempo de espera).
+     *
+     * @return array<int,float> ordenados de menor a mayor, máximo 4
+     */
+    public static function counterOptions(): array
+    {
+        $raw = (string) Setting::get('counter_offer_options', '3,5');
+
+        $out = [];
+        foreach (explode(',', $raw) as $piece) {
+            $v = round((float) str_replace(',', '.', trim($piece)), 2);
+            if ($v > 0 && ! in_array($v, $out, true)) {
+                $out[] = $v;
+            }
+        }
+
+        sort($out);
+
+        return array_slice($out, 0, 4);
+    }
+
+    /**
+     * Valida el ajuste que mandó la app del conductor.
+     *
+     * ⚠ Nunca se confía en el monto que llega del celular: si no es EXACTAMENTE uno de los
+     * importes configurados (o la contraoferta está apagada), se cobra 0. Un conductor no puede
+     * inventarse un "+50" tocando la API por su cuenta.
+     */
+    public static function counterOffer(float $amount): float
+    {
+        if ($amount <= 0 || ! self::counterEnabled()) {
+            return 0.0;
+        }
+
+        return in_array(round($amount, 2), self::counterOptions(), true) ? round($amount, 2) : 0.0;
+    }
+
+    /** Parámetros vigentes de la contraoferta (para pintar los botones en la app). */
+    public static function counterRules(): array
+    {
+        return [
+            'enabled' => self::counterEnabled(),
+            'options' => self::counterEnabled() ? self::counterOptions() : [],
         ];
     }
 

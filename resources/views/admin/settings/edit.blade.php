@@ -94,6 +94,49 @@
             </div>
         </div>
 
+        @php
+            // misma lectura que App\Services\Fare::counterOptions()
+            $coOpts = collect(explode(',', (string) $settings['counter_offer_options']))
+                ->map(fn ($p) => round((float) str_replace(',', '.', trim($p)), 2))
+                ->filter(fn ($v) => $v > 0)->unique()->sort()->take(4)->values();
+        @endphp
+        <div class="card">
+            <h3 style="margin-bottom:6px">Contraoferta del conductor</h3>
+            <div class="muted" style="font-size:12px;margin-bottom:14px">
+                Permite que el conductor pida <b>un poco más</b> por una carrera concreta (llueve, es de noche,
+                el destino no tiene retorno, el pasajero ofertó por debajo de lo sugerido).
+                No es un regateo: el conductor <b>no escribe</b> montos, elige entre los botones que ustedes definan aquí.
+                El pasajero ve el desglose y decide: acepta, o toca «Buscar otro» y la carrera pasa a otro conductor
+                (a ese ya no se le vuelve a ofrecer ese viaje).
+            </div>
+            <div class="field">
+                <label style="display:flex;align-items:center;gap:9px;cursor:pointer">
+                    <input type="checkbox" name="counter_offer_enabled" value="1" {{ old('counter_offer_enabled',$settings['counter_offer_enabled'])=='1' ? 'checked' : '' }} style="width:auto">
+                    <span>Permitir que el conductor pida más al aceptar</span>
+                </label>
+                <div class="muted" style="font-size:12px;margin-top:5px">Si lo desactivas, los botones desaparecen de la app del conductor y solo puede aceptar o rechazar.</div>
+            </div>
+            <div class="field">
+                <label>Importes permitidos ({{ $settings['currency'] }})</label>
+                <input class="input" name="counter_offer_options" value="{{ old('counter_offer_options',$settings['counter_offer_options']) }}" placeholder="3,5">
+                <div class="muted" style="font-size:12px;margin-top:5px">
+                    Separados por coma, máximo 4. Ej: <code>3,5</code>. Cualquier otro monto que llegue del celular se ignora y se cobra 0.
+                </div>
+            </div>
+            <div class="muted" style="font-size:12px;line-height:1.9;border-top:1px solid rgba(255,255,255,.08);padding-top:12px">
+                @if ($coOpts->isEmpty() || old('counter_offer_enabled',$settings['counter_offer_enabled']) != '1')
+                    <b>Desactivado.</b> El conductor solo ve «Aceptar» y «Rechazar».
+                @else
+                    <b>El conductor verá {{ $coOpts->count() }} {{ $coOpts->count() == 1 ? 'botón' : 'botones' }}:</b>
+                    {{ $coOpts->map(fn ($v) => '+ '.$settings['currency'].' '.number_format($v,2))->implode(' · ') }}<br>
+                    Sobre una carrera de {{ $settings['currency'] }} {{ number_format((float)$settings['fare_min'],2) }} con recojo
+                    {{ $settings['currency'] }} {{ number_format($apFee(10),2) }} (conductor a 10 km), el máximo que podría llegar a pedir es
+                    <b>{{ $settings['currency'] }} {{ number_format((float)$settings['fare_min'] + $apFee(10) + (float) $coOpts->max(), 2) }}</b>.<br>
+                    ⚠ El ajuste se <b>suma</b> al costo de aproximación. Si les parece mucho, bajen el tope del recojo o los importes de aquí.
+                @endif
+            </div>
+        </div>
+
         <div class="card">
             <h3 style="margin-bottom:14px">Datos de la plataforma</h3>
             <div class="field"><label>Nombre de la app</label><input class="input" name="app_name" value="{{ old('app_name',$settings['app_name']) }}" required></div>

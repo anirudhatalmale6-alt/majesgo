@@ -9,7 +9,7 @@ const money = (n) => CUR + ' ' + Number(n).toFixed(2);
 function rideTotal(r) {
   if (!r) return 0;
   if (r.total_price != null) return Number(r.total_price);
-  return (Number(r.offered_price) || 0) + (Number(r.approach_fee) || 0);
+  return (Number(r.offered_price) || 0) + (Number(r.approach_fee) || 0) + (Number(r.counter_offer) || 0);
 }
 
 /* ---------- API ---------- */
@@ -622,6 +622,7 @@ async function searchPlaces(q, box) {
 /* ============ Cotización ============ */
 let quoteT;
 function refreshQuote() {
+  if (isRiding()) return; // durante un viaje el precio ya está pactado: no se vuelve a cotizar
   if (!origin || !dest) { quote = null; renderPlanning(); return; }
   clearTimeout(quoteT);
   quoteT = setTimeout(async () => {
@@ -667,6 +668,12 @@ function approachHint() {
 }
 
 function renderPlanning() {
+  // Con un viaje en curso NUNCA se pinta la pantalla de "¿A dónde vamos?": taparía la oferta
+  // o el seguimiento del conductor. Pasaba al abrir la app con un viaje ya empezado:
+  // renderRide() coloca el destino en el mapa, eso dispara una cotización y, al volver,
+  // repintaba la planificación encima del viaje. (resetAfterRide corta el sondeo antes
+  // de llamar aquí, así que al terminar un viaje esto no estorba.)
+  if (isRiding()) return;
   const b = $('#sheetBody');
   const hasRoute = quote && dest;
   if (hasRoute) sheetState = 'open'; // con ruta lista se abre para ver precio y "Buscar taxi"
@@ -856,6 +863,7 @@ function renderOffer(r) {
   // Si el conductor viene de lejos, el recojo se cobra aparte: se muestra desglosado
   // ANTES de aceptar, para que nadie confirme un monto que no vio.
   const apFee = Number(r.approach_fee) || 0;
+  const cFee  = Number(r.counter_offer) || 0;
   $('#sheetBody').innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
       <span style="color:#00C853;font-weight:700;font-size:14px">✅ ¡Conductor encontrado!</span>
@@ -874,11 +882,13 @@ function renderOffer(r) {
       <div class="chip"><div class="v">${eta}</div><div class="l">Llega en</div></div>
       <div class="chip"><div class="v">${money(rideTotal(r))}</div><div class="l">${r.payment_method === 'yape' ? 'Yape' : 'Efectivo'}</div></div>
     </div>
-    ${apFee > 0 ? `<div class="breakdown">
+    ${apFee > 0 || cFee > 0 ? `<div class="breakdown">
       <div><span>Viaje hasta tu destino</span><b>${money(r.offered_price)}</b></div>
-      <div><span>Recojo · el conductor está a ${(r.approach_m / 1000).toFixed(1)} km</span><b>+ ${money(apFee)}</b></div>
+      ${apFee > 0 ? `<div><span>Recojo · el conductor está a ${(r.approach_m / 1000).toFixed(1)} km</span><b>+ ${money(apFee)}</b></div>` : ''}
+      ${cFee > 0 ? `<div><span>Lo que pide el conductor por esta carrera</span><b>+ ${money(cFee)}</b></div>` : ''}
       <div class="tot"><span>Total a pagar</span><b>${money(rideTotal(r))}</b></div>
     </div>` : ''}
+    ${cFee > 0 ? `<div class="sub" style="text-align:center;margin:-4px 0 12px">Este conductor pide ${money(cFee)} más que tu oferta. Si prefieres, busca otro.</div>` : ''}
     <div class="acts">
       <button class="btn ghost" id="btnOtro">Buscar otro</button>
       <button class="btn" id="btnAceptar">Aceptar ${money(rideTotal(r))}</button>
@@ -951,9 +961,10 @@ function renderAssigned(r) {
       <div class="chip"><div class="v">${money(rideTotal(r))}</div><div class="l">${r.payment_method === 'yape' ? 'Yape' : 'Efectivo'}</div></div>
       <div class="chip"><div class="v">${(r.distance_m / 1000).toFixed(1)} km</div><div class="l">al destino</div></div>
     </div>
-    ${Number(r.approach_fee) > 0 ? `<div class="breakdown">
+    ${Number(r.approach_fee) > 0 || Number(r.counter_offer) > 0 ? `<div class="breakdown">
       <div><span>Viaje hasta tu destino</span><b>${money(r.offered_price)}</b></div>
-      <div><span>Recojo</span><b>+ ${money(r.approach_fee)}</b></div>
+      ${Number(r.approach_fee) > 0 ? `<div><span>Recojo</span><b>+ ${money(r.approach_fee)}</b></div>` : ''}
+      ${Number(r.counter_offer) > 0 ? `<div><span>Ajuste del conductor</span><b>+ ${money(r.counter_offer)}</b></div>` : ''}
     </div>` : ''}
     <div class="pricelock">🔒 Precio fijo pactado: ${money(rideTotal(r))}. No cambia por el tráfico.</div>
     <div class="acts">
