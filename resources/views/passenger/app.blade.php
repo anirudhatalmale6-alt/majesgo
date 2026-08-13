@@ -165,6 +165,8 @@
         .breakdown .tot span{color:#F5F7FA;font-weight:600}
         .breakdown .tot b{color:#00E676;font-size:14.5px}
         .vehshot{position:relative;width:100%;height:158px;border-radius:12px;overflow:hidden;border:1px solid var(--line);background:#12151a;margin:0 0 12px;cursor:pointer}
+        /* En la oferta (15 s para decidir) la foto va más baja: primero el precio y los botones */
+        .vehshot.sm{height:130px;margin-bottom:10px}
         .vehshot img{width:100%;height:100%;object-fit:cover;display:block}
         .vehshot .vplate{position:absolute;right:9px;bottom:9px;background:rgba(0,0,0,.72);color:#fff;font-weight:800;font-size:12.5px;letter-spacing:.6px;padding:5px 9px;border-radius:7px;backdrop-filter:blur(3px)}
         .vlightbox{position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.93);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:18px}
@@ -201,6 +203,7 @@
         .statusband{background:var(--panel-2);border-left:3px solid var(--verde);border-radius:10px;padding:11px 14px;margin-bottom:13px;font-weight:600;font-size:14.5px}
         .statusband small{display:block;color:var(--muted);font-weight:500;font-size:12px;margin-top:2px}
         .acts{display:flex;gap:10px}
+        .sheetcta .acts{margin:0}
         .acts .btn{font-size:14px;padding:13px}
 
         .demo{display:inline-flex;align-items:center;gap:5px;background:rgba(255,193,7,.16);color:var(--amarillo);font-size:11px;font-weight:600;padding:4px 10px;border-radius:999px;margin-bottom:10px}
@@ -383,7 +386,7 @@ window.MG = {
 };
 </script>
 <script src="/js/pois.js?v=5"></script>
-<script src="/js/passenger.js?v=31"></script>
+<script src="/js/passenger.js?v=32"></script>
 <script src="/js/native.js?v=1"></script>
 </body>
 </html>

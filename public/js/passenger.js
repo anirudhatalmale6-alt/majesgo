@@ -848,10 +848,15 @@ function renderRide(r) {
  * Foto del vehículo para que el pasajero reconozca el auto que lo recoge.
  * Si el conductor todavía no la subió, no se muestra nada (la tarjeta queda como antes).
  */
-function vehiclePhoto(d) {
+/**
+ * @param  {boolean} small  en la pantalla de oferta la foto va más baja: ahí el pasajero decide
+ *                          contra reloj y lo que tiene que ver es el precio y los botones.
+ *                          La foto grande sirve para reconocer el auto, y eso es después de aceptar.
+ */
+function vehiclePhoto(d, small) {
   if (!d || !d.vehicle_photo) return '';
   return `
-    <div class="vehshot" id="vehShot">
+    <div class="vehshot${small ? ' sm' : ''}" id="vehShot">
       <img src="${d.vehicle_photo}" alt="Vehículo de ${esc(d.name || 'tu conductor')}" loading="lazy">
       ${d.plate ? `<span class="vplate">${esc(d.plate)}</span>` : ''}
     </div>`;
@@ -888,37 +893,46 @@ function renderOffer(r) {
   // ANTES de aceptar, para que nadie confirme un monto que no vio.
   const apFee = Number(r.approach_fee) || 0;
   const cFee  = Number(r.counter_offer) || 0;
-  $('#sheetBody').classList.remove('hascta'); // sin botón fijo: estas pantallas no tienen acción principal al pie
+  const hasBreak = apFee > 0 || cFee > 0;
+  // Botones SIEMPRE a la vista: aquí el pasajero decide con el reloj corriendo (15 s). Si tiene
+  // que descubrir que el panel se desplaza para encontrar «Aceptar», pierde la carrera.
+  $('#sheetBody').classList.add('hascta');
   $('#sheetBody').innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
       <span style="color:#00C853;font-weight:700;font-size:14px">✅ ¡Conductor encontrado!</span>
       <span id="offCd" style="font-weight:800;font-size:17px;color:#FFC107">${left}s</span>
     </div>
-    <div style="height:5px;background:#2a3038;border-radius:3px;overflow:hidden;margin-bottom:14px">
+    <div style="height:5px;background:#2a3038;border-radius:3px;overflow:hidden;margin-bottom:12px">
       <i id="offBar" style="display:block;height:100%;background:#FFC107;width:${left / timeout * 100}%;transition:width 1s linear"></i>
     </div>
-    ${vehiclePhoto(d)}
+    ${vehiclePhoto(d, true)}
     <div class="drv">
       ${driverAvatar(d)}
       <div><div class="nm">${esc(d.name || 'Conductor')}</div><div class="car2">${esc(d.vehicle || '')} · ${esc(d.plate || '')} ${d.color ? '· ' + esc(d.color) : ''}</div></div>
       <div class="rate"><b>⭐ ${(d.rating || 5).toFixed(1)}</b><small>${d.trips || 0} viajes</small></div>
     </div>
-    <div class="routeinfo">
-      <div class="chip"><div class="v">${eta}</div><div class="l">Llega en</div></div>
-      <div class="chip"><div class="v">${money(rideTotal(r))}</div><div class="l">${r.payment_method === 'yape' ? 'Yape' : 'Efectivo'}</div></div>
-    </div>
-    ${apFee > 0 || cFee > 0 ? `<div class="breakdown">
+    ${hasBreak
+      // Con desglose, la tarjeta del precio repetía el mismo total dos veces: se deja una línea.
+      ? `<div class="metaline">Llega en ${eta} · ${r.payment_method === 'yape' ? 'Yape' : 'Efectivo'}</div>`
+      : `<div class="routeinfo">
+           <div class="chip"><div class="v">${eta}</div><div class="l">Llega en</div></div>
+           <div class="chip"><div class="v">${money(rideTotal(r))}</div><div class="l">${r.payment_method === 'yape' ? 'Yape' : 'Efectivo'}</div></div>
+         </div>`}
+    ${hasBreak ? `<div class="breakdown">
       <div><span>Viaje hasta tu destino</span><b>${money(r.offered_price)}</b></div>
-      ${apFee > 0 ? `<div><span>Recojo · el conductor está a ${(r.approach_m / 1000).toFixed(1)} km</span><b>+ ${money(apFee)}</b></div>` : ''}
-      ${cFee > 0 ? `<div><span>Lo que pide el conductor por esta carrera</span><b>+ ${money(cFee)}</b></div>` : ''}
+      ${apFee > 0 ? `<div><span>Recojo · conductor a ${(r.approach_m / 1000).toFixed(1)} km</span><b>+ ${money(apFee)}</b></div>` : ''}
+      ${cFee > 0 ? `<div><span>Lo que pide el conductor</span><b>+ ${money(cFee)}</b></div>` : ''}
       <div class="tot"><span>Total a pagar</span><b>${money(rideTotal(r))}</b></div>
     </div>` : ''}
-    ${cFee > 0 ? `<div class="sub" style="text-align:center;margin:-4px 0 12px">Este conductor pide ${money(cFee)} más que tu oferta. Si prefieres, busca otro.</div>` : ''}
-    <div class="acts">
-      <button class="btn ghost" id="btnOtro">Buscar otro</button>
-      <button class="btn" id="btnAceptar">Aceptar ${money(rideTotal(r))}</button>
-    </div>
-    <div class="sub" style="text-align:center;margin:10px 0 0">Si no respondes a tiempo, buscaremos otro automáticamente.</div>`;
+    <div class="sub" style="text-align:center;margin:-4px 0 2px">${cFee > 0
+      ? `Pide ${money(cFee)} más que tu oferta. Si prefieres, busca otro.`
+      : 'Si no respondes a tiempo, buscaremos otro automáticamente.'}</div>
+    <div class="sheetcta">
+      <div class="acts">
+        <button class="btn ghost" id="btnOtro">Buscar otro</button>
+        <button class="btn" id="btnAceptar">Aceptar ${money(rideTotal(r))}</button>
+      </div>
+    </div>`;
   bindVehiclePhoto(d);
   $('#btnAceptar').addEventListener('click', confirmOffer);
   $('#btnOtro').addEventListener('click', rejectOffer);
@@ -974,7 +988,10 @@ function renderAssigned(r) {
   };
   const band = bands[r.status] || [r.status_label, ''];
   const canCancel = r.status !== 'a_bordo';
-  $('#sheetBody').classList.remove('hascta'); // sin botón fijo: estas pantallas no tienen acción principal al pie
+  const hasBreak = Number(r.approach_fee) > 0 || Number(r.counter_offer) > 0;
+  // Chat y Cancelar también van fijos: con la foto del vehículo y el desglose, en pantallas
+  // bajas quedaban por debajo del corte.
+  $('#sheetBody').classList.add('hascta');
   $('#sheetBody').innerHTML = `
     ${r.is_demo ? '<div class="demo">🧪 Conductor de prueba (demo)</div>' : ''}
     <div class="statusband">${band[0]}<small>${band[1]}</small></div>
@@ -984,19 +1001,24 @@ function renderAssigned(r) {
       <div><div class="nm">${esc(d.name || 'Conductor')}</div><div class="car2">${esc(d.vehicle || '')} · ${esc(d.plate || '')} ${d.color ? '· ' + esc(d.color) : ''}</div></div>
       <div class="rate"><b>⭐ ${(d.rating || 5).toFixed(1)}</b><small>${d.trips || 0} viajes</small></div>
     </div>
-    <div class="routeinfo">
-      <div class="chip"><div class="v">${money(rideTotal(r))}</div><div class="l">${r.payment_method === 'yape' ? 'Yape' : 'Efectivo'}</div></div>
-      <div class="chip"><div class="v">${(r.distance_m / 1000).toFixed(1)} km</div><div class="l">al destino</div></div>
-    </div>
-    ${Number(r.approach_fee) > 0 || Number(r.counter_offer) > 0 ? `<div class="breakdown">
+    ${hasBreak
+      // El total ya sale en el desglose y en el candado: la tarjeta del precio lo repetía
+      ? `<div class="metaline">${(r.distance_m / 1000).toFixed(1)} km al destino · ${r.payment_method === 'yape' ? 'Yape' : 'Efectivo'}</div>`
+      : `<div class="routeinfo">
+           <div class="chip"><div class="v">${money(rideTotal(r))}</div><div class="l">${r.payment_method === 'yape' ? 'Yape' : 'Efectivo'}</div></div>
+           <div class="chip"><div class="v">${(r.distance_m / 1000).toFixed(1)} km</div><div class="l">al destino</div></div>
+         </div>`}
+    ${hasBreak ? `<div class="breakdown">
       <div><span>Viaje hasta tu destino</span><b>${money(r.offered_price)}</b></div>
       ${Number(r.approach_fee) > 0 ? `<div><span>Recojo</span><b>+ ${money(r.approach_fee)}</b></div>` : ''}
       ${Number(r.counter_offer) > 0 ? `<div><span>Ajuste del conductor</span><b>+ ${money(r.counter_offer)}</b></div>` : ''}
     </div>` : ''}
     <div class="pricelock">🔒 Precio fijo pactado: ${money(rideTotal(r))}. No cambia por el tráfico.</div>
-    <div class="acts">
-      <button class="btn ghost" id="btnChat">💬 Chat${(rideLastMsgId > chatSeenId && !chatOpen) ? ' <span class="undot"></span>' : ''}</button>
-      ${canCancel ? '<button class="btn danger" id="btnCancel">Cancelar</button>' : ''}
+    <div class="sheetcta">
+      <div class="acts">
+        <button class="btn ghost" id="btnChat">💬 Chat${(rideLastMsgId > chatSeenId && !chatOpen) ? ' <span class="undot"></span>' : ''}</button>
+        ${canCancel ? '<button class="btn danger" id="btnCancel">Cancelar</button>' : ''}
+      </div>
     </div>`;
   bindVehiclePhoto(d);
   const c = $('#btnCancel'); if (c) c.addEventListener('click', cancelRide);
