@@ -12,6 +12,7 @@ class Ride extends Model
         'suggested_price'  => 'decimal:2',
         'offered_price'    => 'decimal:2',
         'final_price'      => 'decimal:2',
+        'approach_fee'     => 'decimal:2',
         'commission'       => 'decimal:2',
         'route_to_pickup'  => 'array',
         'route_trip'       => 'array',
@@ -56,6 +57,15 @@ class Ride extends Model
     public function isActive(): bool
     {
         return in_array($this->status, self::ACTIVE_STATES, true);
+    }
+
+    /**
+     * Total pactado: tramo A→B + costo de aproximación del conductor que tomó el viaje.
+     * Mientras nadie lo haya tomado, approach_fee es 0 y el total es solo el viaje.
+     */
+    public function totalPrice(): float
+    {
+        return \App\Services\Fare::total((float) $this->offered_price, (float) $this->approach_fee);
     }
 
     public function statusLabel(): string

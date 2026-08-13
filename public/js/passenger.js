@@ -4,6 +4,13 @@
 const CUR = MG.currency || 'S/';
 const $ = (s) => document.querySelector(s);
 const money = (n) => CUR + ' ' + Number(n).toFixed(2);
+// Total a pagar = tramo A→B + acercamiento del conductor que tomó el viaje.
+// Mientras nadie lo tome, approach_fee es 0 y el total es solo el viaje.
+function rideTotal(r) {
+  if (!r) return 0;
+  if (r.total_price != null) return Number(r.total_price);
+  return (Number(r.offered_price) || 0) + (Number(r.approach_fee) || 0);
+}
 
 /* ---------- API ---------- */
 async function api(path, body, method) {
@@ -635,6 +642,30 @@ function drawRoute(coords, color) {
 }
 
 /* ================= SHEET: PLANIFICAR ================= */
+/**
+ * Costo de aproximación estimado para el viaje que se está armando.
+ *
+ * El monto real depende del conductor que termine tomando la carrera; aquí se muestra el del
+ * conductor libre más cercano ahora mismo, y se avisa que puede variar. El monto definitivo
+ * aparece desglosado en la pantalla de confirmación, antes de aceptar.
+ */
+function approachFee() {
+  const a = quote && quote.approach;
+  return (a && a.enabled) ? (Number(a.fee) || 0) : 0;
+}
+
+function approachHint() {
+  const a = quote && quote.approach;
+  if (!a || !a.enabled) return '';
+  if (a.distance_m == null) {
+    return `<div class="hintprice">Al precio se le suma el recojo si el conductor viene de más de ${a.free_km} km. Lo verás antes de aceptar.</div>`;
+  }
+  if (!a.fee) {
+    return `<div class="hintprice">✅ Hay un conductor a ${(a.distance_m / 1000).toFixed(1)} km: el recojo no tiene costo (primeros ${a.free_km} km gratis).</div>`;
+  }
+  return `<div class="hintprice">+ ${money(a.fee)} de recojo aprox. (el conductor más cercano está a ${(a.distance_m / 1000).toFixed(1)} km). El monto exacto lo confirmas antes de aceptar.</div>`;
+}
+
 function renderPlanning() {
   const b = $('#sheetBody');
   const hasRoute = quote && dest;
@@ -662,12 +693,13 @@ function renderPlanning() {
         </div>
       </div>
       <div class="hintprice">Sugerido: ${money(quote.suggested)} · puedes ofrecer desde ${money(quote.floor)}</div>
+      ${approachHint()}
       <div class="pricelock">🔒 Precio fijo: pagas este monto al llegar, aunque haya tráfico o demoras.</div>
       <div class="pay">
         <button data-m="efectivo" class="${method === 'efectivo' ? 'on' : ''}">💵 Efectivo</button>
         <button data-m="yape" class="${method === 'yape' ? 'on' : ''}">💜 Yape</button>
       </div>
-      <button class="btn" id="btnReq">Buscar taxi · ${money(price)}</button>
+      <button class="btn" id="btnReq">Buscar taxi · ${money(price + approachFee())}${approachFee() > 0 ? ' aprox.' : ''}</button>
     ` : `
       <button class="btn ghost" id="pickDest" style="margin-top:10px"><span class="btnpin">${pinBtn('#ff5252')}</span> Elegir destino en el mapa</button>
       <div class="hintprice" style="margin-top:8px">O escríbelo arriba, o toca el pin del campo Destino para elegirlo en el mapa.</div>`}
@@ -821,6 +853,9 @@ function renderOffer(r) {
   const timeout = off.timeout || 15;
   let left = (off.seconds_left != null) ? off.seconds_left : timeout;
   const eta = off.eta_min ? ('~' + off.eta_min + ' min') : '—';
+  // Si el conductor viene de lejos, el recojo se cobra aparte: se muestra desglosado
+  // ANTES de aceptar, para que nadie confirme un monto que no vio.
+  const apFee = Number(r.approach_fee) || 0;
   $('#sheetBody').innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
       <span style="color:#00C853;font-weight:700;font-size:14px">✅ ¡Conductor encontrado!</span>
@@ -837,11 +872,16 @@ function renderOffer(r) {
     </div>
     <div class="routeinfo">
       <div class="chip"><div class="v">${eta}</div><div class="l">Llega en</div></div>
-      <div class="chip"><div class="v">${money(r.offered_price)}</div><div class="l">${r.payment_method === 'yape' ? 'Yape' : 'Efectivo'}</div></div>
+      <div class="chip"><div class="v">${money(rideTotal(r))}</div><div class="l">${r.payment_method === 'yape' ? 'Yape' : 'Efectivo'}</div></div>
     </div>
+    ${apFee > 0 ? `<div class="breakdown">
+      <div><span>Viaje hasta tu destino</span><b>${money(r.offered_price)}</b></div>
+      <div><span>Recojo · el conductor está a ${(r.approach_m / 1000).toFixed(1)} km</span><b>+ ${money(apFee)}</b></div>
+      <div class="tot"><span>Total a pagar</span><b>${money(rideTotal(r))}</b></div>
+    </div>` : ''}
     <div class="acts">
       <button class="btn ghost" id="btnOtro">Buscar otro</button>
-      <button class="btn" id="btnAceptar">Aceptar</button>
+      <button class="btn" id="btnAceptar">Aceptar ${money(rideTotal(r))}</button>
     </div>
     <div class="sub" style="text-align:center;margin:10px 0 0">Si no respondes a tiempo, buscaremos otro automáticamente.</div>`;
   bindVehiclePhoto(d);
@@ -908,10 +948,14 @@ function renderAssigned(r) {
       <div class="rate"><b>⭐ ${(d.rating || 5).toFixed(1)}</b><small>${d.trips || 0} viajes</small></div>
     </div>
     <div class="routeinfo">
-      <div class="chip"><div class="v">${money(r.offered_price)}</div><div class="l">${r.payment_method === 'yape' ? 'Yape' : 'Efectivo'}</div></div>
+      <div class="chip"><div class="v">${money(rideTotal(r))}</div><div class="l">${r.payment_method === 'yape' ? 'Yape' : 'Efectivo'}</div></div>
       <div class="chip"><div class="v">${(r.distance_m / 1000).toFixed(1)} km</div><div class="l">al destino</div></div>
     </div>
-    <div class="pricelock">🔒 Precio fijo pactado: ${money(r.offered_price)}. No cambia por el tráfico.</div>
+    ${Number(r.approach_fee) > 0 ? `<div class="breakdown">
+      <div><span>Viaje hasta tu destino</span><b>${money(r.offered_price)}</b></div>
+      <div><span>Recojo</span><b>+ ${money(r.approach_fee)}</b></div>
+    </div>` : ''}
+    <div class="pricelock">🔒 Precio fijo pactado: ${money(rideTotal(r))}. No cambia por el tráfico.</div>
     <div class="acts">
       <button class="btn ghost" id="btnChat">💬 Chat${(rideLastMsgId > chatSeenId && !chatOpen) ? ' <span class="undot"></span>' : ''}</button>
       ${canCancel ? '<button class="btn danger" id="btnCancel">Cancelar</button>' : ''}
@@ -925,7 +969,7 @@ function renderCompleted(r) {
   stopPolling();
   $('#sheetBody').innerHTML = `
     <div style="text-align:center"><div style="font-size:44px">✅</div><h2>¡Llegaste!</h2><div class="sub">Gracias por viajar con MajesGo.</div></div>
-    <div class="fare-big"><div class="n">${money(r.final_price || r.offered_price)}</div><div class="l">${r.payment_method === 'yape' ? 'Pagas con Yape' : 'Pagas en efectivo'}</div></div>
+    <div class="fare-big"><div class="n">${money(r.final_price || rideTotal(r))}</div><div class="l">${r.payment_method === 'yape' ? 'Pagas con Yape' : 'Pagas en efectivo'}</div></div>
     <div class="pricelock">🔒 Es el mismo precio que aceptaste al pedir el viaje.</div>
     <div class="sub" style="text-align:center">¿Cómo estuvo tu conductor?</div>
     <div class="stars" id="stars">${[1, 2, 3, 4, 5].map((n) => `<span data-n="${n}">★</span>`).join('')}</div>

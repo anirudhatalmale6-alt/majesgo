@@ -132,6 +132,14 @@
         .stepper .price{min-width:104px;text-align:center;font-size:22px;font-weight:800}
         .hintprice{font-size:11.5px;color:var(--muted);text-align:center;margin:-6px 0 12px}
         .pricelock{font-size:11.5px;line-height:1.35;color:#7DE9AC;background:rgba(0,230,118,.09);border:1px solid rgba(0,230,118,.22);border-radius:10px;padding:7px 10px;text-align:center;margin:0 0 12px}
+        /* Desglose del precio: viaje A→B + acercamiento del conductor hasta el pasajero */
+        .breakdown{border:1px solid var(--line);border-radius:11px;padding:9px 11px;margin:0 0 12px;font-size:12.5px}
+        .breakdown div{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:3px 0}
+        .breakdown span{color:var(--muted)}
+        .breakdown b{color:#F5F7FA;white-space:nowrap}
+        .breakdown .tot{border-top:1px solid var(--line);margin-top:4px;padding-top:6px}
+        .breakdown .tot span{color:#F5F7FA;font-weight:600}
+        .breakdown .tot b{color:#00E676;font-size:14.5px}
         .vehshot{position:relative;width:100%;height:158px;border-radius:12px;overflow:hidden;border:1px solid var(--line);background:#12151a;margin:0 0 12px;cursor:pointer}
         .vehshot img{width:100%;height:100%;object-fit:cover;display:block}
         .vehshot .vplate{position:absolute;right:9px;bottom:9px;background:rgba(0,0,0,.72);color:#fff;font-weight:800;font-size:12.5px;letter-spacing:.6px;padding:5px 9px;border-radius:7px;backdrop-filter:blur(3px)}
@@ -351,7 +359,7 @@ window.MG = {
 };
 </script>
 <script src="/js/pois.js?v=5"></script>
-<script src="/js/passenger.js?v=27"></script>
+<script src="/js/passenger.js?v=28"></script>
 <script src="/js/native.js?v=1"></script>
 </body>
 </html>

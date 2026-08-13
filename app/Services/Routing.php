@@ -11,6 +11,19 @@ use Illuminate\Support\Facades\Http;
 class Routing
 {
     /**
+     * Cuánto más larga es la ruta real por calles que la línea recta.
+     * Se usa para estimar distancias sin llamar a OSRM (p. ej. el costo de aproximación,
+     * que se calcula para cada conductor y cada viaje, muchas veces por minuto).
+     */
+    public const STREET_FACTOR = 1.35;
+
+    /** Distancia estimada por calles entre dos puntos, sin llamar a OSRM. */
+    public static function streetEstimate(float $lat1, float $lng1, float $lat2, float $lng2): float
+    {
+        return self::haversine($lat1, $lng1, $lat2, $lng2) * self::STREET_FACTOR;
+    }
+
+    /**
      * @return array{distance_m:int, duration_s:int, geometry:array<int,array{0:float,1:float}>}
      *         geometry = [[lat,lng], ...]
      */

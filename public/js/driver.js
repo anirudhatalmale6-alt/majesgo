@@ -38,6 +38,13 @@ let commissionPct = 5, minSaldo = 0.5;   // comisión = % de la tarifa (la fija 
 
 /** Comisión que se le descuenta al conductor por una tarifa dada. */
 function commissionFor(price) { return Math.round((Number(price) || 0) * commissionPct) / 100; }
+// Total pactado del viaje = tramo A→B + acercamiento del conductor hasta el pasajero.
+// Los viajes anteriores al costo de aproximación no traen el campo: ahí el total es el viaje.
+function rideTotal(r) {
+  if (!r) return 0;
+  if (r.total_price != null) return Number(r.total_price);
+  return (Number(r.offered_price) || 0) + (Number(r.approach_fee) || 0);
+}
 
 let offerLabels = []; // etiquetas resaltadas (recojo + destino) durante la oferta
 
@@ -496,7 +503,7 @@ function navUpdate(pos) {
 function renderNavAction() {
   const r = ride; if (!r) { $('#navAction').innerHTML = ''; return; }
   const p = r.passenger || {};
-  const earn = r.offered_price - (r.commission != null ? r.commission : commissionFor(r.offered_price));
+  const earn = rideTotal(r) - (r.commission != null ? r.commission : commissionFor(rideTotal(r)));
   $('#navPax').innerHTML = '👤 <b>' + esc(p.name || 'Pasajero') + '</b>';
   $('#navFare').innerHTML = 'Recibes <b>' + money(earn) + '</b>';
   let html = '';
@@ -747,8 +754,12 @@ function handleCurrent(r) {
 function showRequest(req) {
   reqCode = req.code;
   const wrap = $('#reqwrap'); wrap.classList.remove('hidden');
-  const reqCom = commissionFor(req.offered_price);
-  const earn = req.offered_price - reqCom;
+  // El total incluye el acercamiento hasta el pasajero, calculado con la distancia de ESTE
+  // conductor: por eso la cifra grande puede ser mayor que lo que ofreció el pasajero.
+  const apFee = Number(req.approach_fee) || 0;
+  const total = req.total_price != null ? Number(req.total_price) : Number(req.offered_price) + apFee;
+  const reqCom = commissionFor(total);
+  const earn = total - reqCom;
   $('#reqcard').innerHTML = `
     <div class="reqhead">
       <span class="ping"><i></i> Nuevo viaje</span>
@@ -756,11 +767,17 @@ function showRequest(req) {
     </div>
     <div class="bar"><i id="reqBar"></i></div>
     <div class="fare">
-      <div class="n"><span class="cur">${CUR}</span> ${Number(req.offered_price).toFixed(2)}</div>
-      <div class="l">${req.payment_method === 'yape' ? '💜 Pago con Yape' : '💵 Pago en efectivo'} · sugerido ${money(req.suggested_price)}</div>
+      <div class="n"><span class="cur">${CUR}</span> ${total.toFixed(2)}</div>
+      <div class="l">${req.payment_method === 'yape' ? '💜 Pago con Yape' : '💵 Pago en efectivo'}${apFee > 0 ? '' : ` · sugerido ${money(req.suggested_price)}`}</div>
     </div>
+    ${apFee > 0
+      ? `<div class="breakdown">
+           <div><span>Viaje (recojo → destino)</span><b>${money(req.offered_price)}</b></div>
+           <div><span>Tu acercamiento · ${km(req.approach_m != null ? req.approach_m : req.to_pickup_m)}</span><b>+ ${money(apFee)}</b></div>
+         </div>`
+      : ''}
     <div class="earnnote">Recibes ${money(earn)} (comisión ${money(reqCom)} · ${commissionPct}%)</div>
-    <div class="earnnote lock">🔒 Precio cerrado: cobras ${money(req.offered_price)} aunque el viaje demore más.</div>
+    <div class="earnnote lock">🔒 Precio cerrado: cobras ${money(total)} aunque el viaje demore más.</div>
     <div class="drv">
       <div class="av">${req.passenger.initial || 'P'}</div>
       <div><div class="nm">${esc(req.passenger.name)}</div><div class="car2">⭐ ${(req.passenger.rating || 5).toFixed(1)} · ${req.passenger.trips || 0} viajes</div></div>
@@ -859,7 +876,7 @@ function renderRide(r) {
   const p = r.passenger || {};
   const goingToDest = r.status === 'a_bordo';
   const navTarget = goingToDest ? r.dest : r.origin;
-  const earn = r.offered_price - (r.commission != null ? r.commission : commissionFor(r.offered_price));
+  const earn = rideTotal(r) - (r.commission != null ? r.commission : commissionFor(rideTotal(r)));
 
   let primary = '';
   if (r.status === 'en_camino' || r.status === 'aceptado') primary = `<button class="btn amber" id="btnArrive">Llegué al punto</button>`;
@@ -875,7 +892,7 @@ function renderRide(r) {
     </div>
     <div class="addr"><span class="dot o"></span><div class="tx">${esc(r.origin.address || 'Punto de recojo')}<small>Recojo</small></div></div>
     ${r.reference ? `<div class="addr"><span class="dot" style="background:var(--amarillo)"></span><div class="tx">${esc(r.reference)}<small>Referencia del pasajero</small></div></div>` : ''}
-    <div class="addr"><span class="dot d"></span><div class="tx">${esc(r.dest.address || 'Destino')}<small>Destino · ${km(r.distance_m)} · ${money(r.offered_price)} ${r.payment_method === 'yape' ? '(Yape)' : '(efectivo)'}</small></div></div>
+    <div class="addr"><span class="dot d"></span><div class="tx">${esc(r.dest.address || 'Destino')}<small>Destino · ${km(r.distance_m)} · ${money(rideTotal(r))} ${r.payment_method === 'yape' ? '(Yape)' : '(efectivo)'}</small></div></div>
     ${primary}
     <div class="acts">
       <button class="btn ghost" id="btnChat">💬 Chat${(rideLastMsgId > chatSeenId && !chatOpen) ? ' <span class="undot"></span>' : ''}</button>
@@ -910,7 +927,7 @@ function renderWaitingConfirm(r) {
     <div class="drv" style="margin-top:8px">
       <div class="av">${p.initial || 'P'}</div>
       <div><div class="nm">${esc(p.name || 'Pasajero')}</div><div class="car2">Recojo: ${esc(r.origin.address || 'Punto marcado')}${r.reference ? ' · ' + esc(r.reference) : ''}</div></div>
-      <div class="rate"><b>${money(r.offered_price)}</b><small>${r.payment_method === 'yape' ? 'Yape' : 'efectivo'}</small></div>
+      <div class="rate"><b>${money(rideTotal(r))}</b><small>${r.payment_method === 'yape' ? 'Yape' : 'efectivo'}</small></div>
     </div>`;
 }
 
@@ -957,11 +974,11 @@ async function cancelRide() {
 }
 
 function renderCompleted(r) {
-  const fp = r.final_price || r.offered_price;
+  const fp = r.final_price || rideTotal(r);
   const earn = fp - (r.commission != null ? r.commission : commissionFor(fp));
   $('#sheetBody').innerHTML = `
     <div style="text-align:center"><div style="font-size:42px">✅</div><h2>Viaje completado</h2></div>
-    <div class="fare"><div class="n"><span class="cur">${CUR}</span> ${Number(r.final_price || r.offered_price).toFixed(2)}</div>
+    <div class="fare"><div class="n"><span class="cur">${CUR}</span> ${fp.toFixed(2)}</div>
       <div class="l">${r.payment_method === 'yape' ? 'Cobras por Yape' : 'Cobras en efectivo'}</div></div>
     <div class="routeinfo">
       <div class="chip"><div class="v g">${money(earn)}</div><div class="l">Para ti</div></div>

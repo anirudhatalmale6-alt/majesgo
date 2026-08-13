@@ -171,6 +171,14 @@
         .fare .l{color:var(--muted);font-size:12.5px}
         .earnnote{text-align:center;font-size:11.5px;color:var(--muted);margin:-6px 0 12px}
         .earnnote.lock{color:#7DE9AC;background:rgba(0,230,118,.09);border:1px solid rgba(0,230,118,.22);border-radius:10px;padding:6px 10px;margin:-6px 0 12px}
+        /* Desglose del precio: viaje A→B + acercamiento del conductor hasta el pasajero */
+        .breakdown{border:1px solid var(--line);border-radius:11px;padding:9px 11px;margin:0 0 12px;font-size:12.5px}
+        .breakdown div{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:3px 0}
+        .breakdown span{color:var(--muted)}
+        .breakdown b{color:#F5F7FA;white-space:nowrap}
+        .breakdown .tot{border-top:1px solid var(--line);margin-top:4px;padding-top:6px}
+        .breakdown .tot span{color:#F5F7FA;font-weight:600}
+        .breakdown .tot b{color:#00E676;font-size:14.5px}
         .vehbox{margin-bottom:14px}
         .vehimg{width:100%;height:170px;object-fit:cover;border-radius:12px;border:1px solid var(--line);display:block;background:#12151a}
         .vehempty{width:100%;height:110px;border-radius:12px;border:1px dashed var(--line);background:#12151a;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font-size:30px;color:var(--muted)}
@@ -435,7 +443,7 @@ window.MG = {
 };
 </script>
 <script src="/js/pois.js?v=5"></script>
-<script src="/js/driver.js?v=24"></script>
+<script src="/js/driver.js?v=25"></script>
 <script src="/js/native.js?v=1"></script>
 </body>
 </html>

@@ -139,6 +139,10 @@ class Dispatch
             'excluded_driver_ids' => array_values(array_unique($excluded)),
             'offered_at'          => null,
             'route_to_pickup'     => null,
+            // el costo de aproximación era el del conductor que se cayó: se borra para que
+            // el siguiente lo fije con SU distancia (si no, el pasajero pagaría el recojo de otro)
+            'approach_m'          => null,
+            'approach_fee'        => 0,
             'is_demo'             => false,
             // Re-emisión "fresca": renueva la ventana de búsqueda y hace que las omisiones
             // (descartes por tiempo) previas de OTROS conductores ya no cuenten → vuelve a sonar.

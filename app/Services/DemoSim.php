@@ -88,13 +88,14 @@ class DemoSim
         if ($ride->status === 'completado') {
             return;
         }
-        $commission = Fare::commission((float) $ride->offered_price);
+        $total      = $ride->totalPrice(); // viaje + aproximación, igual que un viaje real
+        $commission = Fare::commission($total);
 
         $ride->forceFill([
             'status'       => 'completado',
             'started_at'   => $ride->started_at ?? now(),
             'completed_at' => now(),
-            'final_price'  => $ride->offered_price,
+            'final_price'  => $total,
             'commission'   => $commission,
         ])->save();
 

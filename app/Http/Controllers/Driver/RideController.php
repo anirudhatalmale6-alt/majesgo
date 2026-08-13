@@ -172,9 +172,18 @@ class RideController extends Controller
             if ($toPickup > $radiusKm * 1000) {
                 continue;
             }
+            // Costo de aproximación calculado con la distancia de ESTE conductor: dos conductores
+            // ven la misma carrera con distinto total, y el que viene de lejos ve pagado su recorrido.
+            // Es el monto definitivo: accept() lo recalcula con la misma fórmula, no con OSRM.
+            $approachM   = Fare::approachDistance((float) $driver->lat, (float) $driver->lng, (float) $ride->origin_lat, (float) $ride->origin_lng);
+            $approachFee = Fare::approach($approachM);
+
             $out[] = [
                 'code'                => $ride->code,
                 'to_pickup_m'         => round($toPickup),
+                'approach_m'          => (int) round($approachM),
+                'approach_fee'        => $approachFee,
+                'total_price'         => Fare::total((float) $ride->offered_price, $approachFee),
                 'trip_distance_m'     => $ride->distance_m,
                 'trip_duration_s'     => $ride->duration_s,
                 'offered_price'       => (float) $ride->offered_price,
@@ -195,6 +204,7 @@ class RideController extends Controller
         return response()->json([
             'requests'       => $out,
             'commission_pct' => Fare::commissionPct(),
+            'approach'       => Fare::approachRules(),
             'currency'       => Setting::get('currency', 'S/'),
         ]);
     }
@@ -230,6 +240,12 @@ class RideController extends Controller
 
             $toPickup = Routing::route((float) $driver->lat, (float) $driver->lng, (float) $ride->origin_lat, (float) $ride->origin_lng);
 
+            // Costo de aproximación: se fija AQUÍ, con la distancia del conductor que tomó el viaje.
+            // Se mide con Fare::approachDistance (el mismo criterio que su tarjeta), NO con la
+            // distancia de OSRM: así cobra exactamente el monto que vio antes de aceptar.
+            $approachM   = Fare::approachDistance((float) $driver->lat, (float) $driver->lng, (float) $ride->origin_lat, (float) $ride->origin_lng);
+            $approachFee = Fare::approach($approachM);
+
             // El conductor "ofrece" el viaje; el pasajero debe confirmarlo (15s).
             $ride->forceFill([
                 'driver_id'       => $driver->id,
@@ -237,6 +253,8 @@ class RideController extends Controller
                 'offered_at'      => now(),
                 'accepted_at'     => now(),
                 'route_to_pickup' => $toPickup['geometry'],
+                'approach_m'      => (int) round($approachM),
+                'approach_fee'    => $approachFee,
                 'is_demo'         => false,
             ])->save();
 
@@ -407,9 +425,10 @@ class RideController extends Controller
             return response()->json(['message' => 'No hay un viaje para finalizar.'], 422);
         }
 
-        // Precio cerrado: se cobra EXACTAMENTE lo pactado al aceptar el viaje.
-        // No se recalcula con el tiempo real transcurrido aunque haya habido tráfico o demoras.
-        $finalPrice = (float) $ride->offered_price;
+        // Precio cerrado: se cobra EXACTAMENTE lo pactado al aceptar el viaje (viaje + aproximación).
+        // No se recalcula con el tiempo real transcurrido aunque haya habido tráfico o demoras,
+        // ni se vuelve a medir la aproximación: approach_fee quedó congelado al aceptar.
+        $finalPrice = $ride->totalPrice();
         $commission = Fare::commission($finalPrice);
 
         $ride->forceFill([
@@ -717,7 +736,7 @@ class RideController extends Controller
             'status_label' => $r->statusLabel(),
             'origin' => $r->origin_address,
             'dest'   => $r->dest_address,
-            'price'  => (float) ($r->final_price ?? $r->offered_price),
+            'price'  => (float) ($r->final_price ?? $r->totalPrice()),
             'method' => $r->payment_method,
             'date'   => $r->created_at->format('d/m/Y H:i'),
         ]);
@@ -749,7 +768,7 @@ class RideController extends Controller
             ->get();
 
         // ganancias netas de hoy = tarifa cobrada menos la comisión de cada viaje
-        $earnings = $todayRides->sum(fn (Ride $r) => (float) ($r->final_price ?? $r->offered_price) - (float) ($r->commission ?? 0));
+        $earnings = $todayRides->sum(fn (Ride $r) => (float) ($r->final_price ?? $r->totalPrice()) - (float) ($r->commission ?? 0));
 
         $accepted = (int) $driver->stat_accepted;
         $rejected = (int) $driver->stat_rejected;
@@ -836,8 +855,11 @@ class RideController extends Controller
             'status_label' => $this->driverStatusLabel($ride->status),
             'cancelled_by' => $ride->cancelled_by,
             'offered_price'=> (float) $ride->offered_price,
+            'approach_m'   => $ride->approach_m !== null ? (int) $ride->approach_m : null,
+            'approach_fee' => (float) $ride->approach_fee,
+            'total_price'  => $ride->totalPrice(),
             'final_price'  => $ride->final_price !== null ? (float) $ride->final_price : null,
-            'commission'   => $ride->commission !== null ? (float) $ride->commission : Fare::commission((float) $ride->offered_price),
+            'commission'   => $ride->commission !== null ? (float) $ride->commission : Fare::commission($ride->totalPrice()),
             'payment_method' => $ride->payment_method,
             'distance_m'   => $ride->distance_m,
             'duration_s'   => $ride->duration_s,

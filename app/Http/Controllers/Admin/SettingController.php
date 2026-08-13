@@ -30,6 +30,11 @@ class SettingController extends Controller
             'recharge_note'    => Setting::get('recharge_note', ''),
             'min_saldo_alert'  => Setting::get('min_saldo_alert', '5.00'),
             'dispatch_radius_km' => Setting::get('dispatch_radius_km', '3.0'),
+            'dispatch_radius_max_km' => Setting::get('dispatch_radius_max_km', '10.0'),
+            'approach_enabled' => Setting::get('approach_enabled', '1'),
+            'approach_free_km' => Setting::get('approach_free_km', '3'),
+            'approach_per_km'  => Setting::get('approach_per_km', '1.00'),
+            'approach_max'     => Setting::get('approach_max', '15.00'),
             'demo_enabled'     => Setting::get('demo_enabled', '1'),
             'require_photos'   => Setting::get('require_photos', '1'),
         ];
@@ -59,12 +64,18 @@ class SettingController extends Controller
             'recharge_note'    => ['nullable', 'string', 'max:400'],
             'min_saldo_alert'  => ['required', 'numeric', 'min:0'],
             'dispatch_radius_km' => ['required', 'numeric', 'min:0.5', 'max:50'],
+            'dispatch_radius_max_km' => ['required', 'numeric', 'min:0.5', 'max:80'],
+            'approach_enabled' => ['nullable'],
+            'approach_free_km' => ['required', 'numeric', 'min:0', 'max:50'],
+            'approach_per_km'  => ['required', 'numeric', 'min:0', 'max:50'],
+            'approach_max'     => ['required', 'numeric', 'min:0', 'max:200'],
             'demo_enabled'     => ['nullable'],
             'require_photos'   => ['nullable'],
         ]);
 
         $data['demo_enabled']   = $request->boolean('demo_enabled') ? '1' : '0';
         $data['require_photos'] = $request->boolean('require_photos') ? '1' : '0';
+        $data['approach_enabled'] = $request->boolean('approach_enabled') ? '1' : '0';
 
         foreach ($data as $k => $v) {
             // los campos opcionales vacíos llegan como null: se guardan como cadena vacía

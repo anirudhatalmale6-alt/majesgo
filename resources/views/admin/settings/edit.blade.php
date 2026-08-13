@@ -47,6 +47,53 @@
             </div>
         </div>
 
+        @php
+            $apFree = (float) $settings['approach_free_km'];
+            $apKm   = (float) $settings['approach_per_km'];
+            $apMax  = (float) $settings['approach_max'];
+            $apCur  = $settings['currency'];
+            // mismo redondeo que App\Services\Fare::approach(): múltiplos de 0.50, con tope
+            $apFee = fn ($km) => min($apMax, round(max(0, $km - $apFree) * $apKm * 2) / 2);
+        @endphp
+        <div class="card">
+            <h3 style="margin-bottom:6px">Costo de aproximación (recojo)</h3>
+            <div class="muted" style="font-size:12px;margin-bottom:14px">
+                Lo que se le paga al conductor por el trayecto que recorre para <b>llegar</b> al pasajero.
+                La tarifa por minutos cubre solo el viaje del punto A al punto B; sin esto, un conductor que
+                está a 15 km pierde plata al tomar la carrera y prefiere ignorarla.
+                Se calcula con la distancia real del conductor que toma el viaje, y el pasajero lo confirma antes de que arranque.
+            </div>
+            <div class="field">
+                <label style="display:flex;align-items:center;gap:9px;cursor:pointer">
+                    <input type="checkbox" name="approach_enabled" value="1" {{ old('approach_enabled',$settings['approach_enabled'])=='1' ? 'checked' : '' }} style="width:auto">
+                    <span>Cobrar el acercamiento al pasajero</span>
+                </label>
+                <div class="muted" style="font-size:12px;margin-top:5px">Si lo desactivas, el precio vuelve a ser solo el tramo A→B (como estaba antes).</div>
+            </div>
+            <div class="field">
+                <label>Radio gratuito (km)</label>
+                <input class="input" type="number" step="0.5" min="0" name="approach_free_km" value="{{ old('approach_free_km',$settings['approach_free_km']) }}" required>
+                <div class="muted" style="font-size:12px;margin-top:5px">Hasta esta distancia no se cobra nada por el recojo. Ej: 3</div>
+            </div>
+            <div class="field">
+                <label>Costo por km adicional ({{ $apCur }})</label>
+                <input class="input" type="number" step="0.10" min="0" name="approach_per_km" value="{{ old('approach_per_km',$settings['approach_per_km']) }}" required>
+                <div class="muted" style="font-size:12px;margin-top:5px">Por cada km que pase del radio gratuito. El monto se redondea a {{ $apCur }} 0.50.</div>
+            </div>
+            <div class="field">
+                <label>Tope máximo ({{ $apCur }})</label>
+                <input class="input" type="number" step="0.5" min="0" name="approach_max" value="{{ old('approach_max',$settings['approach_max']) }}" required>
+                <div class="muted" style="font-size:12px;margin-top:5px">Freno de seguridad: por lejos que esté el conductor, el recojo nunca supera este monto.</div>
+            </div>
+            <div class="muted" style="font-size:12px;line-height:1.9;border-top:1px solid rgba(255,255,255,.08);padding-top:12px">
+                <b>Con los valores actuales</b> (sobre una carrera de {{ $apCur }} {{ number_format((float)$settings['fare_min'],2) }}):<br>
+                @foreach ([1, 3, 5, 10, 15] as $km)
+                    Conductor a {{ $km }} km → recojo {{ $apCur }} {{ number_format($apFee($km),2) }}
+                    · el pasajero paga {{ $apCur }} {{ number_format((float)$settings['fare_min'] + $apFee($km),2) }}<br>
+                @endforeach
+            </div>
+        </div>
+
         <div class="card">
             <h3 style="margin-bottom:14px">Datos de la plataforma</h3>
             <div class="field"><label>Nombre de la app</label><input class="input" name="app_name" value="{{ old('app_name',$settings['app_name']) }}" required></div>
@@ -113,6 +160,15 @@
                 <label>Radio de búsqueda de conductores (km)</label>
                 <input class="input" type="number" step="0.5" min="0.5" name="dispatch_radius_km" value="{{ old('dispatch_radius_km',$settings['dispatch_radius_km']) }}" required>
                 <div class="muted" style="font-size:12px;margin-top:5px">A qué distancia del pasajero se avisa a los conductores. Ej: 3</div>
+            </div>
+            <div class="field">
+                <label>Radio máximo (km)</label>
+                <input class="input" type="number" step="0.5" min="0.5" name="dispatch_radius_max_km" value="{{ old('dispatch_radius_max_km',$settings['dispatch_radius_max_km']) }}" required>
+                <div class="muted" style="font-size:12px;margin-top:5px">
+                    Si nadie toma el viaje, la búsqueda se va ampliando desde el radio de arriba hasta este máximo.
+                    Ningún conductor más lejos que esto recibe la solicitud, por más que el costo de aproximación
+                    la haga rentable: si quieres que lleguen carreras a conductores muy lejanos, sube este número.
+                </div>
             </div>
             <div class="field">
                 <label style="display:flex;align-items:center;gap:9px;cursor:pointer">

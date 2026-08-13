@@ -40,8 +40,45 @@ class RideController extends Controller
             'geometry'   => $route['geometry'],
             'suggested'  => $suggested,
             'floor'      => Fare::floor($suggested),
+            'approach'   => $this->approachEstimate((float) $d['origin_lat'], (float) $d['origin_lng']),
             'currency'   => Setting::get('currency', 'S/'),
         ]);
+    }
+
+    /**
+     * Estimación del costo de aproximación para mostrar ANTES de pedir el viaje.
+     *
+     * El monto real depende del conductor que termine tomando la carrera, y ese aún no existe.
+     * Así que se estima con el conductor libre MÁS CERCANO en este momento: es el mejor caso
+     * realista y el que casi siempre acepta primero (el despacho ordena por cercanía).
+     * El pasajero ve el monto definitivo en la pantalla de confirmación, antes de aceptar.
+     */
+    private function approachEstimate(float $lat, float $lng): array
+    {
+        $rules = Fare::approachRules();
+
+        if (! $rules['enabled']) {
+            return ['enabled' => false, 'fee' => 0.0, 'distance_m' => null] + $rules;
+        }
+
+        $nearest = null;
+        foreach (Dispatch::eligibleDrivers($lat, $lng, (float) Setting::get('dispatch_radius_max_km', 10.0)) as $e) {
+            if ($e['driver']->is_demo) {
+                continue;
+            }
+            // eligibleDrivers mide en línea recta; para el precio se usa el mismo criterio
+            // que la tarjeta del conductor y que accept(), o el estimado no cuadraría.
+            $nearest = Fare::approachDistance($lat, $lng, (float) $e['driver']->lat, (float) $e['driver']->lng);
+            break; // eligibleDrivers ya viene ordenado por cercanía
+        }
+
+        // Sin conductores conectados no hay una distancia real que estimar: se muestra solo
+        // el tramo A→B y se avisa que el recojo se suma cuando un conductor tome el viaje.
+        return [
+            'enabled'    => true,
+            'fee'        => $nearest !== null ? Fare::approach($nearest) : 0.0,
+            'distance_m' => $nearest !== null ? (int) round($nearest) : null,
+        ] + $rules;
     }
 
     /** Crea la solicitud de viaje. */
@@ -242,7 +279,8 @@ class RideController extends Controller
         if (in_array($driver->id, (array) $ride->excluded_driver_ids, true)) {
             return false; // el pasajero ya rechazó al conductor de prueba
         }
-        $toPickup = Routing::route((float) $driver->lat, (float) $driver->lng, (float) $ride->origin_lat, (float) $ride->origin_lng);
+        $toPickup  = Routing::route((float) $driver->lat, (float) $driver->lng, (float) $ride->origin_lat, (float) $ride->origin_lng);
+        $approachM = Fare::approachDistance((float) $driver->lat, (float) $driver->lng, (float) $ride->origin_lat, (float) $ride->origin_lng);
 
         $ride->forceFill([
             'driver_id'       => $driver->id,
@@ -250,6 +288,9 @@ class RideController extends Controller
             'offered_at'      => now(),
             'accepted_at'     => now(),
             'route_to_pickup' => $toPickup['geometry'],
+            // mismo cálculo que un conductor real, para que la prueba refleje el precio final
+            'approach_m'      => (int) round($approachM),
+            'approach_fee'    => Fare::approach($approachM),
             'is_demo'         => true,
         ])->save();
 
@@ -441,7 +482,7 @@ class RideController extends Controller
             'status_label' => $r->statusLabel(),
             'origin'     => $r->origin_address,
             'dest'       => $r->dest_address,
-            'price'      => (float) ($r->final_price ?? $r->offered_price),
+            'price'      => (float) ($r->final_price ?? $r->totalPrice()),
             'method'     => $r->payment_method,
             'date'       => $r->created_at->format('d/m/Y H:i'),
         ]);
@@ -462,6 +503,10 @@ class RideController extends Controller
             'is_demo'      => (bool) $ride->is_demo,
             'currency'     => $cur,
             'offered_price'=> (float) $ride->offered_price,
+            // Costo de aproximación del conductor que tomó el viaje (0 mientras nadie lo tome).
+            'approach_m'   => $ride->approach_m !== null ? (int) $ride->approach_m : null,
+            'approach_fee' => (float) $ride->approach_fee,
+            'total_price'  => $ride->totalPrice(),
             'final_price'  => $ride->final_price !== null ? (float) $ride->final_price : null,
             'payment_method' => $ride->payment_method,
             'distance_m'   => $ride->distance_m,

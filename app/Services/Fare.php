@@ -13,16 +13,23 @@ use App\Models\Setting;
  *   - Tarifa mínima S/ 10.00: cualquier carrera de 10 minutos o menos cuesta S/ 10.00.
  *   - Del minuto 11 en adelante se suma S/ 1.00 por minuto (11 min = S/ 11, 15 min = S/ 15).
  *
+ * COSTO DE APROXIMACIÓN (regla vigente desde 2026-08-13):
+ *   - Lo anterior cubre solo el tramo A→B. El acercamiento del conductor al recojo se cobra aparte.
+ *   - Radio gratuito configurable (3 km por defecto); pasado ese radio, S/ 1.00 por km extra.
+ *   - Se calcula con la distancia REAL del conductor que toma el viaje, no de uno hipotético.
+ *
  * COMISIÓN: porcentaje de la tarifa (5% por defecto); el 95% restante queda para el conductor.
+ * Se aplica sobre el total cobrado (viaje + aproximación), que es lo que el conductor recibe.
  *
  * El pasajero puede proponer su propio precio (estilo inDrive), nunca por debajo de floor().
  *
  * ⚠ PRECIO CERRADO — REGLA DE NEGOCIO INNEGOCIABLE
  * suggest() sirve ÚNICAMENTE para proponer un precio ANTES de solicitar el viaje.
- * Una vez que el conductor acepta, el precio pactado (rides.offered_price) queda congelado:
- * el pasajero paga exactamente ese monto aunque el viaje demore el triple por tráfico.
- * NUNCA llames a suggest() al finalizar un viaje ni recalcules la tarifa con el tiempo real
- * transcurrido — final_price siempre se copia de offered_price (ver Driver\RideController::complete).
+ * Una vez que el pasajero confirma al conductor, el total pactado
+ * (rides.offered_price + rides.approach_fee) queda congelado: paga exactamente ese monto
+ * aunque el viaje demore el triple por tráfico. NUNCA llames a suggest() al finalizar un viaje
+ * ni recalcules la tarifa con el tiempo real transcurrido — final_price siempre se copia de
+ * total() sobre lo ya guardado (ver Driver\RideController::complete).
  */
 class Fare
 {
@@ -54,6 +61,73 @@ class Fare
         $min = (float) Setting::get('fare_min', 10.00);
 
         return max($min, round($suggested * $pct, 2));
+    }
+
+    /* ---------- Costo de aproximación (lo que el conductor recorre hasta el recojo) ---------- */
+
+    public static function approachEnabled(): bool
+    {
+        return (string) Setting::get('approach_enabled', '1') === '1';
+    }
+
+    /**
+     * Distancia de aproximación con la que se COBRA, a partir de las coordenadas.
+     *
+     * ⚠ Siempre por aquí, nunca con la distancia que devuelve OSRM.
+     * La tarjeta del conductor recalcula esto cada pocos segundos para cada viaje en pantalla:
+     * pedirle una ruta real a OSRM por cada par (conductor, viaje) no es viable. Si la tarjeta
+     * estimara en línea recta y el cobro usara la ruta real, el conductor vería S/ 5.00 y se le
+     * pagaría otra cosa al aceptar. Un solo criterio para los dos lados: línea recta corregida
+     * por el factor de calles.
+     */
+    public static function approachDistance(float $lat1, float $lng1, float $lat2, float $lng2): float
+    {
+        return Routing::streetEstimate($lat1, $lng1, $lat2, $lng2);
+    }
+
+    /**
+     * Cobro por el acercamiento del conductor al punto de recojo.
+     *
+     * Los primeros km son gratis (radio base); a partir de ahí se cobra por km, con un tope.
+     * Se redondea a S/ 0.50 para que el monto sea "de bolsillo" y fácil de leer en la tarjeta.
+     *
+     * @param  float  $distanceM  distancia de approachDistance(), en metros
+     */
+    public static function approach(float $distanceM): float
+    {
+        if (! self::approachEnabled() || $distanceM <= 0) {
+            return 0.0;
+        }
+
+        $freeKm = (float) Setting::get('approach_free_km', 3.0);
+        $perKm  = (float) Setting::get('approach_per_km', 1.00);
+        $max    = (float) Setting::get('approach_max', 15.00);
+
+        $billableKm = max(0.0, $distanceM / 1000 - $freeKm);
+        if ($billableKm <= 0 || $perKm <= 0) {
+            return 0.0;
+        }
+
+        $fee = round($billableKm * $perKm * 2) / 2; // al múltiplo de 0.50 más cercano
+
+        return round(min($fee, $max), 2);
+    }
+
+    /** Total que paga el pasajero: tramo A→B + acercamiento. */
+    public static function total(float $tripPrice, float $approachFee): float
+    {
+        return round($tripPrice + $approachFee, 2);
+    }
+
+    /** Parámetros vigentes del acercamiento (para mostrarlos en las apps). */
+    public static function approachRules(): array
+    {
+        return [
+            'enabled' => self::approachEnabled(),
+            'free_km' => (float) Setting::get('approach_free_km', 3.0),
+            'per_km'  => (float) Setting::get('approach_per_km', 1.00),
+            'max'     => (float) Setting::get('approach_max', 15.00),
+        ];
     }
 
     /** Comisión de la app para una tarifa dada (porcentaje configurable). */
