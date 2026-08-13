@@ -657,27 +657,35 @@ function approachFee() {
 }
 
 /**
- * Aviso del recojo en una sola línea (el panel ya va cargado; los textos largos lo estiraban).
- * Con radio gratuito en 0 no tiene sentido decir "si viene de más de 0 km".
+ * Aviso de que el total todavía puede moverse un poco.
+ *
+ * DECISIÓN DE NEGOCIO (2026-08-13, la central con sus socios): al pasajero NO se le detalla
+ * el costo de aproximación. Ni el monto, ni los km del conductor. Se sigue cobrando igual y el
+ * pasajero ve el TOTAL antes de aceptar; lo que desaparece es el renglón que lo desglosaba.
+ * Por eso aquí no se nombra el recojo: solo se avisa que el total se confirma más adelante,
+ * para que la cifra del botón no cambie de golpe sin explicación.
  */
 function approachHint() {
   const a = quote && quote.approach;
-  if (!a || !a.enabled) return '';
-  if (a.distance_m == null) {
-    return a.free_km > 0
-      ? `<div class="hintprice">Se suma el recojo si el conductor viene de más de ${a.free_km} km.</div>`
-      : `<div class="hintprice">Se suma el recojo del conductor. Lo verás antes de aceptar.</div>`;
-  }
-  if (!a.fee) {
-    return `<div class="hintprice">✅ Recojo sin costo (conductor a ${(a.distance_m / 1000).toFixed(1)} km).</div>`;
-  }
-  return `<div class="hintprice">+ ${money(a.fee)} de recojo aprox. · conductor a ${(a.distance_m / 1000).toFixed(1)} km</div>`;
+  if (!a || !a.enabled || !approachFee()) return '';
+  return `<div class="hintprice">El total final lo confirmas cuando aparezca tu conductor.</div>`;
 }
 
 /** Texto del botón principal: viaje + recojo estimado. Una sola fórmula para los dos sitios. */
 function requestLabel() {
   const ap = approachFee();
   return `Buscar taxi · ${money(price + ap)}${ap > 0 ? ' aprox.' : ''}`;
+}
+
+/**
+ * Lo que se le muestra al pasajero como "el viaje": su oferta CON el acercamiento ya sumado.
+ *
+ * No se puede simplemente borrar el renglón del recojo y dejar los demás: las cifras dejarían
+ * de sumar (10.80 + 3.00 no da 14.30) y eso se lee como un cobro de más. Se integra en el
+ * precio del viaje, que es lo que el pasajero entiende como la carrera.
+ */
+function tripLine(r) {
+  return (Number(r.offered_price) || 0) + (Number(r.approach_fee) || 0);
 }
 
 function renderPlanning() {
@@ -889,11 +897,11 @@ function renderOffer(r) {
   const timeout = off.timeout || 15;
   let left = (off.seconds_left != null) ? off.seconds_left : timeout;
   const eta = off.eta_min ? ('~' + off.eta_min + ' min') : '—';
-  // Si el conductor viene de lejos, el recojo se cobra aparte: se muestra desglosado
-  // ANTES de aceptar, para que nadie confirme un monto que no vio.
-  const apFee = Number(r.approach_fee) || 0;
-  const cFee  = Number(r.counter_offer) || 0;
-  const hasBreak = apFee > 0 || cFee > 0;
+  // Pase lo que pase, el TOTAL siempre se ve antes de aceptar: nadie confirma un monto que no vio.
+  const cFee = Number(r.counter_offer) || 0;
+  // El desglose solo aparece si hay algo que el pasajero deba entender: lo que pide el
+  // conductor de más. El acercamiento va integrado en el precio del viaje (ver tripLine).
+  const hasBreak = cFee > 0;
   // Botones SIEMPRE a la vista: aquí el pasajero decide con el reloj corriendo (15 s). Si tiene
   // que descubrir que el panel se desplaza para encontrar «Aceptar», pierde la carrera.
   $('#sheetBody').classList.add('hascta');
@@ -919,13 +927,14 @@ function renderOffer(r) {
            <div class="chip"><div class="v">${money(rideTotal(r))}</div><div class="l">${r.payment_method === 'yape' ? 'Yape' : 'Efectivo'}</div></div>
          </div>`}
     ${hasBreak ? `<div class="breakdown">
-      <div><span>Viaje hasta tu destino</span><b>${money(r.offered_price)}</b></div>
-      ${apFee > 0 ? `<div><span>Recojo · conductor a ${(r.approach_m / 1000).toFixed(1)} km</span><b>+ ${money(apFee)}</b></div>` : ''}
-      ${cFee > 0 ? `<div><span>Lo que pide el conductor</span><b>+ ${money(cFee)}</b></div>` : ''}
+      <div><span>Viaje hasta tu destino</span><b>${money(tripLine(r))}</b></div>
+      <div><span>Lo que pide el conductor</span><b>+ ${money(cFee)}</b></div>
       <div class="tot"><span>Total a pagar</span><b>${money(rideTotal(r))}</b></div>
     </div>` : ''}
     <div class="sub" style="text-align:center;margin:-4px 0 2px">${cFee > 0
-      ? `Pide ${money(cFee)} más que tu oferta. Si prefieres, busca otro.`
+      // "más que tu oferta" ya no calza: la línea del viaje trae el acercamiento sumado y no
+      // coincide con lo que el pasajero tecleó. Se habla del cobro extra, no de la diferencia.
+      ? `Este conductor pide ${money(cFee)} más por esta carrera. Si prefieres, busca otro.`
       : 'Si no respondes a tiempo, buscaremos otro automáticamente.'}</div>
     <div class="sheetcta">
       <div class="acts">
@@ -988,7 +997,7 @@ function renderAssigned(r) {
   };
   const band = bands[r.status] || [r.status_label, ''];
   const canCancel = r.status !== 'a_bordo';
-  const hasBreak = Number(r.approach_fee) > 0 || Number(r.counter_offer) > 0;
+  const hasBreak = Number(r.counter_offer) > 0; // el acercamiento no se le detalla al pasajero
   // Chat y Cancelar también van fijos: con la foto del vehículo y el desglose, en pantallas
   // bajas quedaban por debajo del corte.
   $('#sheetBody').classList.add('hascta');
@@ -1009,9 +1018,8 @@ function renderAssigned(r) {
            <div class="chip"><div class="v">${(r.distance_m / 1000).toFixed(1)} km</div><div class="l">al destino</div></div>
          </div>`}
     ${hasBreak ? `<div class="breakdown">
-      <div><span>Viaje hasta tu destino</span><b>${money(r.offered_price)}</b></div>
-      ${Number(r.approach_fee) > 0 ? `<div><span>Recojo</span><b>+ ${money(r.approach_fee)}</b></div>` : ''}
-      ${Number(r.counter_offer) > 0 ? `<div><span>Ajuste del conductor</span><b>+ ${money(r.counter_offer)}</b></div>` : ''}
+      <div><span>Viaje hasta tu destino</span><b>${money(tripLine(r))}</b></div>
+      <div><span>Ajuste del conductor</span><b>+ ${money(r.counter_offer)}</b></div>
     </div>` : ''}
     <div class="pricelock">🔒 Precio fijo pactado: ${money(rideTotal(r))}. No cambia por el tráfico.</div>
     <div class="sheetcta">
