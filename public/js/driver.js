@@ -570,8 +570,9 @@ function renderHome() {
     <div id="homeEssential">
       ${online
         ? `<div class="onlinebar"><span class="odot"></span><span>EN LÍNEA · buscando viajes</span></div>
-           <div class="slide off" id="slide"><div class="knob" id="knob"><svg viewBox="0 0 24 24" fill="none" stroke="#5a1414" stroke-width="2.6" stroke-linecap="round"><path d="M12 3.2v8.4"/><path d="M6.7 6.7a7.5 7.5 0 1 0 10.6 0"/></svg></div><span class="slidetext" id="slidetext">Desliza para desconectarte</span></div>`
-        : `<div class="slide" id="slide"><div class="knob" id="knob"><svg viewBox="0 0 24 24" fill="none" stroke="#0f5132" stroke-width="3" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></div><span class="slidetext" id="slidetext">Desliza para conectarte</span></div>`}
+           <div class="slide off" id="slide"><div class="knob" id="knob"><svg viewBox="0 0 24 24" fill="none" stroke="#e3e8ee" stroke-width="2.6" stroke-linecap="round"><path d="M12 3.2v8.4"/><path d="M6.7 6.7a7.5 7.5 0 1 0 10.6 0"/></svg></div><span class="slidetext" id="slidetext">Desliza para desconectarte</span></div>`
+        : `<div class="offlinebar"><span class="odot"></span><span>DESCONECTADO · no recibes viajes</span></div>
+           <div class="slide" id="slide"><div class="knob" id="knob"><svg viewBox="0 0 24 24" fill="none" stroke="#5a1414" stroke-width="3" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></div><span class="slidetext" id="slidetext">Desliza para conectarte</span></div>`}
       ${lowSaldo ? `<div class="warn red" style="margin-top:12px">⚠️ Tu saldo (${money(me.saldo)}) no alcanza para la comisión mínima de ${money(minSaldo)}. Recarga para recibir viajes.</div>` : ''}
       <div class="essrow">
         <div class="statcell earn"><div class="sv g" id="stEarn">${dstats ? money(dstats.today_earnings) : '…'}</div><div class="sl">Ganancias del día</div></div>

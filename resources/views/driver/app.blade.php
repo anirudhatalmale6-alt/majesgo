@@ -51,17 +51,26 @@
         .offerzone .ozlabel.dest{background:#e23b3b}
         /* ---- Home rediseñado del conductor ---- */
         .dstatetxt{font-weight:700;font-size:15px;margin:2px 0 12px;color:#fff}
-        .slide{position:relative;height:60px;border-radius:16px;background:linear-gradient(90deg,#0e2c1a,#12351f);border:1px solid rgba(0,200,83,.35);overflow:hidden;display:flex;align-items:center;justify-content:center;user-select:none}
-        .slide .slidetext{color:#8fe6b0;font-weight:700;font-size:15px;pointer-events:none}
-        .slide .knob{position:absolute;left:4px;top:4px;width:52px;height:52px;border-radius:13px;background:var(--verde);display:grid;place-items:center;cursor:grab;touch-action:none;box-shadow:0 3px 10px rgba(0,0,0,.4);z-index:2}
+        /* ⚠ El COLOR indica el ESTADO, no la acción: rojo = desconectado, verde = en línea.
+           Por eso el deslizador para CONECTARSE es rojo (todavía no recibe viajes) y al conectarse
+           todo el bloque pasa a verde. El deslizador para desconectarse queda gris/neutro:
+           mientras está en línea, el único color del panel debe ser el verde. */
+        .slide{position:relative;height:60px;border-radius:16px;background:linear-gradient(90deg,#3a1414,#2c1212);border:1px solid rgba(255,90,90,.42);overflow:hidden;display:flex;align-items:center;justify-content:center;user-select:none}
+        .slide .slidetext{color:#ff9d9d;font-weight:700;font-size:15px;pointer-events:none}
+        .slide .knob{position:absolute;left:4px;top:4px;width:52px;height:52px;border-radius:13px;background:#ff4d4d;display:grid;place-items:center;cursor:grab;touch-action:none;box-shadow:0 3px 10px rgba(0,0,0,.4);z-index:2}
         .slide .knob svg{width:24px;height:24px}
-        /* Variante "desliza para desconectarte" (gris/rojo, gesto deliberado para no desconectar por error) */
-        .onlinebar + .slide.off{margin-top:10px}
-        .slide.off{background:linear-gradient(90deg,#2b2f36,#23272e);border-color:rgba(255,90,90,.42)}
-        .slide.off .slidetext{color:#ff9d9d}
-        .slide.off .knob{background:#ff5a5a}
-        .onlinebar{display:flex;align-items:center;gap:10px;height:56px;padding:0 8px 0 18px;border-radius:16px;background:linear-gradient(90deg,rgba(0,200,83,.22),rgba(0,200,83,.08));border:1px solid rgba(0,200,83,.4);color:#fff;font-weight:800;font-size:15px}
-        .onlinebar .odot{width:11px;height:11px;border-radius:50%;background:var(--verde);box-shadow:0 0 0 4px rgba(0,200,83,.25);animation:odotp 1.6s infinite}
+        /* Variante "desliza para desconectarte" (neutra, gesto deliberado para no desconectar por error) */
+        .onlinebar + .slide.off,.offlinebar + .slide{margin-top:10px}
+        .slide.off{background:linear-gradient(90deg,#2b2f36,#23272e);border-color:rgba(255,255,255,.13)}
+        .slide.off .slidetext{color:#aeb6c0}
+        .slide.off .knob{background:#454d57}
+        .onlinebar,.offlinebar{display:flex;align-items:center;gap:10px;height:56px;padding:0 8px 0 18px;border-radius:16px;color:#fff;font-weight:800;font-size:15px}
+        .onlinebar{background:linear-gradient(90deg,rgba(0,200,83,.22),rgba(0,200,83,.08));border:1px solid rgba(0,200,83,.4)}
+        .offlinebar{background:linear-gradient(90deg,rgba(255,82,82,.2),rgba(255,82,82,.06));border:1px solid rgba(255,82,82,.42)}
+        .onlinebar .odot,.offlinebar .odot{width:11px;height:11px;border-radius:50%;flex:none}
+        .onlinebar .odot{background:var(--verde);box-shadow:0 0 0 4px rgba(0,200,83,.25);animation:odotp 1.6s infinite}
+        .offlinebar .odot{background:#ff5252;box-shadow:0 0 0 4px rgba(255,82,82,.22)}
+        .offlinebar span:last-child{font-size:14px}
         @keyframes odotp{0%,100%{opacity:1}50%{opacity:.4}}
         .onlinebar .offbtn{margin-left:auto;background:#2a2f37;border:0;color:#cfd6de;font-weight:700;font-size:13px;padding:9px 14px;border-radius:11px;cursor:pointer}
         .essrow{display:grid;grid-template-columns:1.45fr 1fr;gap:9px;margin-top:12px}
@@ -453,7 +462,7 @@ window.MG = {
 };
 </script>
 <script src="/js/pois.js?v=5"></script>
-<script src="/js/driver.js?v=26"></script>
+<script src="/js/driver.js?v=27"></script>
 <script src="/js/native.js?v=1"></script>
 </body>
 </html>
