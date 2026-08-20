@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\DriverController;
 use App\Http\Controllers\Admin\DriverPhotoController;
 use App\Http\Controllers\Admin\RechargeController;
 use App\Http\Controllers\Admin\MapPoiController;
+use App\Http\Controllers\Admin\PassengerController;
 use App\Http\Controllers\Admin\PlaceController;
 use App\Http\Controllers\Admin\SettingController;
 use App\Http\Controllers\Passenger\AuthController as PassengerAuth;
@@ -133,6 +134,12 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::delete('conductores/{driver}', [DriverController::class, 'destroy'])->name('drivers.destroy');
         Route::post('conductores/{id}/restaurar', [DriverController::class, 'restore'])->name('drivers.restore');
         Route::delete('conductores/{id}/definitivo', [DriverController::class, 'forceDestroy'])->name('drivers.forceDestroy');
+
+        // Pasajeros (los usuarios que se registran solos desde la app)
+        Route::get('pasajeros', [PassengerController::class, 'index'])->name('passengers.index');
+        Route::get('pasajeros/{passenger}', [PassengerController::class, 'show'])->name('passengers.show');
+        Route::post('pasajeros/{passenger}/estado', [PassengerController::class, 'setAccountStatus'])->name('passengers.status');
+        Route::post('pasajeros/{passenger}/clave', [PassengerController::class, 'resetPassword'])->name('passengers.password');
 
         // Recargas
         // Moderación de fotos de conductores (rostro y vehículo)

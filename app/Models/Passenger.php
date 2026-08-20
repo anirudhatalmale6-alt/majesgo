@@ -27,4 +27,26 @@ class Passenger extends Model
             ->latest()
             ->first();
     }
+
+    public function isBlocked(): bool
+    {
+        return $this->account_status !== 'activo';
+    }
+
+    public function accountLabel(): string
+    {
+        return [
+            'activo'     => 'Activo',
+            'suspendido' => 'Suspendido',
+            'bloqueado'  => 'Bloqueado',
+        ][$this->account_status] ?? $this->account_status;
+    }
+
+    /** Mensaje que ve el pasajero cuando la central le cerró la cuenta. */
+    public function blockedMessage(): string
+    {
+        return $this->account_status === 'bloqueado'
+            ? 'Tu cuenta fue bloqueada. Comunícate con MajesGo para más información.'
+            : 'Tu cuenta está suspendida. Comunícate con MajesGo para reactivarla.';
+    }
 }

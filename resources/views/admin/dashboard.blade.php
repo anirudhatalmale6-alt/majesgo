@@ -18,6 +18,11 @@
         <div class="v">{{ $stats['drivers_online'] }}</div>
         <div class="l">Conectados ahora ({{ $stats['drivers_available'] }} disponibles)</div>
     </div>
+    <div class="stat" onclick="location='{{ route('admin.passengers.index') }}'" style="cursor:pointer">
+        <div class="ic g"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></svg></div>
+        <div class="v">{{ $stats['pax_total'] }}</div>
+        <div class="l">Pasajeros registrados @if($stats['pax_new_7d'])({{ $stats['pax_new_7d'] }} {{ $stats['pax_new_7d']==1?'nuevo':'nuevos' }} esta semana)@endif</div>
+    </div>
     <div class="stat">
         <div class="ic b"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></div>
         <div class="v">{{ $cur }} {{ number_format($stats['saldo_total'],2) }}</div>

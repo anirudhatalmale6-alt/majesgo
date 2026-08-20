@@ -21,6 +21,15 @@ async function api(path, body, method) {
   if (body) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
   const res = await fetch('/app/' + path, opt);
   const data = await res.json().catch(() => ({}));
+  // La central cerró la cuenta con la sesión ya abierta. Sin esto la app se quedaría
+  // "pensando" para siempre: casi todas las llamadas atrapan el error en silencio y el
+  // pasajero no sabría por qué dejó de funcionar. Lo devolvemos a la pantalla de acceso
+  // con el motivo a la vista.
+  if (res.status === 403 && data.blocked) {
+    try { sessionStorage.setItem('mg_blocked', data.message || ''); } catch (_) {}
+    location.replace(location.pathname);
+    throw { status: 403, message: data.message, blocked: true };
+  }
   if (!res.ok) throw { status: res.status, message: data.message || 'Ocurrió un error', errors: data.errors };
   return data;
 }
@@ -130,12 +139,24 @@ async function doAuth() {
 
 /* ================= BOOT ================= */
 async function start() {
+  showBlockedNotice();
   try {
     const me = await api('api/me');
     if (me.csrf) MG.csrf = me.csrf;
     if (me.authenticated) { $('#auth').classList.add('hidden'); await boot(); }
     else { $('#auth').classList.remove('hidden'); }
   } catch (e) { $('#auth').classList.remove('hidden'); }
+}
+
+/** Motivo del cierre de cuenta, guardado justo antes de recargar. */
+function showBlockedNotice() {
+  let msg = null;
+  try { msg = sessionStorage.getItem('mg_blocked'); sessionStorage.removeItem('mg_blocked'); } catch (_) {}
+  if (!msg) return;
+  const err = $('#authErr');
+  err.textContent = msg;
+  err.style.display = 'block';
+  $('#auth').classList.remove('hidden');
 }
 
 async function boot() {

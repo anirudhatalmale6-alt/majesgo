@@ -19,6 +19,19 @@ class AuthController extends Controller
             return response()->json(['authenticated' => false, 'csrf' => csrf_token()]);
         }
 
+        // Cuenta cerrada por la central mientras la sesión seguía abierta: la app tiene que
+        // arrancar en la pantalla de acceso, no en el mapa.
+        if ($p->isBlocked()) {
+            $request->session()->forget('passenger_id');
+
+            return response()->json([
+                'authenticated' => false,
+                'blocked'       => true,
+                'message'       => $p->blockedMessage(),
+                'csrf'          => csrf_token(),
+            ]);
+        }
+
         return response()->json([
             'authenticated' => true,
             'passenger' => $this->publicData($p),
@@ -79,9 +92,9 @@ class AuthController extends Controller
             ]);
         }
 
-        if ($p->account_status !== 'activo') {
+        if ($p->isBlocked()) {
             throw ValidationException::withMessages([
-                'phone' => 'Tu cuenta está suspendida. Contacta a soporte.',
+                'phone' => $p->blockedMessage(),
             ]);
         }
 

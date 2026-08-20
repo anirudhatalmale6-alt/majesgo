@@ -18,6 +18,8 @@ class DashboardController extends Controller
             'drivers_blocked' => Driver::where('account_status', '!=', 'activo')->count(),
             'saldo_total'     => (float) Driver::sum('saldo'),
             'recharges_pending' => Recharge::where('status', 'pendiente')->count(),
+            'pax_total'       => \App\Models\Passenger::count(),
+            'pax_new_7d'      => \App\Models\Passenger::where('created_at', '>=', now()->subDays(7))->count(),
         ];
 
         $lowSaldo = \App\Services\Fare::minSaldo();
