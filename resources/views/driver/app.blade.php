@@ -465,7 +465,8 @@ window.MG = {
 };
 </script>
 <script src="/js/pois.js?v=5"></script>
-<script src="/js/driver.js?v=27"></script>
+<script src="/js/majesgo-car.js?v=1"></script>
+<script src="/js/driver.js?v=28"></script>
 <script src="/js/native.js?v=1"></script>
 </body>
 </html>

@@ -360,44 +360,11 @@ function setupSheetDrag() {
 function openSheet() { if (sheetState !== 'open') { sheetState = 'open'; applySheetSnap(true); } }
 
 /* ---------- Auto en el mapa ----------
- * El mismo sedán visto desde arriba que usa la app del conductor, pero en verde
- * MajesGo: el pasajero tiene que distinguir de un golpe de vista los taxis de su
- * propia posición (el círculo azul con la personita).
- *
- * uid: los degradados de un SVG se llaman por id, y el id vale para TODA la
- * página, no para cada SVG. Si todos los taxis comparten el mismo id y el mapa
- * quita justo al taxi que traía la definición (se alejó y desaparece), los demás
- * se quedan sin relleno. Por eso cada marcador lleva su propio sufijo.
+ * El dibujo vive en /js/majesgo-car.js, compartido con la app del conductor.
+ * En VERDE: el pasajero se ve a si mismo como el circulo azul con la personita,
+ * y dos manchas claras sobre un mapa oscuro no se distinguen de un vistazo.
  */
-function carSvg(uid) {
-  const b = 'mgb' + uid, g = 'mgg' + uid;
-  return '<svg viewBox="0 0 44 74" xmlns="http://www.w3.org/2000/svg">'
-    + '<defs>'
-    + '<linearGradient id="' + b + '" x1="0" y1="0" x2="1" y2="0">'
-    + '<stop offset="0" stop-color="#04672f"/><stop offset=".08" stop-color="#13a85a"/>'
-    + '<stop offset=".3" stop-color="#2ae070"/><stop offset=".58" stop-color="#00c853"/>'
-    + '<stop offset=".92" stop-color="#0c9c4b"/><stop offset="1" stop-color="#046030"/>'
-    + '</linearGradient>'
-    + '<linearGradient id="' + g + '" x1="0" y1="0" x2="0" y2="1">'
-    + '<stop offset="0" stop-color="#3c4854"/><stop offset=".35" stop-color="#232c35"/>'
-    + '<stop offset="1" stop-color="#141a21"/>'
-    + '</linearGradient>'
-    + '</defs>'
-    + '<path d="M22 2.6c6.5 0 11 2 12.9 6 1.6 3.4 2.3 8.4 2.3 15.4v26c0 8-.6 14-2.2 17.6-1.8 3.4-6.4 4.4-13 4.4s-11.2-1-13-4.4C7.4 64 6.8 58 6.8 50V24c0-7 .7-12 2.3-15.4C11 4.6 15.5 2.6 22 2.6z" fill="url(#' + b + ')" stroke="#035a2d" stroke-width=".7" stroke-linejoin="round"/>'
-    + '<path d="M12.6 30.4c1.2-6 4-8.9 9.4-8.9s8.2 2.9 9.4 8.9c-6.2-1.5-12.6-1.5-18.8 0z" fill="url(#' + g + ')"/>'
-    + '<path d="M12.3 31.4c6.5-1.7 12.9-1.7 19.4 0v13.4c-6.5-1.1-12.9-1.1-19.4 0z" fill="#20cf67" stroke="#0a8f45" stroke-width=".6"/>'
-    + '<rect x="15.2" y="34.6" width="13.6" height="6.6" rx="3.3" fill="#ffffff"/>'
-    + '<rect x="15.2" y="34.6" width="13.6" height="3" rx="1.5" fill="#ffffff" opacity=".65"/>'
-    + '<path d="M12.3 45.8c6.5-1.1 12.9-1.1 19.4 0 -.7 8.6-3.6 12.6-9.7 12.6s-9-4-9.7-12.6z" fill="url(#' + g + ')"/>'
-    + '<path d="M7.1 29.2c-2.9.1-4.4 1.1-4.4 2.4s1.5 2 4.4 2.1z" fill="#ffffff"/>'
-    + '<path d="M36.9 29.2c2.9.1 4.4 1.1 4.4 2.4s-1.5 2-4.4 2.1z" fill="#ffffff"/>'
-    + '<path d="M10.9 12.6c1.4-2.4 3.4-3.8 5.9-4.3l.5 2.9c-1.8.4-3.1 1.3-4.1 2.7z" fill="#fff7d1"/>'
-    + '<path d="M33.1 12.6c-1.4-2.4-3.4-3.8-5.9-4.3l-.5 2.9c1.8.4 3.1 1.3 4.1 2.7z" fill="#fff7d1"/>'
-    + '<path d="M11.6 65.6c1.6.6 3.5 1 5.6 1.1l-.3 2.9c-2.3-.2-4.4-.7-6.1-1.4z" fill="#e5484d"/>'
-    + '<path d="M32.4 65.6c-1.6.6-3.5 1-5.6 1.1l.3 2.9c2.3-.2 4.4-.7 6.1-1.4z" fill="#e5484d"/>'
-    + '<path d="M9.9 26v20" stroke="#ffffff" stroke-opacity=".5" stroke-width="1.2" fill="none" stroke-linecap="round"/>'
-    + '</svg>';
-}
+function carSvg(uid) { return mgCarSvg(uid, true); }
 
 /* Rumbo de A a B, para que el auto apunte hacia donde avanza. */
 function bearingDeg(a, b) {
