@@ -7,6 +7,67 @@ const money = (n) => CUR + ' ' + Number(n).toFixed(2);
 const km = (m) => (m / 1000).toFixed(1) + ' km';
 const mins = (s) => Math.max(1, Math.round(s / 60)) + ' min';
 
+/* ---------- Auto del conductor en el mapa ----------
+ * Sedán visto desde arriba, blanco/plata con los detalles en verde MajesGo
+ * (barra del techo y espejos). Va como SVG en línea y no como imagen: se ve
+ * nítido en cualquier pantalla, no pesa una petición más y se puede girar.
+ */
+const CAR_SVG = `<svg viewBox="0 0 44 74" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="mgcarBody" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#8f98a3"/><stop offset=".08" stop-color="#d9dfe6"/>
+      <stop offset=".3" stop-color="#ffffff"/><stop offset=".58" stop-color="#f2f5f8"/>
+      <stop offset=".92" stop-color="#ccd3db"/><stop offset="1" stop-color="#858e99"/>
+    </linearGradient>
+    <linearGradient id="mgcarGlass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#46515e"/><stop offset=".35" stop-color="#28313b"/>
+      <stop offset="1" stop-color="#161d25"/>
+    </linearGradient>
+  </defs>
+  <!-- carroceria -->
+  <path d="M22 2.6c6.5 0 11 2 12.9 6 1.6 3.4 2.3 8.4 2.3 15.4v26c0 8-.6 14-2.2 17.6-1.8 3.4-6.4 4.4-13 4.4s-11.2-1-13-4.4C7.4 64 6.8 58 6.8 50V24c0-7 .7-12 2.3-15.4C11 4.6 15.5 2.6 22 2.6z"
+        fill="url(#mgcarBody)" stroke="#79828d" stroke-width=".7" stroke-linejoin="round"/>
+  <!-- parabrisas -->
+  <path d="M12.6 30.4c1.2-6 4-8.9 9.4-8.9s8.2 2.9 9.4 8.9c-6.2-1.5-12.6-1.5-18.8 0z" fill="url(#mgcarGlass)"/>
+  <path d="M13.6 27.6c1.4-3.8 4.2-5.4 8.4-5.4s7 1.6 8.4 5.4c-5.6-1-11.2-1-16.8 0z" fill="#5b6876" opacity=".45"/>
+  <!-- techo -->
+  <path d="M12.3 31.4c6.5-1.7 12.9-1.7 19.4 0v13.4c-6.5-1.1-12.9-1.1-19.4 0z" fill="#f7f9fb" stroke="#c1c9d2" stroke-width=".6"/>
+  <!-- barra verde MajesGo -->
+  <rect x="15.2" y="34.6" width="13.6" height="6.6" rx="3.3" fill="#00C853"/>
+  <rect x="15.2" y="34.6" width="13.6" height="3" rx="1.5" fill="#41ec88" opacity=".5"/>
+  <!-- luneta trasera -->
+  <path d="M12.3 45.8c6.5-1.1 12.9-1.1 19.4 0 -.7 8.6-3.6 12.6-9.7 12.6s-9-4-9.7-12.6z" fill="url(#mgcarGlass)"/>
+  <!-- capo y maletera: lineas -->
+  <path d="M13.4 20.4c5.6-1.1 11.6-1.1 17.2 0" stroke="#bcc5ce" stroke-width=".8" fill="none" stroke-linecap="round"/>
+  <path d="M13.6 61.4c5.4 1 11.4 1 16.8 0" stroke="#bcc5ce" stroke-width=".8" fill="none" stroke-linecap="round"/>
+  <!-- espejos -->
+  <path d="M7.1 29.2c-2.9.1-4.4 1.1-4.4 2.4s1.5 2 4.4 2.1z" fill="#00C853"/>
+  <path d="M36.9 29.2c2.9.1 4.4 1.1 4.4 2.4s-1.5 2-4.4 2.1z" fill="#00C853"/>
+  <!-- faros -->
+  <path d="M10.9 12.6c1.4-2.4 3.4-3.8 5.9-4.3l.5 2.9c-1.8.4-3.1 1.3-4.1 2.7z" fill="#fff7d1"/>
+  <path d="M33.1 12.6c-1.4-2.4-3.4-3.8-5.9-4.3l-.5 2.9c1.8.4 3.1 1.3 4.1 2.7z" fill="#fff7d1"/>
+  <!-- pilotos -->
+  <path d="M11.6 65.6c1.6.6 3.5 1 5.6 1.1l-.3 2.9c-2.3-.2-4.4-.7-6.1-1.4z" fill="#e5484d"/>
+  <path d="M32.4 65.6c-1.6.6-3.5 1-5.6 1.1l.3 2.9c2.3-.2 4.4-.7 6.1-1.4z" fill="#e5484d"/>
+  <!-- brillo lateral -->
+  <path d="M9.9 26v20" stroke="#ffffff" stroke-opacity=".65" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+</svg>`;
+
+/* Rumbo del auto. El GPS solo da 'heading' cuando el aparato se está moviendo:
+ * parado devuelve null (o basura), así que se guarda el último rumbo bueno en
+ * vez de dejar que el auto pegue saltos cuando el conductor está detenido. */
+let carHeading = 0;
+
+function pointCar(pos) {
+  const h = pos && pos.coords ? pos.coords.heading : null;
+  const sp = pos && pos.coords ? pos.coords.speed : null;
+  // por debajo de ~4 km/h el rumbo del GPS es ruido puro
+  if (h !== null && h !== undefined && !isNaN(h) && sp !== null && sp > 1.1) carHeading = h;
+  const el = meMarker && meMarker.getElement && meMarker.getElement();
+  const car = el && el.querySelector('.car');
+  if (car) car.style.transform = 'rotate(' + carHeading + 'deg)';
+}
+
 /* ---------- API ---------- */
 async function api(path, body, method) {
   const opt = {
@@ -406,8 +467,9 @@ function startGeo() {
   if (!navigator.geolocation) { toast('Tu dispositivo no permite ubicación.'); return; }
   navigator.geolocation.watchPosition((pos) => {
     myPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-    if (!meMarker) meMarker = L.marker(myPos, { icon: icon('medriver', '<div class="radar"></div><div class="car">🚕</div>', [0, 0], [0, 0]), interactive: false, zIndexOffset: 900 }).addTo(map);
+    if (!meMarker) meMarker = L.marker(myPos, { icon: icon('medriver', '<div class="radar"></div><div class="car">' + CAR_SVG + '</div>', [0, 0], [0, 0]), interactive: false, zIndexOffset: 900 }).addTo(map);
     else meMarker.setLatLng(myPos);
+    pointCar(pos);
     // primera vez, centrar
     if (!map._centeredOnce) { map.setView(myPos, 16); map._centeredOnce = true; }
     pushLocation();

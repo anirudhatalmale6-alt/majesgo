@@ -85,9 +85,12 @@
         .minibtn{margin-top:8px;background:var(--amarillo);color:#3a2e00;border:0;font-weight:700;font-size:11.5px;padding:6px 10px;border-radius:9px;cursor:pointer}
         /* auto del conductor con anillo tipo radar */
         .medriver{position:relative}
-        .medriver .car{position:absolute;left:-14px;top:-14px;width:28px;height:28px;display:grid;place-items:center;font-size:21px;filter:drop-shadow(0 2px 3px rgba(0,0,0,.55));z-index:2}
-        .medriver .radar{position:absolute;left:-42px;top:-42px;width:84px;height:84px;border-radius:50%;background:radial-gradient(circle,rgba(43,143,255,.22),rgba(43,143,255,.04) 62%,transparent 72%)}
-        .medriver .radar::after{content:"";position:absolute;inset:0;border-radius:50%;border:2px solid rgba(43,143,255,.55);animation:radarpulse 2.3s ease-out infinite}
+        .medriver .car{position:absolute;left:-19px;top:-32px;width:38px;height:64px;filter:drop-shadow(0 3px 5px rgba(0,0,0,.55));z-index:2;transform-origin:50% 50%;transition:transform .5s ease-out}
+        .medriver .car svg{display:block;width:100%;height:100%}
+        .medriver .radar{position:absolute;left:-48px;top:-48px;width:96px;height:96px;border-radius:50%;background:radial-gradient(circle,rgba(0,200,83,.28),rgba(0,200,83,.06) 58%,transparent 72%)}
+        /* anillo fijo: marca dónde está el conductor aunque la onda esté a mitad de camino */
+        .medriver .radar::before{content:"";position:absolute;inset:5px;border-radius:50%;border:2px solid rgba(0,200,83,.72);box-shadow:0 0 10px rgba(0,200,83,.45)}
+        .medriver .radar::after{content:"";position:absolute;inset:0;border-radius:50%;border:2px solid rgba(0,200,83,.55);animation:radarpulse 2.3s ease-out infinite}
         @keyframes radarpulse{0%{transform:scale(.35);opacity:.85}100%{transform:scale(1);opacity:0}}
         #app.lightmap #map,#app.lightmap #navmap{background:#e6e9e4}
         #app.lightmap .leaflet-container{background:#e6e9e4}
