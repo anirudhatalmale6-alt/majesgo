@@ -73,7 +73,7 @@
                             @else
                                 <span class="muted">—</span>
                             @endif
-                            @if($r->is_demo)<div><span class="badge sus" style="font-size:10.5px">Prueba</span></div>@endif
+                            @if($r->isDemo())<div><span class="badge sus" style="font-size:10.5px">Prueba</span></div>@endif
                         </td>
                         <td style="text-align:right;white-space:nowrap">
                             @if($r->status=='completado')

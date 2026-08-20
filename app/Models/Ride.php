@@ -47,6 +47,33 @@ class Ride extends Model
         return $this->hasMany(RideMessage::class);
     }
 
+    /* ---- Viajes reales vs. de prueba ---- */
+
+    /*
+     * La columna is_demo no alcanza para saber si un viaje fue real. Cuando un viaje se
+     * re-emite (el conductor no contestó y se busca otro) vuelve a is_demo = false, y si
+     * después lo toma el conductor de simulación el viaje queda marcado como real. Por eso
+     * lo que manda es QUIÉN lo hizo: si el conductor es de simulación, no fue un viaje del
+     * negocio. withTrashed(): un conductor demo dado de baja no debe convertir en reales
+     * los viajes que hizo.
+     */
+    public function scopeReal($q)
+    {
+        return $q->where('is_demo', false)
+            ->whereDoesntHave('driver', fn ($d) => $d->withTrashed()->where('is_demo', true));
+    }
+
+    public function scopeDemo($q)
+    {
+        return $q->where(fn ($w) => $w->where('is_demo', true)
+            ->orWhereHas('driver', fn ($d) => $d->withTrashed()->where('is_demo', true)));
+    }
+
+    public function isDemo(): bool
+    {
+        return (bool) $this->is_demo || (bool) $this->driver?->is_demo;
+    }
+
     /* ---- Helpers ---- */
 
     public static function makeCode(): string

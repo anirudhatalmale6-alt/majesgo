@@ -36,10 +36,10 @@ class PassengerController extends Controller
         // dentro de un COUNT.
         $q->withCount([
             'rides as viajes_ok' => function ($r) {
-                $r->reorder()->where('status', 'completado')->where('is_demo', false);
+                $r->reorder()->real()->where('status', 'completado');
             },
             'rides as viajes_cancel' => function ($r) {
-                $r->reorder()->where('status', 'cancelado')->where('is_demo', false);
+                $r->reorder()->real()->where('status', 'cancelado');
             },
         ]);
 
@@ -67,13 +67,13 @@ class PassengerController extends Controller
             'cancelados'  => $this->countRides($passenger, ['cancelado']),
             'sin_conductor' => $this->countRides($passenger, ['sin_conductor']),
             'gastado'     => (float) Ride::where('passenger_id', $passenger->id)
-                                ->where('status', 'completado')->where('is_demo', false)
+                                ->real()->where('status', 'completado')
                                 ->sum('final_price'),
             // Si nadie lo calificó todavía, la columna sigue en su 5.00 por defecto:
             // mostrarlo como "5 estrellas" seria inventar una reputación que no existe.
             'calificaciones' => Ride::where('passenger_id', $passenger->id)
                                 ->whereNotNull('rating_to_passenger')->count(),
-            'demo'        => Ride::where('passenger_id', $passenger->id)->where('is_demo', true)->count(),
+            'demo'        => Ride::where('passenger_id', $passenger->id)->demo()->count(),
         ];
 
         $activo = $passenger->activeRide();
@@ -116,7 +116,7 @@ class PassengerController extends Controller
     {
         return Ride::where('passenger_id', $p->id)
             ->whereIn('status', $states)
-            ->where('is_demo', false)
+            ->real()
             ->count();
     }
 }
