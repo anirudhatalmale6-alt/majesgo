@@ -36,13 +36,18 @@
         /* Marcadores */
         .pin{width:26px;height:26px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:2.5px solid #fff;box-shadow:0 3px 8px rgba(0,0,0,.4)}
         .pin.o{background:var(--verde)} .pin.d{background:#ff5252}
-        .car{font-size:30px;filter:drop-shadow(0 4px 6px rgba(0,0,0,.5));transition:transform .1s}
+        /* Auto del conductor asignado. El recuadro del marcador es de 30x30 y el auto es más
+           alto que ancho, así que se centra a mano: si no, el punto del mapa le queda al pecho. */
+        .car{position:absolute;left:1px;top:-9px;width:28px;height:47px;filter:drop-shadow(0 4px 6px rgba(0,0,0,.5));transform-origin:50% 50%;transition:transform .7s ease-out}
+        .car svg{display:block;width:100%;height:100%}
         .medot{width:16px;height:16px;background:#2b8fff;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 6px rgba(43,143,255,.25)}
         /* Ubicación actual del usuario: icono de persona/pasajero (se distingue del origen verde) */
         .meperson{width:34px;height:34px;border-radius:50%;background:#2b8fff;border:3px solid #fff;
             box-shadow:0 0 0 6px rgba(43,143,255,.20),0 3px 8px rgba(0,0,0,.4);display:grid;place-items:center}
         .meperson svg{width:20px;height:20px;fill:#fff;display:block}
-        .taxicar{font-size:22px;filter:drop-shadow(0 3px 4px rgba(0,0,0,.45))}
+        /* Taxis libres cerca (recuadro de 26x26, mismo centrado a mano que .car) */
+        .taxicar{position:absolute;left:3px;top:-6px;width:20px;height:34px;filter:drop-shadow(0 3px 4px rgba(0,0,0,.45));transform-origin:50% 50%;transition:transform .7s ease-out}
+        .taxicar svg{display:block;width:100%;height:100%}
         .zonemk{pointer-events:none}
         .zonemk .zpin{display:block;position:absolute;left:-7px;top:-20px;width:14px;height:20px;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5))}
         .zonemk .zpin path{fill:#3d7bd6} .zonemk .zpin circle{fill:#fff}
