@@ -56,7 +56,10 @@ let searchLeft = null; // {seconds_left, timeout} de la búsqueda en curso, tal 
 const SHEET_PEEK = 96; // respaldo: px visibles si no hay bloque "esencial" para medir
 
 /* Icono de persona/pasajero para la ubicación actual del usuario (se distingue del origen) */
-const ME_ICON = '<div class="meperson"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm0 2c-3.3 0-8 1.7-8 5v1h16v-1c0-3.3-4.7-5-8-5z"/></svg></div>';
+// Personaje 3D de MajesGo (el pasajero con su maleta). El halo azul va debajo, a la altura del
+// piso, para que el punto exacto sea donde pisa el personaje y no se confunda con el pin verde.
+const ME_ICON = '<div class="mepax"><span class="mehalo"></span>'
+  + '<img class="mefig" src="/img/pasajero.png?v=1" alt="Tu ubicación" draggable="false"></div>';
 /* Pin de color para los botones "elegir en el mapa" (verde=origen, rojo=destino) */
 function pinBtn(color) {
   return '<svg viewBox="0 0 24 34" width="15" height="20" aria-hidden="true"><path fill="' + color + '" stroke="#fff" stroke-width="2.4" d="M12 1C6 1 1.2 5.8 1.2 11.8 1.2 19.6 12 33 12 33s10.8-13.4 10.8-21.2C22.8 5.8 18 1 12 1z"/><circle cx="12" cy="11.8" r="3.9" fill="#fff"/></svg>';
@@ -454,7 +457,7 @@ function onMePos(pos) {
 function updateMe(p) {
   // La ubicación actual del usuario se muestra con un icono de persona/pasajero (no un punto),
   // para que NO se confunda con el pin de origen (verde) ni con las referencias.
-  if (!meMarker) meMarker = L.marker([p.lat, p.lng], { icon: L.divIcon({ className: '', html: ME_ICON, iconSize: [34, 34], iconAnchor: [17, 17] }), interactive: false, zIndexOffset: 500 }).addTo(map);
+  if (!meMarker) meMarker = L.marker([p.lat, p.lng], { icon: L.divIcon({ className: '', html: ME_ICON, iconSize: [0, 0], iconAnchor: [0, 0] }), interactive: false, zIndexOffset: 500 }).addTo(map);
   else meMarker.setLatLng([p.lat, p.lng]);
 }
 

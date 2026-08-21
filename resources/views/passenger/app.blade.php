@@ -41,10 +41,20 @@
         .car{position:absolute;left:1px;top:-9px;width:28px;height:47px;filter:drop-shadow(0 4px 6px rgba(0,0,0,.5));transform-origin:50% 50%;transition:transform .7s ease-out}
         .car svg{display:block;width:100%;height:100%}
         .medot{width:16px;height:16px;background:#2b8fff;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 6px rgba(43,143,255,.25)}
-        /* Ubicación actual del usuario: icono de persona/pasajero (se distingue del origen verde) */
-        .meperson{width:34px;height:34px;border-radius:50%;background:#2b8fff;border:3px solid #fff;
-            box-shadow:0 0 0 6px rgba(43,143,255,.20),0 3px 8px rgba(0,0,0,.4);display:grid;place-items:center}
-        .meperson svg{width:20px;height:20px;fill:#fff;display:block}
+        /* Ubicación actual del usuario: personaje 3D de MajesGo con su maleta.
+           El recuadro del marcador es 0x0 y los hijos se centran a mano (igual que .car),
+           así el punto exacto queda donde el personaje pisa el piso. Halo AZUL a propósito:
+           el verde es el pin de origen y no deben confundirse. */
+        .mepax{position:relative;width:0;height:0}
+        .mepax .mehalo{position:absolute;left:-19px;top:-10px;width:38px;height:20px;border-radius:50%;
+            background:radial-gradient(ellipse at center,rgba(43,143,255,.42),rgba(43,143,255,.12) 60%,transparent 74%)}
+        .mepax .mehalo::before{content:"";position:absolute;inset:3px;border-radius:50%;
+            border:2px solid rgba(43,143,255,.75);box-shadow:0 0 8px rgba(43,143,255,.45)}
+        .mepax .mehalo::after{content:"";position:absolute;inset:0;border-radius:50%;
+            border:2px solid rgba(43,143,255,.5);animation:mepulse 2.4s ease-out infinite}
+        @keyframes mepulse{0%{transform:scale(.35);opacity:.8}100%{transform:scale(1);opacity:0}}
+        .mepax .mefig{position:absolute;left:-23px;top:-47px;width:41px;height:52px;display:block;
+            filter:drop-shadow(0 3px 4px rgba(0,0,0,.4));z-index:2;pointer-events:none}
         /* Taxis libres cerca (recuadro de 26x26, mismo centrado a mano que .car) */
         .taxicar{position:absolute;left:3px;top:-6px;width:20px;height:34px;filter:drop-shadow(0 3px 4px rgba(0,0,0,.45));transform-origin:50% 50%;transition:transform .7s ease-out}
         .taxicar svg{display:block;width:100%;height:100%}
@@ -395,7 +405,7 @@ window.MG = {
 </script>
 <script src="/js/pois.js?v=5"></script>
 <script src="/js/majesgo-car.js?v=2"></script>
-<script src="/js/passenger.js?v=35"></script>
+<script src="/js/passenger.js?v=36"></script>
 <script src="/js/native.js?v=1"></script>
 </body>
 </html>
