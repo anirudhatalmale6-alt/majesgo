@@ -21,6 +21,19 @@ class RideController extends Controller
         return $request->attributes->get('passenger');
     }
 
+    /**
+     * ¿Puede este pasajero ver al conductor de prueba?
+     *
+     * demo_enabled está en 0 en producción: un pasajero real NUNCA debe ver un conductor
+     * falso. La excepción es la cuenta de revisión de las tiendas, que prueba desde otro
+     * país y a cualquier hora, sin ningún conductor real conectado en Majes. Sin conductor
+     * el revisor no puede completar un viaje y rechaza la app por "no se pudo revisar".
+     */
+    private function demoAllowed(Passenger $passenger): bool
+    {
+        return (string) Setting::get('demo_enabled', '1') === '1' || (bool) $passenger->is_reviewer;
+    }
+
     /** Calcula ruta + precio sugerido (sin crear el viaje). */
     public function quote(Request $request)
     {
@@ -184,7 +197,7 @@ class RideController extends Controller
             }
 
             // Sin conductores reales: conductor de prueba (si está habilitado). También pasa por confirmación.
-            if ((string) Setting::get('demo_enabled', '1') === '1') {
+            if ($this->demoAllowed($this->passenger($request))) {
                 $delay = (int) Setting::get('search_delay_s', 3);
                 $waited = now()->getTimestamp() - $ride->requested_at->getTimestamp();
 
@@ -232,7 +245,7 @@ class RideController extends Controller
      */
     public function nearbyDrivers(Request $request)
     {
-        $this->passenger($request);
+        $passenger = $this->passenger($request);
         $lat = (float) $request->query('lat');
         $lng = (float) $request->query('lng');
         if (! $lat || ! $lng) {
@@ -242,7 +255,7 @@ class RideController extends Controller
         $minSaldo   = Fare::minSaldo();
         $staleS     = (int) Setting::get('driver_stale_s', 180);
         $displayKm  = (float) Setting::get('nearby_display_km', 6.0);
-        $demoOn     = (string) Setting::get('demo_enabled', '1') === '1';
+        $demoOn     = $this->demoAllowed($passenger);
 
         $q = Driver::query()
             ->where('status', 'disponible')          // libres (los ocupados no se muestran)
