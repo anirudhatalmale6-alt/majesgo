@@ -83,9 +83,26 @@
   <p>Podemos actualizar esta política. Publicaremos la versión vigente en esta misma página con su
   fecha de actualización.</p>
 
+  {{-- El correo va escrito aquí, no como "el que aparece en la ficha de Play": la política de
+       Datos del Usuario de Google exige que la propia política de privacidad ofrezca una vía de
+       contacto. Remitir a la ficha es circular y es motivo conocido de rechazo. --}}
   <h2>9. Contacto</h2>
-  <p>Para consultas sobre privacidad o para solicitar la eliminación de tu cuenta, escríbenos desde la
-  app (chat de soporte) o al correo de contacto que aparece en la ficha de MajesGo en Google Play.</p>
+  <p>Para consultas sobre privacidad, escríbenos a
+  <a href="mailto:majesgo.oficial@gmail.com">majesgo.oficial@gmail.com</a>
+  o desde el chat de soporte de la app.</p>
+
+  <h2>10. Eliminación de tu cuenta y de tus datos</h2>
+  <p>Puedes pedir que borremos tu cuenta y los datos asociados en cualquier momento, sin tener que
+  instalar nada ni volver a la app:</p>
+  <ul>
+    <li>Escribe a <a href="mailto:majesgo.oficial@gmail.com">majesgo.oficial@gmail.com</a> desde
+        cualquier correo, indicando el número de celular con el que te registraste.</li>
+    <li>Tu solicitud se atiende en un plazo máximo de 30 días.</li>
+  </ul>
+  <p>Se eliminan tu nombre, tu número de celular, tu clave, tus direcciones guardadas y los
+  mensajes de tus viajes. Conservamos únicamente el registro contable de los viajes ya realizados
+  (fecha, importe y tarifa), sin datos que permitan identificarte, porque la ley peruana obliga a
+  guardar el respaldo de las operaciones cobradas.</p>
 
   <footer>MajesGo — Servicio de taxi para Majes / El Pedregal, Arequipa, Perú.</footer>
 </div>
