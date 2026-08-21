@@ -218,7 +218,15 @@ class Dispatch
      */
     public static function demoDriver(float $pickupLat, float $pickupLng): Driver
     {
-        $driver = Driver::firstOrNew(['code' => 'MG-DEMO']);
+        // withTrashed: Driver usa borrado lógico y el conductor de prueba puede haber quedado
+        // dado de baja en una limpieza anterior (pasó el 2026-08-12, antes de salir en vivo).
+        // Sin esto firstOrNew no lo ve, intenta insertarlo otra vez y choca contra el índice
+        // único de `code` → 500 en /rides/current, que es justo lo que pollea la app.
+        $driver = Driver::withTrashed()->firstOrNew(['code' => 'MG-DEMO']);
+
+        if ($driver->exists && $driver->trashed()) {
+            $driver->restore();
+        }
 
         if (! $driver->exists) {
             $driver->fill([
