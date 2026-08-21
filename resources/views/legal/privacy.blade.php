@@ -91,7 +91,7 @@
   <a href="mailto:majesgo.oficial@gmail.com">majesgo.oficial@gmail.com</a>
   o desde el chat de soporte de la app.</p>
 
-  <h2>10. Eliminación de tu cuenta y de tus datos</h2>
+  <h2 id="eliminar-cuenta">10. Eliminación de tu cuenta y de tus datos</h2>
   <p>Puedes pedir que borremos tu cuenta y los datos asociados en cualquier momento, sin tener que
   instalar nada ni volver a la app:</p>
   <ul>
