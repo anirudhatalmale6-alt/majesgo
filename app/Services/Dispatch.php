@@ -45,6 +45,10 @@ class Dispatch
         $drivers = Driver::query()
             ->where('status', 'disponible')
             ->where('account_status', 'activo')
+            // La cuenta del revisor de Google NUNCA entra al despacho real: si entrara,
+            // podría quedarse con el viaje de un pasajero de Majes y dejarlo esperando
+            // un auto que no existe. Recibe su propia solicitud simulada (ver ReviewerSim).
+            ->where('is_reviewer', false)
             ->where('saldo', '>=', $minSaldo)
             ->whereNotNull('lat')
             ->whereNotNull('lng')

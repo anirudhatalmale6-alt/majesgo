@@ -158,8 +158,10 @@ class DriverPhotos
     /** Tipos que le faltan al conductor para poder conectarse. */
     public static function missing(Driver $driver): array
     {
-        // el conductor demo es una simulación interna: no hay a quién pedirle fotos
-        if (! self::required() || $driver->is_demo) {
+        // el conductor demo es una simulación interna: no hay a quién pedirle fotos.
+        // El revisor de Google tampoco tiene rostro ni vehículo que subir, y sin esta
+        // excepción no podría conectarse y no llegaría nunca a ver la app funcionando.
+        if (! self::required() || $driver->is_demo || $driver->is_reviewer) {
             return [];
         }
 

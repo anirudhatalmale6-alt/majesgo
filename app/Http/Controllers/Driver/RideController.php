@@ -11,6 +11,7 @@ use App\Models\Ride;
 use App\Models\Setting;
 use App\Services\Dispatch;
 use App\Services\Fare;
+use App\Services\ReviewerSim;
 use App\Services\Routing;
 use App\Services\WebPushSender;
 use Illuminate\Http\Request;
@@ -153,12 +154,19 @@ class RideController extends Controller
 
         // La ventana es la MISMA que el límite de búsqueda del pasajero (ver Dispatch): si
         // fueran distintas, uno seguiría esperando un viaje que el otro ya no puede ver.
-        $rides = Ride::where('status', 'solicitando')
-            ->whereNull('driver_id')
-            ->where('is_demo', false)
-            ->where('requested_at', '>=', now()->subSeconds(Dispatch::searchTimeoutS()))
-            ->latest('id')
-            ->get();
+        // El revisor de Google ve SOLO su solicitud simulada, y los conductores reales
+        // no la ven a ella: sin esto, o el revisor no tiene nada que probar (rechazo por
+        // "no pudimos revisar la funcionalidad"), o le entra el viaje de un pasajero real.
+        if ($driver->is_reviewer) {
+            $rides = collect([ReviewerSim::ensureRequest($driver)])->filter()->values();
+        } else {
+            $rides = Ride::where('status', 'solicitando')
+                ->whereNull('driver_id')
+                ->where('is_demo', false)
+                ->where('requested_at', '>=', now()->subSeconds(Dispatch::searchTimeoutS()))
+                ->latest('id')
+                ->get();
+        }
 
         $out = [];
         foreach ($rides as $ride) {
@@ -262,16 +270,22 @@ class RideController extends Controller
             $approachFee = Fare::approach($approachM);
 
             // El conductor "ofrece" el viaje; el pasajero debe confirmarlo (15s).
+            // Salvo el revisor de Google: del otro lado hay un pasajero simulado que no
+            // va a confirmar nunca, así que su viaje pasa directo a 'aceptado' y puede
+            // seguir con llegué → iniciar → finalizar. Y conserva is_demo para que no
+            // se cuele en las estadísticas reales (ver Ride::real()).
+            $isReviewer = (bool) $driver->is_reviewer;
+
             $ride->forceFill([
                 'driver_id'       => $driver->id,
-                'status'          => 'ofrecido',
+                'status'          => $isReviewer ? 'aceptado' : 'ofrecido',
                 'offered_at'      => now(),
                 'accepted_at'     => now(),
                 'route_to_pickup' => $toPickup['geometry'],
                 'approach_m'      => (int) round($approachM),
                 'approach_fee'    => $approachFee,
                 'counter_offer'   => $counterOffer,
-                'is_demo'         => false,
+                'is_demo'         => $isReviewer,
             ])->save();
 
             $driver->update(['status' => 'ocupado']);
