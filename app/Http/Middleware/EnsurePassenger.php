@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\Passenger;
+use App\Services\AppSource;
 use Closure;
 use Illuminate\Http\Request;
 
@@ -32,6 +33,9 @@ class EnsurePassenger
                 'blocked' => true,
             ], 403);
         }
+
+        // ¿está usando la app de Play o el navegador? (con freno, no escribe en cada llamada)
+        AppSource::touch($passenger, $request);
 
         // disponible para los controladores vía $request->passenger()
         $request->setUserResolver(fn () => $passenger);

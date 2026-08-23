@@ -20,6 +20,7 @@ class Driver extends Model
         'saldo'          => 'decimal:2',
         'rating'         => 'decimal:2',
         'last_active_at' => 'datetime',
+        'app_seen_at'    => 'datetime',
     ];
 
     public function recharges()

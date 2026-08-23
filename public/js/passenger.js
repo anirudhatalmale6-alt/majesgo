@@ -13,11 +13,23 @@ function rideTotal(r) {
 }
 
 /* ---------- API ---------- */
+/**
+ * ¿Estamos dentro de la app instalada de Play o en el navegador?
+ * Se pregunta en cada llamada, no al cargar: el puente de Capacitor puede no estar listo
+ * todavía cuando se ejecuta este archivo, y así nunca importa el orden de los scripts.
+ */
+function isNativeApp() {
+  try { return !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()); }
+  catch (_) { return false; }
+}
+
 async function api(path, body, method) {
   const opt = {
     method: method || (body ? 'POST' : 'GET'),
     headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': MG.csrf },
   };
+  // el panel usa esto para saber quién ya instaló la app de Play y quién sigue en el navegador
+  if (isNativeApp()) opt.headers['X-MajesGo-App'] = 'native';
   if (body) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
   const res = await fetch('/app/' + path, opt);
   const data = await res.json().catch(() => ({}));

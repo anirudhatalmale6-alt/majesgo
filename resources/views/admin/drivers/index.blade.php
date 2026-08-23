@@ -21,7 +21,7 @@
 
 <div class="card" style="padding:0">
     <table>
-        <thead><tr><th>Conductor</th><th>Vehículo</th><th>Operativo</th><th>Cuenta</th><th style="text-align:right">Saldo</th><th style="text-align:center">Viajes</th><th></th></tr></thead>
+        <thead><tr><th>Conductor</th><th>Vehículo</th><th>Operativo</th><th>Cuenta</th><th>Desde</th><th style="text-align:right">Saldo</th><th style="text-align:center">Viajes</th><th></th></tr></thead>
         <tbody>
         @forelse($drivers as $d)
             <tr>
@@ -43,6 +43,19 @@
                     @else
                         @php($acls=['activo'=>'on','suspendido'=>'sus','bloqueado'=>'blk'][$d->account_status]??'off')
                         <span class="badge {{ $acls }}">{{ $d->accountLabel() }}</span>
+                    @endif
+                </td>
+                {{-- Desde dónde usa la app: sirve para saber quién ya instaló la de Play --}}
+                <td>
+                    @if($d->app_source === 'play')
+                        <span class="badge on">App de Play</span>
+                    @elseif($d->app_source === 'web')
+                        <span class="badge off">Navegador</span>
+                    @else
+                        <span class="muted">Nunca entró</span>
+                    @endif
+                    @if($d->app_seen_at)
+                        <div class="muted" style="font-size:11.5px;margin-top:3px">{{ $d->app_seen_at->diffForHumans() }}</div>
                     @endif
                 </td>
                 <td style="text-align:right"><span class="money">{{ $cur }} {{ number_format($d->saldo,2) }}</span></td>
@@ -81,7 +94,7 @@
                 </td>
             </tr>
         @empty
-            <tr><td colspan="7" class="muted" style="text-align:center;padding:34px">No se encontraron conductores. <a href="{{ route('admin.drivers.create') }}" style="color:var(--verde-d);font-weight:600">Crear el primero →</a></td></tr>
+            <tr><td colspan="8" class="muted" style="text-align:center;padding:34px">No se encontraron conductores. <a href="{{ route('admin.drivers.create') }}" style="color:var(--verde-d);font-weight:600">Crear el primero →</a></td></tr>
         @endforelse
         </tbody>
     </table>

@@ -29,7 +29,7 @@
         <thead><tr>
             <th>Pasajero</th><th>Cuenta</th><th style="text-align:center">Viajes</th>
             <th style="text-align:center">Cancelados</th><th style="text-align:center">Calificación</th>
-            <th>Última actividad</th><th>Registro</th><th></th>
+            <th>Desde</th><th>Última actividad</th><th>Registro</th><th></th>
         </tr></thead>
         <tbody>
         @forelse($passengers as $p)
@@ -55,6 +55,16 @@
                          calificado. Mostrar 5 estrellas ahí es inventarle una reputación. --}}
                     @if($p->viajes_ok > 0) ⭐ {{ number_format($p->rating,1) }} @else <span class="muted">Sin calificar</span> @endif
                 </td>
+                {{-- Desde dónde usa la app: sirve para saber quién ya instaló la de Play --}}
+                <td>
+                    @if($p->app_source === 'play')
+                        <span class="badge on">App de Play</span>
+                    @elseif($p->app_source === 'web')
+                        <span class="badge off">Navegador</span>
+                    @else
+                        <span class="muted">Nunca entró</span>
+                    @endif
+                </td>
                 <td class="muted" style="font-size:12.5px">{{ $p->last_active_at ? $p->last_active_at->diffForHumans() : 'Nunca entró' }}</td>
                 <td class="muted" style="font-size:12.5px">{{ $p->created_at->format('d/m/Y') }}</td>
                 <td style="text-align:right;white-space:nowrap">
@@ -75,7 +85,7 @@
                 </td>
             </tr>
         @empty
-            <tr><td colspan="8" class="muted" style="text-align:center;padding:34px">
+            <tr><td colspan="9" class="muted" style="text-align:center;padding:34px">
                 @if(request('q') || request('estado'))
                     No se encontraron pasajeros con ese criterio.
                 @else

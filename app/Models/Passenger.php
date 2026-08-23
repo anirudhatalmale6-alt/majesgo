@@ -13,6 +13,7 @@ class Passenger extends Model
     protected $casts = [
         'rating'         => 'decimal:2',
         'last_active_at' => 'datetime',
+        'app_seen_at'    => 'datetime',
     ];
 
     public function rides()
