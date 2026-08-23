@@ -1076,7 +1076,8 @@ function renderCompleted(r) {
     </div>
     <div class="sub" style="text-align:center">¿Cómo estuvo el pasajero?</div>
     <div class="stars" id="stars">${[1, 2, 3, 4, 5].map((n) => `<span data-n="${n}">★</span>`).join('')}</div>
-    <button class="btn amber" id="btnDone">Listo</button>`;
+    <button class="btn amber" id="btnDone">Listo</button>
+    <button class="btn ghost" id="btnReport" style="margin-top:8px;color:#ff8a80">Tuve un problema con el pasajero</button>`;
   let chosen = 0;
   const stars = $('#stars').querySelectorAll('span');
   stars.forEach((s) => s.addEventListener('click', () => { chosen = +s.dataset.n; stars.forEach((x, i) => x.classList.toggle('on', i < chosen)); }));
@@ -1088,6 +1089,62 @@ function renderCompleted(r) {
     ride = null; online = true; me.status = 'disponible';
     clearTrip(); renderHome();
   });
+  // La denuncia no cierra la pantalla: si además quiere calificar, puede.
+  $('#btnReport').addEventListener('click', () => openReportModal(r.code));
+}
+
+/* ====== Denuncia al pasajero ======
+   Se llega desde el chat (durante el viaje) y desde la pantalla de fin de viaje.
+   Google Play exige que exista esta vía dentro de la app; además la central necesita
+   el caso escrito, porque por WhatsApp se pierde. */
+let reportReason = null;
+
+function openReportModal(code) {
+  if (!code) { toast('No hay un viaje para denunciar'); return; }
+  reportReason = null;
+  const reasons = MG.reportReasons || {};
+  $('#reportModal').innerHTML = `
+    <div class="modalcard">
+      <div class="micon">⚠️</div>
+      <h2>Denunciar al pasajero</h2>
+      <p class="msub">Cuéntanos qué pasó. La central revisa cada caso y puede suspender la cuenta del pasajero.</p>
+      <div class="reasons" id="rpReasons">
+        ${Object.keys(reasons).map((k) => `<button class="reason" data-k="${k}">${esc(reasons[k])}</button>`).join('')}
+      </div>
+      <textarea id="rpDetails" maxlength="600" placeholder="Detalles (opcional)"
+        style="width:100%;min-height:78px;margin:4px 0 12px;padding:11px 13px;border-radius:12px;border:1px solid var(--line);background:var(--panel-2);color:#fff;font-family:inherit;font-size:14px;resize:none"></textarea>
+      <button class="btn danger" id="rpSend">Enviar denuncia</button>
+      <button class="btn ghost" id="rpBack">Cancelar</button>
+    </div>`;
+  $('#reportModal').classList.remove('hidden');
+
+  const btns = [...document.querySelectorAll('#rpReasons .reason')];
+  btns.forEach((b) => b.addEventListener('click', () => {
+    reportReason = b.dataset.k;
+    btns.forEach((x) => x.classList.toggle('on', x === b));
+  }));
+
+  $('#rpBack').addEventListener('click', closeReportModal);
+  $('#rpSend').addEventListener('click', async () => {
+    if (!reportReason) { toast('Elige un motivo'); return; }
+    const details = ($('#rpDetails').value || '').trim();
+    // "Otro motivo" sin explicación no le sirve a la central: lo pedimos acá para no
+    // hacer ir y volver al servidor.
+    if (reportReason === 'otro' && !details) { toast('Cuéntanos brevemente qué pasó'); $('#rpDetails').focus(); return; }
+    const b = $('#rpSend'); b.disabled = true; b.textContent = 'Enviando…';
+    try {
+      await api('api/report', { code, reason: reportReason, details });
+      closeReportModal();
+      toast('Denuncia enviada. Gracias por avisarnos.');
+    } catch (e) {
+      b.disabled = false; b.textContent = 'Enviar denuncia';
+      toast((e && e.message) || 'No se pudo enviar');
+    }
+  });
+}
+
+function closeReportModal() {
+  const m = $('#reportModal'); m.classList.add('hidden'); m.innerHTML = '';
 }
 
 function ackRide(r) { if (r && r.id) api('api/ack', { ride_id: r.id }).catch(() => {}); }
@@ -1541,6 +1598,7 @@ async function sendChat() {
   } catch (e) { toast(e.message || 'No se pudo enviar.'); inp.value = body; }
 }
 $('#chatBack').addEventListener('click', closeChat);
+$('#chatReport').addEventListener('click', () => openReportModal(ride && ride.code));
 $('#chatSend').addEventListener('click', sendChat);
 $('#chatIn').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
 

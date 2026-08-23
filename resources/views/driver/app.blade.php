@@ -443,6 +443,8 @@
         <div class="chead">
             <button class="iconbtn" id="chatBack" style="background:#1c2026"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg></button>
             <div><div class="ctitle" id="chatTitle">Chat con el pasajero</div><div class="csub" id="chatSub"></div></div>
+            {{-- Denunciar al pasajero sin salir del chat: es donde el conductor está cuando algo se pone feo --}}
+            <button class="iconbtn" id="chatReport" title="Denunciar al pasajero" aria-label="Denunciar al pasajero" style="margin-left:auto;background:#1c2026;color:#ff8a80"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 16H3l9-16z"/><path d="M12 9v4.2"/><circle cx="12" cy="16.4" r=".9" fill="currentColor" stroke="none"/></svg></button>
         </div>
         <div class="cbody" id="chatBody"></div>
         <div class="cinput"><input id="chatIn" placeholder="Escribe un mensaje…" maxlength="500" autocomplete="off"><button id="chatSend" aria-label="Enviar">➤</button></div>
@@ -450,6 +452,9 @@
 
     <!-- Modal: el pasajero canceló la carrera (contenido lo llena driver.js) -->
     <div class="modal hidden" id="cancelModal"></div>
+
+    <!-- Modal de denuncia al pasajero (lo llena driver.js) -->
+    <div class="modal hidden" id="reportModal"></div>
 
     <div class="toast" id="toast"></div>
 </div>
@@ -462,11 +467,14 @@ window.MG = {
     currency: @json($currency),
     csrf: document.querySelector('meta[name=csrf-token]').content,
     vapidPublic: @json(config('services.webpush.public_key')),
+    // Motivos de denuncia contra el pasajero. Vienen del modelo para que la app y el
+    // panel de la central hablen siempre de lo mismo.
+    reportReasons: @json(\App\Models\UserReport::REASONS_ON_PASSENGER),
 };
 </script>
 <script src="/js/pois.js?v=5"></script>
 <script src="/js/majesgo-car.js?v=2"></script>
-<script src="/js/driver.js?v=28"></script>
+<script src="/js/driver.js?v=29"></script>
 <script src="/js/native.js?v=1"></script>
 </body>
 </html>

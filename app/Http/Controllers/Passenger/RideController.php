@@ -10,6 +10,7 @@ use App\Models\Setting;
 use App\Services\DemoSim;
 use App\Services\Dispatch;
 use App\Services\Fare;
+use App\Services\Reports;
 use App\Services\Routing;
 use App\Services\WebPushSender;
 use Illuminate\Http\Request;
@@ -501,6 +502,31 @@ class RideController extends Controller
         $m = $ride->messages()->create(['sender' => 'pasajero', 'body' => trim($d['body'])]);
 
         return response()->json(['ok' => true, 'msg' => ['id' => $m->id, 'body' => $m->body, 'mine' => true, 'time' => $m->created_at->format('H:i')]]);
+    }
+
+    /**
+     * El pasajero denuncia al conductor de un viaje suyo.
+     *
+     * Se puede denunciar durante el viaje (desde el chat) o al terminarlo. También
+     * después de una cancelación: buena parte de los problemas serios pasan justo ahí.
+     */
+    public function report(Request $request)
+    {
+        $d = $request->validate([
+            'code'    => ['required', 'string'],
+            'reason'  => ['required', 'string', 'max:60'],
+            'details' => ['nullable', 'string', 'max:600'],
+        ]);
+
+        $passenger = $this->passenger($request);
+        $ride = Ride::where('code', $d['code'])
+            ->where('passenger_id', $passenger->id)
+            ->whereNotNull('driver_id')
+            ->firstOrFail();
+
+        Reports::submit($ride, 'passenger', $passenger->id, 'driver', (int) $ride->driver_id, $d['reason'], $d['details'] ?? null);
+
+        return response()->json(['ok' => true]);
     }
 
     public function history(Request $request)

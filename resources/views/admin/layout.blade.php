@@ -157,6 +157,14 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-4.35-7-11a7 7 0 0 1 14 0c0 6.65-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
                 Zonas locales
             </a>
+            @php($pendingReports = \App\Models\UserReport::pending()->count())
+            <a href="{{ route('admin.reports.index') }}" class="{{ request()->routeIs('admin.reports.*')?'on':'' }}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l9 16H3l9-16z"/><path d="M12 9v4.5"/><circle cx="12" cy="16.4" r=".9" fill="currentColor" stroke="none"/></svg>
+                Denuncias
+                @if($pendingReports)
+                    <span style="margin-left:auto;background:#e04040;color:#fff;font-size:11px;font-weight:800;border-radius:999px;padding:2px 8px">{{ $pendingReports }}</span>
+                @endif
+            </a>
             <a href="#" class="dim" onclick="return false" style="opacity:.5">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
                 Reportes <small style="margin-left:auto;font-size:10px">pronto</small>

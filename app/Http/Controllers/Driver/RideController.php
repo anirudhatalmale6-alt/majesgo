@@ -11,6 +11,7 @@ use App\Models\Ride;
 use App\Models\Setting;
 use App\Services\Dispatch;
 use App\Services\Fare;
+use App\Services\Reports;
 use App\Services\ReviewerSim;
 use App\Services\Routing;
 use App\Services\WebPushSender;
@@ -364,6 +365,31 @@ class RideController extends Controller
     }
 
     /** El conductor reporta el motivo de una cancelación hecha por el pasajero (auditoría/soporte). */
+    /**
+     * El conductor denuncia al pasajero de un viaje suyo.
+     *
+     * Es la contraparte de la denuncia del pasajero: mismo formulario, otra lista de
+     * motivos (no pagó, dañó el vehículo, no se presentó).
+     */
+    public function reportPassenger(Request $request)
+    {
+        $driver = $this->driver($request);
+        $data = $request->validate([
+            'code'    => ['required', 'string'],
+            'reason'  => ['required', 'string', 'max:60'],
+            'details' => ['nullable', 'string', 'max:600'],
+        ]);
+
+        $ride = Ride::where('code', $data['code'])
+            ->where('driver_id', $driver->id)
+            ->whereNotNull('passenger_id')
+            ->firstOrFail();
+
+        Reports::submit($ride, 'driver', $driver->id, 'passenger', (int) $ride->passenger_id, $data['reason'], $data['details'] ?? null);
+
+        return response()->json(['ok' => true]);
+    }
+
     public function cancelReport(Request $request)
     {
         $driver = $this->driver($request);

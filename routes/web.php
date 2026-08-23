@@ -9,6 +9,7 @@ use App\Http\Controllers\Admin\MapPoiController;
 use App\Http\Controllers\Admin\PassengerController;
 use App\Http\Controllers\Admin\PlaceController;
 use App\Http\Controllers\Admin\SettingController;
+use App\Http\Controllers\Admin\UserReportController;
 use App\Http\Controllers\Passenger\AuthController as PassengerAuth;
 use App\Http\Controllers\Passenger\PageController as PassengerPage;
 use App\Http\Controllers\Passenger\RideController as PassengerRide;
@@ -55,6 +56,7 @@ Route::prefix('app')->name('app.')->group(function () {
         Route::post('api/rides/messages', [PassengerRide::class, 'sendMessage']);
         Route::post('api/rides/cancel', [PassengerRide::class, 'cancel']);
         Route::post('api/rides/rate', [PassengerRide::class, 'rate']);
+        Route::post('api/rides/report', [PassengerRide::class, 'report']);
         Route::post('api/rides/ack', [PassengerRide::class, 'ack']);
         Route::get('api/rides/history', [PassengerRide::class, 'history']);
     });
@@ -96,6 +98,7 @@ Route::prefix('conductor')->name('driver.')->group(function () {
         Route::post('api/rate', [DriverRide::class, 'ratePassenger']);
         Route::post('api/ack', [DriverRide::class, 'ack']);
         Route::post('api/cancel-report', [DriverRide::class, 'cancelReport']);
+        Route::post('api/report', [DriverRide::class, 'reportPassenger']);
 
         // Fotos del conductor (rostro y vehículo). Quedan pendientes hasta que la central apruebe.
         Route::post('api/photo/{type}', [DriverRide::class, 'uploadPhoto']);
@@ -146,6 +149,11 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('fotos', [DriverPhotoController::class, 'index'])->name('photos.index');
         Route::post('fotos/{photo}/aprobar', [DriverPhotoController::class, 'approve'])->name('photos.approve');
         Route::post('fotos/{photo}/rechazar', [DriverPhotoController::class, 'reject'])->name('photos.reject');
+
+        // Denuncias entre usuarios (pasajero ↔ conductor)
+        Route::get('denuncias', [UserReportController::class, 'index'])->name('reports.index');
+        Route::post('denuncias/{report}/revisar', [UserReportController::class, 'review'])->name('reports.review');
+        Route::post('denuncias/{report}/reabrir', [UserReportController::class, 'reopen'])->name('reports.reopen');
 
         // Puntos de referencia del mapa (los iconos que ven pasajero y conductor)
         Route::get('referencias', [MapPoiController::class, 'index'])->name('pois.index');
