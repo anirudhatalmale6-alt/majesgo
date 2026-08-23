@@ -30,8 +30,31 @@ async function api(path, body, method) {
     location.replace(location.pathname);
     throw { status: 403, message: data.message, blocked: true };
   }
+  /*
+   * Sesión caída (401). Antes esto solo sacaba un aviso "No autenticado" y la app seguía
+   * consultando igual: el mapa quedaba puesto, el pasajero creía que funcionaba y cada
+   * llamada fallaba en silencio detrás. Se llegaron a ver 62 llamadas rechazadas seguidas
+   * de un mismo teléfono. Ahora lo devolvemos a la pantalla de acceso con un texto que se
+   * entiende, y con un toque vuelve a entrar.
+   */
+  if (res.status === 401) {
+    kickToLogin('Tu sesión se cerró. Vuelve a ingresar para seguir pidiendo tu taxi.');
+    throw { status: 401, message: 'Sesión cerrada', expired: true };
+  }
   if (!res.ok) throw { status: res.status, message: data.message || 'Ocurrió un error', errors: data.errors };
   return data;
+}
+
+/**
+ * Vuelve a la pantalla de acceso con el motivo a la vista.
+ * El cerrojo evita que una ráfaga de llamadas en curso dispare diez recargas seguidas.
+ */
+let kicked = false;
+function kickToLogin(msg) {
+  if (kicked) return;
+  kicked = true;
+  try { sessionStorage.setItem('mg_blocked', msg); } catch (_) {}
+  location.replace(location.pathname);
 }
 
 /* ---------- Toast ---------- */

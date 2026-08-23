@@ -37,8 +37,41 @@ async function api(path, body, method) {
   if (body) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
   const res = await fetch('/conductor/' + path, opt);
   const data = await res.json().catch(() => ({}));
+  /*
+   * Sesión caída (401). Antes esto solo sacaba un aviso "No autenticado" y la app seguía
+   * consultando igual: el conductor quedaba viendo el mapa creyendo que estaba en línea,
+   * mientras el servidor rechazaba cada llamada y no le entraba ni un viaje. Ahora vuelve
+   * a la pantalla de acceso con el motivo escrito y entra de nuevo con un toque.
+   */
+  if (res.status === 401) {
+    kickToLogin('Tu sesión se cerró. Vuelve a ingresar para seguir recibiendo viajes.');
+    throw { status: 401, message: 'Sesión cerrada', expired: true };
+  }
   if (!res.ok) throw { status: res.status, message: data.message || 'Ocurrió un error', errors: data.errors };
   return data;
+}
+
+/**
+ * Vuelve a la pantalla de acceso con el motivo a la vista.
+ * El cerrojo evita que una ráfaga de llamadas en curso dispare diez recargas seguidas.
+ */
+let kicked = false;
+function kickToLogin(msg) {
+  if (kicked) return;
+  kicked = true;
+  try { sessionStorage.setItem('mg_kick', msg); } catch (_) {}
+  location.replace(location.pathname);
+}
+
+/** Motivo por el que la app te devolvió a la pantalla de acceso, guardado antes de recargar. */
+function showKickNotice() {
+  let msg = null;
+  try { msg = sessionStorage.getItem('mg_kick'); sessionStorage.removeItem('mg_kick'); } catch (_) {}
+  if (!msg) return;
+  const err = $('#authErr');
+  err.textContent = msg;
+  err.style.display = 'block';
+  $('#auth').classList.remove('hidden');
 }
 
 /* ---------- Toast ---------- */
@@ -293,6 +326,7 @@ async function doAuth() {
 
 /* ================= BOOT ================= */
 async function start() {
+  showKickNotice();
   try {
     const m = await api('api/me');
     if (m.csrf) MG.csrf = m.csrf;
