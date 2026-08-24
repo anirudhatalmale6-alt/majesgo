@@ -100,6 +100,11 @@ let me = null, online = false, ride = null, myPos = null;
 let dstats = null; // estadísticas del conductor (ganancias del día, horas, aceptación, etc.)
 let dSheetState = 'open', dSheetDragging = false; // panel inferior colapsable
 let reqCode = null, reqTimer = null, poll = null, lastPostAt = 0;
+// Lista de solicitudes disponibles: el conductor las ve TODAS y elige cuál tomar.
+// reqCode !== null significa que tiene abierta la ficha de una de ellas.
+let reqList = [];
+let reqSeen = new Set();        // códigos ya avisados: el sonido suena solo con lo NUEVO
+let reqSort = 'cerca';          // 'cerca' | 'paga'
 let commissionPct = 5, minSaldo = 0.5;   // comisión = % de la tarifa (la fija el panel)
 
 /** Comisión que se le descuenta al conductor por una tarifa dada. */
@@ -826,6 +831,8 @@ async function toggleOnline() {
     } else {
       await api('api/connect', { online: false });
       online = false; toast('Te desconectaste.');
+      // sin esto la lista de viajes se quedaría en pantalla: el sondeo ya no la repinta
+      reqList = []; reqSeen = new Set(); hideRequests();
     }
     me.status = online ? 'disponible' : 'desconectado';
     renderHome();
@@ -856,12 +863,9 @@ async function tick() {
       const d = await api('api/pending');
       if (typeof d.commission_pct === 'number') commissionPct = d.commission_pct;
       counterOptions = (d.counter && d.counter.enabled && Array.isArray(d.counter.options)) ? d.counter.options : [];
-      const reqs = d.requests || [];
-      // si la solicitud mostrada ya no existe (el pasajero canceló o la tomó otro), quitarla
-      if (reqCode && !reqs.some((x) => x.code === reqCode)) hideRequest();
-      // mostrar la solicitud aunque el conductor siga viendo el resumen de un viaje ya terminado
-      // (los viajes activos salieron antes por 'return'; aquí 'ride' es null o ya finalizado).
-      if (reqs.length && !reqCode) showRequest(reqs[0]);
+      // La lista se repinta en cada sondeo: entran las nuevas y salen las que otro ya tomó.
+      // (los viajes activos salieron antes por 'return'; aquí 'ride' es null o ya finalizado)
+      renderRequests(d.requests || []);
     } catch (e) {}
   }
 }
@@ -894,18 +898,100 @@ function handleCurrent(r) {
   }
 }
 
-/* ================= SOLICITUD ENTRANTE ================= */
+/* ================= SOLICITUDES DISPONIBLES ================= */
+
+/**
+ * Pinta la LISTA de viajes disponibles en el radio. El conductor los ve todos y elige.
+ *
+ * Se llama en cada sondeo (3 s), así que tiene que ser barata y no pisar lo que el
+ * conductor está haciendo: si tiene una ficha abierta, la lista no se repinta debajo.
+ */
+function renderRequests(reqs) {
+  reqList = reqs;
+  const codes = reqs.map((r) => r.code);
+
+  // Sonido y vibración SOLO cuando entra un viaje que antes no estaba. Si sonara con la
+  // lista entera cada 3 s, el conductor apagaría el volumen y volveríamos al problema
+  // de que no se entera de nada.
+  const nuevos = codes.filter((c) => !reqSeen.has(c));
+  reqSeen = new Set(codes); // olvidar los que ya no están: si vuelven, vuelven a avisar
+  if (nuevos.length && !reqCode) rideAlert.start();
+
+  // Ficha abierta: si ese viaje ya no está (lo tomó otro o el pasajero canceló), avisar y
+  // devolverlo a la lista en vez de dejarlo mirando una tarjeta muerta.
+  if (reqCode) {
+    if (!codes.includes(reqCode)) {
+      toast('Ese viaje ya fue tomado por otro conductor.');
+      closeDetail();
+    }
+    return; // mientras lee una ficha, no le movemos nada debajo
+  }
+
+  if (!reqs.length) { hideRequests(); return; }
+
+  const ord = reqs.slice().sort(reqSort === 'paga'
+    ? (a, b) => (b.total_price - a.total_price) || (a.to_pickup_m - b.to_pickup_m)
+    : (a, b) => (a.to_pickup_m - b.to_pickup_m) || (b.total_price - a.total_price));
+
+  $('#reqwrap').classList.remove('hidden');
+  $('#reqcard').innerHTML = `
+    <div class="reqhead">
+      <span class="ping"><i></i> ${ord.length} ${ord.length === 1 ? 'viaje disponible' : 'viajes disponibles'}</span>
+      <span style="color:var(--muted);font-size:12px">toca uno para verlo</span>
+    </div>
+    <div class="sortrow">
+      <button type="button" class="sortb ${reqSort === 'cerca' ? 'on' : ''}" data-s="cerca">Más cerca</button>
+      <button type="button" class="sortb ${reqSort === 'paga' ? 'on' : ''}" data-s="paga">Mejor pagado</button>
+    </div>
+    <div class="reqlist">
+      ${ord.map((r) => reqRow(r)).join('')}
+    </div>`;
+
+  $('#reqcard').querySelectorAll('.sortb').forEach((b) => {
+    b.addEventListener('click', () => { reqSort = b.dataset.s; renderRequests(reqList); });
+  });
+  $('#reqcard').querySelectorAll('.reqrow').forEach((row) => {
+    row.addEventListener('click', () => {
+      const r = reqList.find((x) => x.code === row.dataset.code);
+      if (r) showRequest(r);
+    });
+  });
+}
+
+/** Una fila de la lista: lo justo para decidir sin abrir la ficha. */
+function reqRow(r) {
+  const total = Number(r.total_price != null ? r.total_price : r.offered_price) || 0;
+  const recibe = total - commissionFor(total);
+  // Recojo: la ZONA le dice más a un conductor de Majes que el número de una calle.
+  // Destino: al revés — el nombre del sitio ("Mercado Central") es más claro que su zona ("B2").
+  const origen = r.origin_zone || (r.origin.address || 'Punto de recojo').split(',')[0];
+  const destino = (r.dest.address || '').split(',')[0] || r.dest_zone || 'Destino';
+  return `
+    <button type="button" class="reqrow" data-code="${r.code}">
+      <span class="rr-money">
+        <b>${money(total)}</b>
+        <small>recibes ${money(recibe)}</small>
+      </span>
+      <span class="rr-tx">
+        <span class="rr-o">${esc(origen)}<small>a ${km(r.to_pickup_m)} de ti${r.approach_fee > 0 ? ' · +' + money(r.approach_fee) + ' de acercamiento' : ''}</small></span>
+        <span class="rr-d">→ ${esc(destino)}<small>${km(r.trip_distance_m)} · ${mins(r.trip_duration_s)} · ${r.payment_method === 'yape' ? 'Yape' : 'efectivo'}</small></span>
+      </span>
+      <span class="rr-go">›</span>
+    </button>`;
+}
+
+/* ================= FICHA DE UN VIAJE ================= */
 function showRequest(req) {
   reqCode = req.code;
   reqBump = 0; // cada solicitud arranca sin ajuste
-  rideAlert.start(); // suena y vibra hasta que acepte, rechace o se venza el tiempo
+  rideAlert.stop(); // ya la está mirando: no tiene sentido seguir sonando
   const wrap = $('#reqwrap'); wrap.classList.remove('hidden');
   // El total incluye el acercamiento hasta el pasajero, calculado con la distancia de ESTE
   // conductor: por eso la cifra grande puede ser mayor que lo que ofreció el pasajero.
   const apFee = Number(req.approach_fee) || 0;
   $('#reqcard').innerHTML = `
     <div class="reqhead">
-      <span class="ping"><i></i> Nuevo viaje</span>
+      <button type="button" class="backlist" id="reqBack">‹ Ver los ${reqList.length} viajes</button>
       <span style="color:var(--muted);font-size:12px">a ${km(req.to_pickup_m)} de ti</span>
     </div>
     <div class="bar"><i id="reqBar"></i></div>
@@ -951,6 +1037,7 @@ function showRequest(req) {
   const destLabel = req.dest_zone || (req.dest.address ? req.dest.address.split(',')[0].trim() : '');
   if (destLabel) addOfferLabel([req.dest.lat, req.dest.lng], destLabel, 'dest');
 
+  $('#reqBack').addEventListener('click', () => closeDetail());
   $('#reqYes').addEventListener('click', () => acceptRequest(req));
   $('#reqNo').addEventListener('click', () => rejectRequest(req.code));
   // los botones de ajuste se activan/desactivan: volver a tocar el elegido lo quita
@@ -962,13 +1049,14 @@ function showRequest(req) {
     });
   });
 
-  // cuenta regresiva 28s
+  // Cuenta regresiva 28 s para no dejarlo clavado en una ficha. Al vencerse VUELVE A LA LISTA:
+  // dudar no puede costarle el viaje. Solo el botón «Rechazar» lo descarta de verdad.
   let left = 28;
   const bar = $('#reqBar');
   clearInterval(reqTimer);
   reqTimer = setInterval(() => {
     left--; if (bar) bar.style.width = Math.max(0, (left / 28) * 100) + '%';
-    if (left <= 0) { rejectRequest(req.code, true); }
+    if (left <= 0) closeDetail();
   }, 1000);
 }
 /**
@@ -1026,43 +1114,70 @@ function addOfferLabel(latlng, text, variant) {
   }).addTo(map);
   offerLabels.push(m);
 }
-function hideRequest() {
-  clearInterval(reqTimer); reqTimer = null; reqCode = null;
-  rideAlert.stop(); // toda salida de la tarjeta pasa por aquí: aceptar, rechazar, vencer o desaparecer
-  $('#reqwrap').classList.add('hidden');
-  // limpiar la vista previa (ruta + pines + etiquetas) y restaurar las zonas del mapa
+/** Limpia la vista previa del mapa (ruta + pines + etiquetas) y devuelve las zonas. */
+function clearPreview() {
   if (routeLine) { routeLine.remove(); routeLine = null; }
   if (oMarker) { oMarker.remove(); oMarker = null; }
   if (dMarker) { dMarker.remove(); dMarker = null; }
   offerLabels.forEach((m) => m.remove()); offerLabels = [];
   document.getElementById('app').classList.remove('offering');
 }
+
+/**
+ * Cierra la ficha y VUELVE A LA LISTA (no descarta el viaje).
+ * Toda salida de la ficha pasa por aquí: volver, vencerse, o que otro se lo lleve.
+ */
+function closeDetail() {
+  clearInterval(reqTimer); reqTimer = null; reqCode = null;
+  clearPreview();
+  // volver a pintar la lista tal como la dejó el último sondeo (ya sin el que se fue).
+  // No vuelve a sonar: renderRequests solo avisa por códigos que no estaban antes.
+  renderRequests(reqList);
+}
+
+/** Esconde TODO el panel de solicitudes (aceptó un viaje, se desconectó o ya no hay nada). */
+function hideRequests() {
+  clearInterval(reqTimer); reqTimer = null; reqCode = null;
+  rideAlert.stop();
+  clearPreview();
+  $('#reqwrap').classList.add('hidden');
+}
 async function acceptRequest(req) {
   const btn = $('#reqYes'); btn.disabled = true; btn.innerHTML = '<span class="spin"></span>';
   const bump = reqBump; // congelar: el servidor lo valida igual contra la lista de la central
   try {
     const r = await api('api/accept', { code: req.code, bump });
-    hideRequest();
+    hideRequests(); // se lo quedó: fuera todo el panel, ahora manda el viaje en curso
     ride = r.ride; online = true; me.status = 'ocupado';
     toast(bump > 0 ? `Enviado con ${money(bump)} más. Esperando al pasajero…` : 'Enviado. Esperando que el pasajero confirme…');
     renderRide(ride);
   } catch (e) {
-    hideRequest();
+    // No se lo quedó (409 = se le adelantó otro). Vuelve a la LISTA, que puede tener más
+    // viajes esperando: perder uno no debe dejarlo con la pantalla vacía.
     toast(e.status === 409 ? 'Ese viaje ya fue tomado por otro conductor.' : e.message);
-    if (!dMarker) { /* limpiar preview */ }
-    renderHome();
+    reqList = reqList.filter((x) => x.code !== req.code);
+    reqSeen.delete(req.code);
+    closeDetail();
+    if (!reqList.length) renderHome();
   }
 }
 async function rejectRequest(code, silent) {
-  hideRequest();
+  // Descarte explícito: se lo quitamos de la lista y el servidor no se lo vuelve a ofrecer.
+  reqList = reqList.filter((x) => x.code !== code);
+  reqSeen.delete(code);
+  closeDetail();
   try { await api('api/reject', { code }); } catch (e) {}
   if (!silent) toast('Viaje rechazado.');
-  clearTrip();
-  if (!ride) renderHome();
+  if (!reqList.length) { clearTrip(); if (!ride) renderHome(); }
 }
 
 /* ================= VIAJE EN CURSO ================= */
 function renderRide(r) {
+  // Con un viaje en curso no hay lista que ofrecer. Ojo: esto corre en CADA sondeo, así que
+  // no se toca el mapa aquí (clearPreview borraría la ruta que dibujamos abajo y parpadearía).
+  reqList = []; reqSeen = new Set(); reqCode = null;
+  clearInterval(reqTimer); reqTimer = null;
+  rideAlert.stop();
   $('#reqwrap').classList.add('hidden');
   if (typeof r.last_message_id === 'number') rideLastMsgId = r.last_message_id;
   if (r.status === 'ofrecido') { renderWaitingConfirm(r); return; }

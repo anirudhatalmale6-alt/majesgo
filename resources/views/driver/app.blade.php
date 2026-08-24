@@ -176,6 +176,30 @@
         .reqhead .ping{display:inline-flex;align-items:center;gap:6px;color:var(--verde);font-weight:700;font-size:13px}
         .reqhead .ping i{width:9px;height:9px;border-radius:50%;background:var(--verde);animation:blink 1s infinite}
         @keyframes blink{50%{opacity:.3}}
+        /* Volver de la ficha de un viaje a la lista */
+        .backlist{background:none;border:0;color:var(--verde);font-weight:700;font-size:13px;padding:4px 0;
+                  cursor:pointer;-webkit-tap-highlight-color:transparent}
+        /* Lista de viajes disponibles: los ve todos y elige cuál tomar */
+        .sortrow{display:flex;gap:8px;margin:0 0 10px}
+        .sortb{flex:1;min-height:36px;border:1px solid var(--line);background:#12151a;color:var(--muted);
+               border-radius:10px;font-size:12.5px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent}
+        .sortb.on{background:rgba(0,230,118,.12);border-color:rgba(0,230,118,.4);color:#7DE9AC}
+        /* alto tope: si hay muchos viajes la lista rueda sola y el mapa sigue visible arriba */
+        .reqlist{display:flex;flex-direction:column;gap:8px;max-height:46vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
+        .reqrow{display:flex;align-items:center;gap:11px;width:100%;text-align:left;padding:11px 12px;
+                background:var(--panel-2);border:1px solid var(--line);border-radius:13px;color:#F5F7FA;
+                cursor:pointer;-webkit-tap-highlight-color:transparent}
+        .reqrow:active{transform:scale(.99);border-color:rgba(0,230,118,.45)}
+        .rr-money{flex:none;min-width:78px;display:flex;flex-direction:column;align-items:flex-start}
+        .rr-money b{font-size:19px;font-weight:800;line-height:1.1}
+        .rr-money small{color:var(--muted);font-size:10.5px;margin-top:2px}
+        .rr-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+        .rr-tx .rr-o,.rr-tx .rr-d{display:block;font-size:13px;line-height:1.25;
+                                  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .rr-tx .rr-d{color:#cfd6de}
+        .rr-tx small{display:block;color:var(--muted);font-size:10.5px;font-weight:500;
+                     overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .rr-go{flex:none;color:var(--muted);font-size:22px;line-height:1}
         .bar{height:4px;background:#2a3038;border-radius:3px;overflow:hidden;margin-bottom:12px}
         .bar i{display:block;height:100%;background:var(--amarillo);width:100%;transition:width 1s linear}
         .fare{text-align:center;margin:6px 0 12px}
@@ -475,7 +499,7 @@ window.MG = {
 </script>
 <script src="/js/pois.js?v=5"></script>
 <script src="/js/majesgo-car.js?v=2"></script>
-<script src="/js/driver.js?v=32"></script>
+<script src="/js/driver.js?v=33"></script>
 <script src="/js/native.js?v=1"></script>
 </body>
 </html>
