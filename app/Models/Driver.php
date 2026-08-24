@@ -104,6 +104,55 @@ class Driver extends Model
     }
 
     /**
+     * Corrige el saldo y anota la diferencia como un movimiento de tipo «ajuste».
+     *
+     * $mode 'fijar'     → el saldo termina valiendo exactamente $value
+     * $mode 'descontar' → al saldo se le restan $value
+     *
+     * Todo se resuelve DENTRO del bloqueo de la fila, con el saldo de ese instante y
+     * no con el que el administrador tenía en pantalla: si el conductor cobró una
+     * comisión entre que abrió la ficha y pulsó el botón, «dejarlo en 20» lo deja en
+     * 20 y «descontar 10» descuenta 10 de verdad. Nunca reescribe los movimientos
+     * anteriores — el error de tipeo queda en el historial y la corrección también.
+     *
+     * Devuelve null si no había nada que corregir.
+     * Lanza SaldoNegativo si la corrección dejaría la cuenta debajo de cero.
+     */
+    public function adjustSaldoTo(float $value, string $mode = 'fijar', string $description = null, int $userId = null): ?SaldoMovement
+    {
+        return DB::transaction(function () use ($value, $mode, $description, $userId) {
+            $fresh  = self::whereKey($this->id)->lockForUpdate()->first();
+            $actual = round((float) $fresh->saldo, 2);
+            $target = $mode === 'descontar' ? round($actual - $value, 2) : round($value, 2);
+
+            if ($target < 0) {
+                throw new \App\Exceptions\SaldoNegativo($actual, $target);
+            }
+
+            $delta = round($target - $actual, 2);
+
+            if (abs($delta) < 0.005) {
+                $this->saldo = $fresh->saldo;
+                return null;
+            }
+
+            $movement = $fresh->movements()->create([
+                'type'          => 'ajuste',
+                'amount'        => $delta,
+                'balance_after' => $target,
+                'description'   => $description,
+                'ref_type'      => 'manual',
+                'created_by'    => $userId,
+            ]);
+
+            $fresh->update(['saldo' => $target]);
+            $this->saldo = $target;
+
+            return $movement;
+        });
+    }
+
+    /**
      * ¿Tiene algo que perder si se borra de verdad?
      *
      * Cuenta como historial haber trabajado (viajes, comisiones cobradas) o haber pagado

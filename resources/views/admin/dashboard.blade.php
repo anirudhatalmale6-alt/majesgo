@@ -35,7 +35,7 @@
     </div>
 </div>
 
-<div class="grid" style="grid-template-columns:1.6fr 1fr">
+<div class="grid split" style="grid-template-columns:1.6fr 1fr">
     <div class="card">
         <div class="between" style="margin-bottom:6px">
             <h3>Conductores recientes</h3>

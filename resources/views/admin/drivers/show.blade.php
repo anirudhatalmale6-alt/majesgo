@@ -5,17 +5,17 @@
 
 <div style="margin-bottom:14px"><a href="{{ route('admin.drivers.index') }}" class="muted">← Volver a conductores</a></div>
 
-<div class="grid" style="grid-template-columns:1.5fr 1fr;align-items:start">
+<div class="grid split" style="grid-template-columns:1.5fr 1fr;align-items:start">
     {{-- Ficha --}}
     <div class="grid" style="gap:16px">
         <div class="card">
             <div class="between">
-                <div style="display:flex;align-items:center;gap:14px">
+                <div style="display:flex;align-items:center;gap:14px;min-width:0">
                     <div class="avci" style="width:54px;height:54px;font-size:20px;border-radius:14px">{{ strtoupper(substr($driver->full_name,0,1)) }}</div>
                     <div>
                         <div style="font-size:19px;font-weight:700">{{ $driver->full_name }}</div>
                         <div class="muted">{{ $driver->code }} · {{ $driver->phone }} @if($driver->email)· {{ $driver->email }}@endif</div>
-                        <div style="margin-top:6px;display:flex;gap:7px">
+                        <div style="margin-top:6px;display:flex;gap:7px;flex-wrap:wrap">
                             @php($cls=['disponible'=>'on','ocupado'=>'busy','desconectado'=>'off'][$driver->status]??'off')
                             <span class="badge {{ $cls }}"><span class="dot"></span>{{ $driver->statusLabel() }}</span>
                             @php($acls=['activo'=>'on','suspendido'=>'sus','bloqueado'=>'blk'][$driver->account_status]??'off')
@@ -128,6 +128,88 @@
                 <button class="btn amber" style="width:100%">Acreditar saldo</button>
             </form>
         </div>
+
+        {{-- Corregir saldo: para cuando la central se equivocó al cargarlo --}}
+        <div class="card">
+            <h3 style="margin-bottom:4px">Corregir saldo</h3>
+            <div class="muted" style="font-size:12px;margin-bottom:12px">
+                Si te equivocaste al cargar el saldo, aquí lo bajas o lo dejas en el número correcto.
+            </div>
+            <form method="POST" action="{{ route('admin.drivers.saldo',$driver) }}" id="fix-saldo">
+                @csrf
+                <div class="row">
+                    <div class="field"><label>Qué quieres hacer</label>
+                        <select class="input" name="mode" id="fs-mode">
+                            <option value="fijar">Dejar el saldo en…</option>
+                            <option value="descontar">Descontar…</option>
+                        </select>
+                    </div>
+                    <div class="field"><label>Monto ({{ $cur }})</label>
+                        <input class="input" name="value" id="fs-value" type="number" step="0.5" min="0" placeholder="0.00" required>
+                    </div>
+                </div>
+                <div class="field" style="margin-bottom:10px"><label>Motivo (opcional)</label>
+                    <input class="input" name="note" id="fs-note" maxlength="255" placeholder="Ej.: cargué 30 por error, eran 20">
+                </div>
+                <div class="muted" id="fs-hint" style="font-size:12.5px;margin-bottom:12px">
+                    Saldo actual: <b>{{ $cur }} {{ number_format($driver->saldo,2) }}</b>
+                </div>
+                <button class="btn ghost" style="width:100%">Guardar corrección</button>
+            </form>
+            <div class="muted" style="font-size:11.5px;margin-top:10px;line-height:1.5">
+                No se borra nada del historial: el movimiento equivocado se queda y debajo aparece la
+                corrección, para que después se entienda qué pasó.
+            </div>
+        </div>
+
+        <script>
+        (function(){
+            var actual = {{ (float) $driver->saldo }};
+            var sim = '{{ $cur }}';
+            var mode = document.getElementById('fs-mode'),
+                val  = document.getElementById('fs-value'),
+                hint = document.getElementById('fs-hint'),
+                form = document.getElementById('fix-saldo');
+            if(!mode) return;
+
+            function money(n){ return sim + ' ' + n.toFixed(2); }
+
+            // Lo que va a pasar, escrito antes de pulsar el botón: el error de tipeo
+            // se ve aquí y no en el historial del conductor.
+            function paint(){
+                var v = parseFloat(val.value);
+                if(isNaN(v)){
+                    hint.innerHTML = 'Saldo actual: <b>' + money(actual) + '</b>';
+                    hint.style.color = ''; return;
+                }
+                var target = mode.value === 'fijar' ? v : Math.round((actual - v)*100)/100;
+                var delta  = Math.round((target - actual)*100)/100;
+                if(target < 0){
+                    hint.innerHTML = 'Eso dejaría el saldo en ' + money(target) +
+                        '. No puede quedar negativo: lo máximo que puedes descontar es <b>' + money(actual) + '</b>.';
+                    hint.style.color = '#c0322b'; return;
+                }
+                hint.style.color = '';
+                if(Math.abs(delta) < 0.005){
+                    hint.innerHTML = 'El saldo ya está en <b>' + money(actual) + '</b>, no hay nada que corregir.';
+                    return;
+                }
+                hint.innerHTML = 'Queda en <b>' + money(target) + '</b> · se anota un ajuste de <b>' +
+                    (delta < 0 ? '−' : '+') + money(Math.abs(delta)) + '</b>';
+            }
+
+            mode.addEventListener('change', paint);
+            val.addEventListener('input', paint);
+
+            form.addEventListener('submit', function(e){
+                var v = parseFloat(val.value);
+                if(isNaN(v)) return;
+                var target = mode.value === 'fijar' ? v : Math.round((actual - v)*100)/100;
+                if(!confirm('El saldo de {{ addslashes($driver->full_name) }} pasa de ' +
+                            money(actual) + ' a ' + money(target) + '.\n\n¿Confirmas?')) e.preventDefault();
+            });
+        })();
+        </script>
 
         {{-- Estado de cuenta --}}
         <div class="card">

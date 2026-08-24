@@ -5,7 +5,7 @@
 <form method="POST" action="{{ route('admin.settings.update') }}">
     @csrf @method('PUT')
 
-    <div class="grid" style="grid-template-columns:1fr 1fr;align-items:start">
+    <div class="grid split" style="grid-template-columns:1fr 1fr;align-items:start">
         <div class="card">
             <h3 style="margin-bottom:14px">Tarifa, comisión y saldo</h3>
             <div class="row">

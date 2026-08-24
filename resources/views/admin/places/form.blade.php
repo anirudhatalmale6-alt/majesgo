@@ -7,7 +7,7 @@
     @csrf
     @if($place->exists) @method('PUT') @endif
 
-    <div class="grid" style="grid-template-columns:1fr 1.2fr;align-items:start;gap:18px">
+    <div class="grid split" style="grid-template-columns:1fr 1.2fr;align-items:start;gap:18px">
         <div class="card">
             <h3 style="margin-bottom:14px">Datos de la zona</h3>
             <div class="field">

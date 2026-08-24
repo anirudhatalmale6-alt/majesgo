@@ -103,9 +103,13 @@
         .row>.field{flex:1;min-width:150px}
         .muted{color:var(--muted)}
         .between{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-        .pagi{display:flex;gap:6px;margin-top:16px}
+        .pagi{display:flex;gap:6px;margin-top:16px;flex-wrap:wrap;align-items:center}
         .pagi a,.pagi span{padding:7px 11px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:#fff}
+        .pagi a{color:#39424e;text-decoration:none}
+        .pagi a:hover{background:#eef1f5}
         .pagi .on{background:var(--verde);color:#fff;border-color:var(--verde)}
+        .pagi .off{color:#a7b0bb;background:#f6f8fa}
+        .pagi .cuenta{border:0;background:0;color:var(--muted);font-size:12.5px;margin-left:auto;padding-right:0}
         @media(max-width:820px){
             .side{transform:translateX(-100%)}
             .side.open{transform:translateX(0)}
@@ -116,6 +120,23 @@
             .top{padding:0 14px}
             .content{padding:18px 14px}
             .top .who .nm{display:none}
+            /* Las pantallas de dos columnas (ficha + acciones al costado) pasan a una
+               sola. Sin esto la columna de la derecha —saldo, recarga, corregir saldo—
+               queda fuera de la pantalla en el teléfono y no se puede tocar. */
+            .split{grid-template-columns:1fr !important}
+            /* Las tablas anchas se deslizan dentro de su tarjeta en vez de estirar la
+               página entera. Antes, en el teléfono, la lista de conductores empujaba
+               todo hacia la derecha y había que arrastrar la pantalla para leerla. */
+            /* Sin esto lo de abajo no sirve: por defecto una celda de grid no baja de
+               lo que mide su contenido, así que la tarjeta crece con la tabla y el
+               deslizamiento nunca llega a activarse. */
+            .grid>*,.card{min-width:0}
+            .card table{display:block;width:100%;overflow-x:auto;white-space:nowrap}
+            /* Las barras de filtro llevan anchos fijos pensados para el escritorio
+               (el buscador mide 320px); en el teléfono se reparten el ancho que hay. */
+            .between{flex-wrap:wrap;gap:10px}
+            .between>form{flex-wrap:wrap;flex:1}
+            .between>form .input{width:auto!important;flex:1;min-width:150px}
         }
     </style>
 </head>

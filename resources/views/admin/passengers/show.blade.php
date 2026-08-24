@@ -5,7 +5,7 @@
 
 <div style="margin-bottom:14px"><a href="{{ route('admin.passengers.index') }}" class="muted">← Volver a pasajeros</a></div>
 
-<div class="grid" style="grid-template-columns:1.5fr 1fr;align-items:start">
+<div class="grid split" style="grid-template-columns:1.5fr 1fr;align-items:start">
 
     <div class="grid" style="gap:16px">
         {{-- Ficha --}}

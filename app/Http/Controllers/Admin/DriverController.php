@@ -110,23 +110,55 @@ class DriverController extends Controller
     }
 
     /** Ajuste manual de saldo (carga o descuento por parte del admin) */
+    /**
+     * Corrige el saldo de un conductor cuando la central se equivocó al cargarlo.
+     *
+     * Dos formas de pedirlo, porque son las dos que usa alguien en el mostrador:
+     *   modo «fijar»     → «que quede en 20» y el sistema calcula la diferencia
+     *   modo «descontar» → «quítale 10» y el sistema calcula el resultado
+     * En los dos casos termina en lo mismo: un movimiento de tipo «ajuste» con la
+     * diferencia firmada. No se borra ni se edita el movimiento equivocado; el
+     * historial tiene que poder leerse igual dentro de seis meses.
+     */
     public function adjustSaldo(Request $request, Driver $driver)
     {
         $data = $request->validate([
-            'amount' => ['required', 'numeric', 'not_in:0'],
-            'note'   => ['nullable', 'string', 'max:255'],
+            'mode'  => ['required', 'in:fijar,descontar'],
+            'value' => ['required', 'numeric', 'min:0', 'max:100000'],
+            'note'  => ['nullable', 'string', 'max:255'],
+        ], [], [
+            'value' => 'monto',
         ]);
 
-        $driver->applyMovement(
-            'ajuste',
-            (float) $data['amount'],
-            $data['note'] ?: 'Ajuste manual del administrador',
-            'manual',
-            null,
-            $request->user()->id
-        );
+        try {
+            $movement = $driver->adjustSaldoTo(
+                round((float) $data['value'], 2),
+                $data['mode'],
+                $data['note'] ?: 'Corrección de saldo hecha por la central',
+                $request->user()->id
+            );
+        } catch (\App\Exceptions\SaldoNegativo $e) {
+            return back()->withInput()->withErrors(['value' =>
+                'Esa corrección dejaría el saldo en ' . $this->money($e->objetivo) . ', y no puede quedar negativo. ' .
+                'Ahora mismo hay ' . $this->money($e->saldoActual) . ', así que eso es lo máximo que puedes descontar.',
+            ]);
+        }
 
-        return back()->with('ok', 'Saldo ajustado. Nuevo saldo: S/ ' . number_format($driver->saldo, 2));
+        if (! $movement) {
+            return back()->with('ok', 'No hubo nada que corregir: el saldo ya estaba en ' . $this->money($driver->saldo) . '.');
+        }
+
+        $delta = (float) $movement->amount;
+
+        return back()->with('ok',
+            'Saldo corregido: ' . ($delta < 0 ? '−' : '+') . $this->money(abs($delta)) .
+            '. ' . $driver->full_name . ' queda con ' . $this->money($driver->saldo) . '.'
+        );
+    }
+
+    private function money(float $n): string
+    {
+        return \App\Models\Setting::get('currency', 'S/') . ' ' . number_format($n, 2);
     }
 
     /**

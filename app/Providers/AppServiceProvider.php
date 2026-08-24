@@ -26,5 +26,14 @@ class AppServiceProvider extends ServiceProvider
          * mensajes de validación, y no hay traducciones en español en el proyecto.
          */
         \Carbon\Carbon::setLocale('es');
+
+        /*
+         * El paginador por defecto de Laravel está escrito con clases de Tailwind, que
+         * este panel no usa: se veía «Showing 1 to 30 of 275 results» sin estilo y en
+         * inglés en las siete pantallas que paginan. La vista propia usa el CSS que el
+         * panel ya tenía (.pagi) y está en español.
+         */
+        \Illuminate\Pagination\Paginator::defaultView('vendor.pagination.majesgo');
+        \Illuminate\Pagination\Paginator::defaultSimpleView('vendor.pagination.majesgo');
     }
 }
