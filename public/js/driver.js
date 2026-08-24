@@ -105,6 +105,8 @@ let reqCode = null, reqTimer = null, poll = null, lastPostAt = 0;
 let reqList = [];
 let reqSeen = new Set();        // códigos ya avisados: el sonido suena solo con lo NUEVO
 let reqSort = 'cerca';          // 'cerca' | 'paga'
+// ¿el servidor tiene con qué avisarle si la app está cerrada? null = todavía no lo sabemos
+let pushOk = null;
 let commissionPct = 5, minSaldo = 0.5;   // comisión = % de la tarifa (la fija el panel)
 
 /** Comisión que se le descuenta al conductor por una tarifa dada. */
@@ -424,7 +426,7 @@ async function start() {
 }
 
 async function boot() {
-  if (!me) { const m = await api('api/me'); me = m.driver; }
+  if (!me) { const m = await api('api/me'); me = m.driver; if (typeof m.push_ok === 'boolean') pushOk = m.push_ok; }
   if (!map) initMap();
   startGeo();
   if (typeof me.commission_pct === 'number') commissionPct = me.commission_pct;
@@ -439,11 +441,7 @@ async function boot() {
   startPoll();
   loadZones(); // mostrar los nombres de las zonas locales en el mapa del conductor
 
-  // Al volver a la app (desbloqueo/foreground), reactivar presencia y buscar viajes de inmediato:
-  // los temporizadores del navegador se pausan en segundo plano y el conductor podría quedar "inactivo".
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') { pushLocation(); tick(); }
-  });
+  // (el manejo de segundo plano vive junto a pushLocation: beaconLocation / heartbeatNow)
 
   // preparar/reactivar el audio con cualquier toque (necesario para la alerta sonora de cancelación)
   document.addEventListener('pointerdown', ensureAudio);
@@ -704,6 +702,47 @@ function pushLocation() {
   }).catch(() => {});
 }
 
+/* ---------- Latido cuando la app va y viene de segundo plano ----------
+ *
+ * Android congela los temporizadores de la app en cuanto el conductor la minimiza, abre
+ * WhatsApp o bloquea la pantalla: el latido de tick() deja de correr y no hay forma de
+ * evitarlo desde el navegador. Por eso la presencia en el servidor dura horas (ver
+ * Dispatch::presenceWindowS) y aquí solo nos aseguramos de dos cosas:
+ *   1. dejar la última señal ANTES de que lo congelen (sendBeacon: sale aunque nos maten)
+ *   2. avisar en cuanto vuelve, sin esperar los 3 s del sondeo
+ */
+function beaconLocation() {
+  if (!online || !myPos || !navigator.sendBeacon) return;
+  try {
+    const body = new Blob(
+      [JSON.stringify({ lat: myPos.lat, lng: myPos.lng, _token: MG.csrf })],
+      { type: 'application/json' }
+    );
+    navigator.sendBeacon('/conductor/api/location', body);
+  } catch (e) {}
+}
+
+function heartbeatNow() {
+  if (!online) return;
+  lastPostAt = 0; // saltarse el mínimo entre envíos: volvimos, hay que avisar ya
+  pushLocation();
+  if (typeof tick === 'function') tick(); // y traer las carreras que hayan entrado mientras tanto
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') beaconLocation(); else heartbeatNow();
+});
+window.addEventListener('pagehide', beaconLocation);
+window.addEventListener('focus', heartbeatNow);
+
+// App nativa (Capacitor): el evento fiable de "volví a primer plano".
+try {
+  const CapApp = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+  if (CapApp && CapApp.addListener) {
+    CapApp.addListener('appStateChange', (s) => { if (s && s.isActive) heartbeatNow(); else beaconLocation(); });
+  }
+} catch (e) {}
+
 /* ================= HOME (conectar/desconectar) ================= */
 function renderHome() {
   clearTrip();
@@ -718,6 +757,7 @@ function renderHome() {
         : `<div class="offlinebar"><span class="odot"></span><span>DESCONECTADO · no recibes viajes</span></div>
            <div class="slide" id="slide"><div class="knob" id="knob"><svg viewBox="0 0 24 24" fill="none" stroke="#5a1414" stroke-width="3" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></div><span class="slidetext" id="slidetext">Desliza para conectarte</span></div>`}
       ${lowSaldo ? `<div class="warn red" style="margin-top:12px">⚠️ Tu saldo (${money(me.saldo)}) no alcanza para la comisión mínima de ${money(minSaldo)}. Recarga para recibir viajes.</div>` : ''}
+      ${online && pushOk === false ? `<div class="warn red" style="margin-top:12px">🔕 Los avisos con la app cerrada están apagados: solo verás las carreras si tienes MajesGo en pantalla. <button class="minibtn" id="btnFixPush" style="margin-top:8px">Activar avisos</button></div>` : ''}
       <div class="essrow">
         <div class="statcell earn"><div class="sv g" id="stEarn">${dstats ? money(dstats.today_earnings) : '…'}</div><div class="sl">Ganancias del día</div></div>
         <div class="statcell saldocell"><div class="sv a" id="stSaldo">${money(me.saldo)}</div><div class="sl">Saldo</div><button class="minibtn" id="btnRecharge">Recargar</button></div>
@@ -732,9 +772,50 @@ function renderHome() {
 
   const slide = $('#slide'); if (slide) setupSlide(); // deslizar sirve para conectarse Y desconectarse
   const rc = $('#btnRecharge'); if (rc) rc.addEventListener('click', openDrawer);
+  const fp = $('#btnFixPush'); if (fp) fp.addEventListener('click', fixPush);
   dSheetState = 'peek'; // el home arranca colapsado (~28%); el conductor desliza arriba para ver el detalle
   applyDSheetSnap(false);
   refreshStats();
+}
+
+/**
+ * Vuelve a intentar activar los avisos con la app cerrada y confirma contra el SERVIDOR.
+ *
+ * Se comprueba preguntándole al servidor si ya tiene un token/suscripción para este conductor,
+ * no si el celular dice que dio permiso: el permiso puede estar dado y el token no haber
+ * llegado nunca, y ese caso es indistinguible desde el celular.
+ */
+async function fixPush() {
+  const b = $('#btnFixPush');
+  if (b) { b.disabled = true; b.textContent = 'Activando…'; }
+
+  // App nativa: volver a pedir permiso y re-registrar en Firebase.
+  try {
+    const PN = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.PushNotifications;
+    if (PN) {
+      const p = await PN.checkPermissions();
+      if (!p || p.receive !== 'granted') await PN.requestPermissions();
+      await PN.register();
+    }
+  } catch (e) {}
+  // Web: suscripción del navegador (la app nativa también la acepta como respaldo).
+  try { await enablePush(); } catch (e) {}
+
+  // Darle un momento a Firebase para devolver el token y guardarlo.
+  await new Promise((r) => setTimeout(r, 2500));
+  await refreshPushState();
+
+  if (pushOk) toast('Listo, ya te avisaremos aunque tengas la app cerrada.');
+  else toast('No se pudo activar. Revisa los permisos de notificaciones de MajesGo en los ajustes del celular.');
+  renderHome();
+}
+
+/** Relee del servidor si ya podemos avisarle con la app cerrada. */
+async function refreshPushState() {
+  try {
+    const d = await api('api/me');
+    if (d && typeof d.push_ok === 'boolean') pushOk = d.push_ok;
+  } catch (e) {}
 }
 
 /* ====== Panel inferior colapsable (peek = esenciales; deslizar arriba = detalle) ====== */
@@ -825,9 +906,13 @@ async function toggleOnline() {
     if (!online) {
       const body = { online: true };
       if (myPos) { body.lat = myPos.lat; body.lng = myPos.lng; }
-      await api('api/connect', body);
+      const r = await api('api/connect', body);
       online = true; toast('Conectado. Buscando viajes cercanos…');
+      if (r && typeof r.push_ok === 'boolean') pushOk = r.push_ok;
       enablePush(); // pedir permiso de notificaciones al conectarse (gesto del usuario)
+      // El registro en Firebase tarda un momento; volver a preguntar y repintar el aviso
+      // solo si sigue apagado, para no molestar a quien ya lo tiene bien.
+      setTimeout(() => refreshPushState().then(() => { if (online && pushOk === false) renderHome(); }), 6000);
     } else {
       await api('api/connect', { online: false });
       online = false; toast('Te desconectaste.');

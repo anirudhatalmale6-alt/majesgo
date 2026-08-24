@@ -58,7 +58,26 @@ class RideController extends Controller
             $this->closeSession($driver);
         }
 
-        return response()->json(['ok' => true, 'status' => $driver->status, 'can_receive' => $driver->canReceiveRides()]);
+        return response()->json([
+            'ok'          => true,
+            'status'      => $driver->status,
+            'can_receive' => $driver->canReceiveRides(),
+            'push_ok'     => $this->pushReady($driver),
+        ]);
+    }
+
+    /**
+     * ¿Podemos avisarle con la app cerrada?
+     *
+     * Se responde con lo que el SERVIDOR realmente tiene guardado, no con lo que el celular
+     * cree: así queda cubierto todo — permiso denegado, token que nunca se registró, o token
+     * caducado. Si esto es false, el conductor solo se entera de una carrera mirando la
+     * pantalla, que es exactamente lo que hay que evitar.
+     */
+    private function pushReady(Driver $driver): bool
+    {
+        return \App\Models\FcmToken::where('owner_type', 'driver')->where('owner_id', $driver->id)->exists()
+            || \App\Models\PushSubscription::where('owner_type', 'driver')->where('owner_id', $driver->id)->exists();
     }
 
     /** Reporta la ubicación del conductor (para el radio de despacho y el mapa del pasajero). */
@@ -152,6 +171,8 @@ class RideController extends Controller
         // Cerrar de paso las búsquedas vencidas: así el viaje se da por perdido aunque el
         // pasajero haya cerrado la app (su celular ya no está sondeando para cerrarlo).
         Dispatch::expireStaleSearches();
+        // Y depurar la lista de conectados: los que llevan horas sin dar señales salen solos.
+        Dispatch::disconnectAbandoned();
 
         // La ventana es la MISMA que el límite de búsqueda del pasajero (ver Dispatch): si
         // fueran distintas, uno seguiría esperando un viaje que el otro ya no puede ver.

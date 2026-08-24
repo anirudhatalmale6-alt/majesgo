@@ -35,12 +35,35 @@ class Dispatch
         return min($r, max($base, $max));
     }
 
+    /**
+     * Cuánto tiempo sigue contando como CONECTADO un conductor desde su última señal de vida.
+     *
+     * ⚠ NO confundir con 'driver_stale_s', que es otra cosa: ese decide si su POSICIÓN es lo
+     * bastante fresca para dibujar su auto en el mapa del pasajero (ahí una posición de hace
+     * horas sería mentira). La presencia es más larga a propósito.
+     *
+     * Por qué: el latido lo manda la app desde el navegador. Cuando el conductor minimiza la
+     * app, abre WhatsApp o bloquea la pantalla, Android congela ese temporizador y el latido
+     * se detiene. Con una ventana corta el conductor desaparecía del despacho a los pocos
+     * minutos — y, peor, dejaba de recibir el aviso push que era justo lo que iba a
+     * despertarlo: estaba dormido, así que no lo despertábamos. Círculo cerrado.
+     * (Reportado por el cliente el 2026-08-24 tras las pruebas con conductores reales.)
+     *
+     * El aviso push es barato y no asigna nada: si un conductor ya no está, simplemente no
+     * responde y la carrera se la lleva otro. Ya no hay riesgo de "bloquear" el despacho como
+     * en el modelo viejo de ofrecer de uno en uno.
+     */
+    public static function presenceWindowS(): int
+    {
+        return max(60, (int) Setting::get('driver_presence_s', 28800)); // 8 h
+    }
+
     public static function eligibleDrivers(float $lat, float $lng, ?float $radiusKm = null, array $excludeIds = []): array
     {
         $radiusKm ??= (float) Setting::get('dispatch_radius_km', 5.0);
         // saldo mínimo = comisión de la carrera más barata posible (tarifa mínima)
         $minSaldo = Fare::minSaldo();
-        $staleS = (int) Setting::get('driver_stale_s', 60);
+        $staleS = self::presenceWindowS();
 
         $drivers = Driver::query()
             ->where('status', 'disponible')
@@ -52,8 +75,9 @@ class Dispatch
             ->where('saldo', '>=', $minSaldo)
             ->whereNotNull('lat')
             ->whereNotNull('lng')
-            // solo conductores realmente activos (la app reporta ubicación cada pocos segundos);
-            // así un conductor que cerró la app sin desconectarse no bloquea el despacho.
+            // Ventana de PRESENCIA (larga, ver presenceWindowS): el conductor sigue disponible
+            // aunque tenga la app en segundo plano. Los que llevan horas sin dar señales los
+            // desconecta disconnectAbandoned(), no este filtro.
             ->where(function ($q) use ($staleS) {
                 $q->where('last_active_at', '>=', now()->subSeconds($staleS))
                   ->orWhere('is_demo', true);
@@ -107,6 +131,35 @@ class Dispatch
             'url'   => '/conductor',
             'tag'   => 'ride-request',
         ]);
+    }
+
+    /**
+     * Desconecta a los conductores que llevan más de la ventana de presencia sin dar señales.
+     *
+     * Es la contraparte de la ventana larga: sin esto, alguien que cerró la app y nunca pulsó
+     * «desconectarme» se quedaría «disponible» para siempre. Se ejecuta desde el sondeo (igual
+     * que expireStaleSearches) para no depender de un cron.
+     *
+     * Nunca toca a un conductor con viaje en curso: ahí el que manda es el viaje, no el latido.
+     *
+     * @return int cuántos se desconectaron
+     */
+    public static function disconnectAbandoned(): int
+    {
+        $limite = now()->subSeconds(self::presenceWindowS());
+
+        $ids = Driver::query()
+            ->where('status', 'disponible')
+            ->where('is_demo', false)
+            ->where(fn ($q) => $q->whereNull('last_active_at')->orWhere('last_active_at', '<', $limite))
+            ->whereDoesntHave('rides', fn ($q) => $q->whereIn('status', Ride::ACTIVE_STATES))
+            ->pluck('id');
+
+        if ($ids->isEmpty()) {
+            return 0;
+        }
+
+        return Driver::whereIn('id', $ids)->update(['status' => 'desconectado']);
     }
 
     /* ---------- Límite de la búsqueda ---------- */

@@ -23,6 +23,9 @@ class AuthController extends Controller
         return response()->json([
             'authenticated' => true,
             'driver' => $this->publicData($d),
+            // ¿el servidor tiene con qué avisarle si la app está cerrada? (ver RideController::pushReady)
+            'push_ok' => \App\Models\FcmToken::where('owner_type', 'driver')->where('owner_id', $d->id)->exists()
+                || \App\Models\PushSubscription::where('owner_type', 'driver')->where('owner_id', $d->id)->exists(),
             'csrf' => csrf_token(),
         ]);
     }
