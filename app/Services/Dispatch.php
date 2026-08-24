@@ -7,6 +7,7 @@ use App\Models\Ride;
 use App\Models\Setting;
 use App\Services\Fare;
 use App\Services\WebPushSender;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Emparejamiento de viajes: encuentra conductores elegibles cerca del punto de recojo.
@@ -107,7 +108,30 @@ class Dispatch
         return $out;
     }
 
-    /** Notifica por push a los conductores elegibles cercanos que hay un viaje esperando. */
+    /** Etiqueta del aviso de este viaje: la comparten el aviso y su cancelación. */
+    public static function rideTag(Ride $ride): string
+    {
+        return 'viaje-'.$ride->code;
+    }
+
+    /** A quién le sonó este viaje (para poder apagárselo después). */
+    private static function pushedKey(Ride $ride): string
+    {
+        return 'push_viaje_'.$ride->id;
+    }
+
+    /** Un conductor descartó este viaje: no volver a sonarle en los recordatorios. */
+    public static function markDismissed(Ride $ride, int $driverId): void
+    {
+        Cache::put('descarta_'.$ride->id.'_'.$driverId, 1, 600);
+    }
+
+    /**
+     * Notifica por push a los conductores elegibles cercanos que hay un viaje esperando.
+     *
+     * Cada conductor recibe SU aviso: la tarifa incluye su acercamiento y la distancia es la
+     * suya, así puede decidir desde la pantalla bloqueada sin abrir la app.
+     */
     public static function notifyNearbyDrivers(Ride $ride): void
     {
         if ($ride->status !== 'solicitando') {
@@ -115,21 +139,90 @@ class Dispatch
         }
         $waited = max(0, now()->timestamp - $ride->requested_at->timestamp);
         $radius = self::radiusForWait($waited);
-
-        $ids = [];
-        foreach (self::eligibleDrivers((float) $ride->origin_lat, (float) $ride->origin_lng, $radius, (array) $ride->excluded_driver_ids) as $e) {
-            if (! $e['driver']->is_demo) {
-                $ids[] = $e['driver']->id;
-            }
+        $restan = self::searchSecondsLeft($ride);
+        if ($restan < 5) {
+            return; // ya casi no existe: un aviso ahora solo sirve para frustrar
         }
 
-        \Log::info('notifyNearbyDrivers ride='.$ride->code.' eligible_drivers='.count($ids));
+        $moneda = Setting::get('currency', 'S/');
+        $origen = $ride->origin_address ?: 'Punto de recojo';
+        $destino = $ride->dest_address ?: 'Destino';
+        $tag = self::rideTag($ride);
+        $avisados = [];
+
+        foreach (self::eligibleDrivers((float) $ride->origin_lat, (float) $ride->origin_lng, $radius, (array) $ride->excluded_driver_ids) as $e) {
+            $d = $e['driver'];
+            if ($d->is_demo || Cache::get('descarta_'.$ride->id.'_'.$d->id)) {
+                continue;
+            }
+
+            // mismo cálculo que ve en la tarjeta al abrir la app: el aviso no puede prometer
+            // un monto y la app mostrar otro
+            $acerca = Fare::approach(Fare::approachDistance((float) $d->lat, (float) $d->lng, (float) $ride->origin_lat, (float) $ride->origin_lng));
+            $total  = Fare::total((float) $ride->offered_price, $acerca);
+            $km     = round($e['distance_m'] / 1000, 1);
+
+            $avisados[] = $d->id;
+            WebPushSender::toOwner('driver', $d->id, [
+                'title' => '🚕 '.$moneda.' '.number_format($total, 2).' · a '.$km.' km de ti',
+                'body'  => $origen.' → '.$destino,
+                'url'   => '/conductor',
+                'tag'   => $tag,
+                'ttl'   => min(60, $restan),
+            ]);
+        }
+
+        // Se ACUMULA, no se reemplaza: hay que poder apagarle el aviso a cualquiera al que le
+        // haya sonado alguna vez por este viaje, no solo a los del último recordatorio (el que
+        // rechazó o el que se salió del radio también tienen la notificación en la barra).
+        $previos = (array) Cache::get(self::pushedKey($ride), []);
+        Cache::put(self::pushedKey($ride), array_values(array_unique(array_merge($previos, $avisados))), 900);
+        \Log::info('notifyNearbyDrivers ride='.$ride->code.' avisados='.count($avisados));
+    }
+
+    /**
+     * Vuelve a sonarle a los que aún no respondieron, mientras el pasajero sigue esperando.
+     *
+     * Lo dispara el sondeo del pasajero, así no hace falta un proceso en segundo plano. Con
+     * tope y con freno: un aviso que insiste para siempre se convierte en un aviso que el
+     * conductor silencia, y volvemos al problema de que no se entera de nada.
+     */
+    public static function remindWhileSearching(Ride $ride): void
+    {
+        if ($ride->status !== 'solicitando') {
+            return;
+        }
+        $freno = 'recuerda_'.$ride->id;
+        $veces = 'recuerda_n_'.$ride->id;
+        if (Cache::get($freno) || (int) Cache::get($veces, 0) >= 3) {
+            return;
+        }
+        Cache::put($freno, 1, 12);
+        Cache::put($veces, (int) Cache::get($veces, 0) + 1, 600);
+
+        self::notifyNearbyDrivers($ride);
+    }
+
+    /**
+     * Apaga el aviso que quedó sonando en los celulares de los que NO se quedaron con la
+     * carrera. Va con el mismo tag, así reemplaza al aviso ruidoso, y por un canal sin sonido
+     * para no volver a molestar. Sin esto, el conductor abre la app buscando una carrera que
+     * ya no existe.
+     */
+    public static function notifyRideTaken(Ride $ride, ?int $winnerId = null, string $motivo = 'Ya la tomó otro conductor'): void
+    {
+        $ids = array_values(array_diff((array) Cache::pull(self::pushedKey($ride), []), array_filter([$winnerId])));
+        if (! $ids) {
+            return;
+        }
 
         WebPushSender::toOwners('driver', $ids, [
-            'title' => 'Nuevo viaje en MajesGo 🚕',
-            'body'  => 'Hay una carrera cerca de ti. Toca para verla.',
-            'url'   => '/conductor',
-            'tag'   => 'ride-request',
+            'title'  => 'Carrera ya no disponible',
+            'body'   => $motivo,
+            'url'    => '/conductor',
+            'tag'    => self::rideTag($ride),
+            'silent' => true,
+            'ttl'    => 120,
         ]);
     }
 
@@ -203,6 +296,9 @@ class Dispatch
 
         foreach ($stale as $ride) {
             $ride->forceFill(['status' => 'sin_conductor', 'cancelled_at' => now()])->save();
+
+            // apagar el aviso en los celulares donde quedó sonando
+            defer(fn () => self::notifyRideTaken($ride, null, 'La búsqueda terminó.'));
 
             defer(fn () => WebPushSender::toOwner('passenger', (int) $ride->passenger_id, [
                 'title' => 'No encontramos conductor',

@@ -69,6 +69,38 @@ class FcmSender
         $endpoint = "https://fcm.googleapis.com/v1/projects/{$projectId}/messages:send";
         $ok = 0; $gone = 0; $failed = 0;
 
+        /*
+         * 'tag' es la pieza clave del aviso de viaje: dos mensajes con el MISMO tag no se
+         * apilan, el segundo REEMPLAZA al primero. Así los recordatorios no llenan la barra
+         * de notificaciones, y sobre todo: cuando otro conductor se lleva la carrera podemos
+         * mandar un aviso silencioso con el mismo tag que borra el que estaba sonando.
+         */
+        $tag = (string) ($payload['tag'] ?? '');
+        $silent = (bool) ($payload['silent'] ?? false);
+
+        // Un aviso de viaje que llega tarde es peor que no llegar: la carrera ya no existe.
+        // Con TTL corto, Firebase lo descarta en vez de guardarlo para cuando el celular vuelva.
+        $ttl = (int) ($payload['ttl'] ?? 45);
+
+        $android = [
+            'priority'     => $silent ? 'NORMAL' : 'HIGH',
+            'ttl'          => $ttl.'s',
+            'notification' => array_filter([
+                // El canal decide el sonido y si sale como aviso flotante encima de WhatsApp.
+                // ⚠ Sus ajustes quedan CONGELADOS al crearse: para cambiarlos hace falta un
+                // canal con id nuevo (lo crea native.js, sin recompilar la app).
+                'channel_id'          => $silent ? 'majesgo_avisos' : 'majesgo_viajes',
+                'sound'               => $silent ? null : 'default',
+                'notification_priority' => $silent ? 'PRIORITY_MIN' : 'PRIORITY_MAX',
+                'default_vibrate_timings' => ! $silent,
+                'visibility'          => 'PUBLIC', // se ve con la pantalla bloqueada
+                'tag'                 => $tag ?: null,
+            ], fn ($v) => $v !== null),
+        ];
+        if ($tag !== '') {
+            $android['collapse_key'] = $tag;
+        }
+
         foreach ($tokens as $token) {
             $message = [
                 'message' => [
@@ -80,14 +112,7 @@ class FcmSender
                     'data' => [
                         'url' => (string) ($payload['url'] ?? '/'),
                     ],
-                    'android' => [
-                        'priority'     => 'HIGH',
-                        'notification' => [
-                            'sound'        => 'default',
-                            'channel_id'   => 'majesgo_viajes',
-                            'default_vibrate_timings' => true,
-                        ],
-                    ],
+                    'android' => $android,
                 ],
             ];
 

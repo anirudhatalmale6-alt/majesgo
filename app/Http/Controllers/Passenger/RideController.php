@@ -194,6 +194,11 @@ class RideController extends Controller
 
             // Si hay conductores reales en línea, esperamos a que uno ofrezca desde su app.
             if ($realOnline) {
+                // Y de paso les volvemos a sonar a los que aún no respondieron. Va aquí, en el
+                // sondeo del pasajero, porque es lo único que sigue corriendo mientras nadie
+                // acepta: no hace falta un proceso en segundo plano en el servidor.
+                defer(fn () => Dispatch::remindWhileSearching($ride->fresh()));
+
                 return response()->json(['ride' => $this->payload($ride, null), 'search' => $this->searchInfo($ride)]);
             }
 

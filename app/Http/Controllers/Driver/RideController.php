@@ -321,6 +321,9 @@ class RideController extends Controller
 
         $driver->increment('stat_accepted'); // para la tasa de aceptación
 
+        // Apagar el aviso que quedó sonando en los demás celulares: la carrera ya tiene dueño.
+        defer(fn () => Dispatch::notifyRideTaken($ride, $driver->id));
+
         // Avisar por push al pasajero que un conductor lo ofreció (debe confirmar).
         defer(fn () => WebPushSender::toOwner('passenger', (int) $ride->passenger_id, [
             'title' => '¡Conductor encontrado! 🚕',
@@ -336,9 +339,12 @@ class RideController extends Controller
     public function reject(Request $request)
     {
         $data = $request->validate(['code' => ['required', 'string']]);
-        $this->driver($request)->increment('stat_rejected'); // para la tasa de aceptación
+        $driver = $this->driver($request);
+        $driver->increment('stat_rejected'); // para la tasa de aceptación
         $ride = Ride::where('code', $data['code'])->first();
         if ($ride) {
+            // que los recordatorios por push tampoco le vuelvan a sonar
+            Dispatch::markDismissed($ride, $driver->id);
             // omisión temporal con marca de tiempo (ver pending): no es permanente,
             // si el viaje se re-emite más tarde volverá a aparecerle.
             $dismissed = (array) $request->session()->get('dismissed_map', []);

@@ -37,6 +37,14 @@
           description: 'Alertas de nuevos viajes y estado del viaje',
           importance: 5, visibility: 1, sound: 'default', vibration: true, lights: true,
         }).catch(function () {});
+        // Canal MUDO: sirve para apagar un aviso que quedó sonando (mismo tag lo reemplaza)
+        // sin volver a molestar al conductor. Sin él, decirle "ya la tomó otro" sonaría
+        // igual de fuerte que la carrera que ya perdió.
+        PN.createChannel({
+          id: 'majesgo_avisos', name: 'Avisos silenciosos',
+          description: 'Cambios de estado que no necesitan sonar',
+          importance: 2, visibility: 1, vibration: false, lights: false,
+        }).catch(function () {});
       }
       PN.addListener('registration', function (t) { postToken(t && t.value); });
       PN.addListener('registrationError', function () {});
