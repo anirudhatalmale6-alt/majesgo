@@ -467,6 +467,7 @@ window.MG = {
     currency: @json($currency),
     csrf: document.querySelector('meta[name=csrf-token]').content,
     vapidPublic: @json(config('services.webpush.public_key')),
+    alertSound: @json($alertSound),
     // Motivos de denuncia contra el pasajero. Vienen del modelo para que la app y el
     // panel de la central hablen siempre de lo mismo.
     reportReasons: @json(\App\Models\UserReport::REASONS_ON_PASSENGER),
@@ -474,7 +475,7 @@ window.MG = {
 </script>
 <script src="/js/pois.js?v=5"></script>
 <script src="/js/majesgo-car.js?v=2"></script>
-<script src="/js/driver.js?v=31"></script>
+<script src="/js/driver.js?v=32"></script>
 <script src="/js/native.js?v=1"></script>
 </body>
 </html>

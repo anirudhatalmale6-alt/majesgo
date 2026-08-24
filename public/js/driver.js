@@ -124,7 +124,7 @@ let chatOpen = false, chatLastId = 0, chatSeenId = 0, chatPoll = null, rideLastM
 let mapLight = false, baseTile = null, navTile = null, arrivedFor = null;
 let cancelModalOpen = false, cancelledRide = null, cancelReason = null, audioCtx = null;
 
-/* ---------- Alerta sonora (para la cancelación del pasajero) ---------- */
+/* ---------- Alertas sonoras ---------- */
 // Se prepara/reactiva el contexto de audio con un gesto del usuario (tocar la pantalla),
 // requisito de los navegadores para poder reproducir sonido después.
 function ensureAudio() {
@@ -132,7 +132,78 @@ function ensureAudio() {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     if (audioCtx.state === 'suspended') audioCtx.resume();
   } catch (e) {}
+  unlockAlertFile();
 }
+
+/* Tono sintetizado: no depende de ningún archivo, así que siempre hay sonido
+   aunque la central todavía no haya subido el suyo. */
+function playTones(steps, vol) {
+  try {
+    if (!audioCtx) return false;
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const now = audioCtx.currentTime;
+    steps.forEach((hz, i) => {
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.type = 'sine'; o.frequency.value = hz;
+      const s = now + i * 0.22;
+      g.gain.setValueAtTime(0.0001, s);
+      g.gain.exponentialRampToValueAtTime(vol, s + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, s + 0.20);
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(s); o.stop(s + 0.22);
+    });
+    return true;
+  } catch (e) { return false; }
+}
+
+/* Sonido propio de la central (window.MG.alertSound). Si no hay archivo, o el
+   navegador no lo puede reproducir, se cae al tono sintetizado: nunca queda mudo. */
+let alertFile = null, alertFileReady = false;
+function unlockAlertFile() {
+  // Un <audio> también necesita un gesto del usuario la primera vez: se arranca y
+  // se detiene en silencio para dejarlo habilitado.
+  if (alertFileReady || !window.MG || !MG.alertSound) return;
+  try {
+    if (!alertFile) { alertFile = new Audio(MG.alertSound); alertFile.preload = 'auto'; }
+    const p = alertFile.play();
+    if (p && p.then) {
+      p.then(() => { alertFile.pause(); alertFile.currentTime = 0; alertFileReady = true; })
+       .catch(() => {});
+    } else { alertFile.pause(); alertFile.currentTime = 0; alertFileReady = true; }
+  } catch (e) {}
+}
+function playAlertFile() {
+  if (!alertFile) return false;
+  try {
+    alertFile.currentTime = 0;
+    const p = alertFile.play();
+    if (p && p.catch) p.catch(() => playTones([660, 880, 1175], 0.5));
+    return true;
+  } catch (e) { return false; }
+}
+
+/* Aviso de VIAJE NUEVO: suena y vibra en repeticiones mientras la tarjeta está en
+   pantalla, no una sola vez — el conductor casi nunca está mirando el teléfono. */
+const NEW_RIDE_REPEATS = 6, NEW_RIDE_GAP_MS = 3000;
+let newRideTimer = null;
+const rideAlert = {
+  start() {
+    this.stop();
+    let n = 0;
+    const ring = () => {
+      if (!playAlertFile()) playTones([660, 880, 1175], 0.5);
+      if (navigator.vibrate) { try { navigator.vibrate([400, 150, 400]); } catch (e) {} }
+      if (++n >= NEW_RIDE_REPEATS) this.stop();
+    };
+    ring();
+    newRideTimer = setInterval(ring, NEW_RIDE_GAP_MS);
+  },
+  stop() {
+    if (newRideTimer) { clearInterval(newRideTimer); newRideTimer = null; }
+    if (alertFile) { try { alertFile.pause(); alertFile.currentTime = 0; } catch (e) {} }
+    if (navigator.vibrate) { try { navigator.vibrate(0); } catch (e) {} }
+  },
+};
 function alertBeep() {
   try {
     ensureAudio(); if (!audioCtx) return;
@@ -827,6 +898,7 @@ function handleCurrent(r) {
 function showRequest(req) {
   reqCode = req.code;
   reqBump = 0; // cada solicitud arranca sin ajuste
+  rideAlert.start(); // suena y vibra hasta que acepte, rechace o se venza el tiempo
   const wrap = $('#reqwrap'); wrap.classList.remove('hidden');
   // El total incluye el acercamiento hasta el pasajero, calculado con la distancia de ESTE
   // conductor: por eso la cifra grande puede ser mayor que lo que ofreció el pasajero.
@@ -956,6 +1028,7 @@ function addOfferLabel(latlng, text, variant) {
 }
 function hideRequest() {
   clearInterval(reqTimer); reqTimer = null; reqCode = null;
+  rideAlert.stop(); // toda salida de la tarjeta pasa por aquí: aceptar, rechazar, vencer o desaparecer
   $('#reqwrap').classList.add('hidden');
   // limpiar la vista previa (ruta + pines + etiquetas) y restaurar las zonas del mapa
   if (routeLine) { routeLine.remove(); routeLine = null; }
