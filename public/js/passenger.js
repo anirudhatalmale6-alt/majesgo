@@ -926,6 +926,12 @@ function renderRide(r) {
     if (r.route_to_pickup) drawRoute(r.route_to_pickup, '#FFC107');
   } else if (r.status === 'a_bordo') {
     if (r.route_trip) drawRoute(r.route_trip, '#00C853');
+  } else {
+    // Sin conductor asignado (volvió a buscar porque el pasajero lo rechazó, porque no confirmó
+    // a tiempo, o porque se venció la búsqueda). Hay que BORRAR el auto y la ruta del conductor
+    // anterior: el servidor deja de mandarlos, pero lo que ya está dibujado en el mapa se queda
+    // ahí, y el pasajero ve un taxi acercándose que en realidad ya no viene por él.
+    clearDriverFromMap();
   }
   // marcador del auto
   if (r.driver_pos && r.driver_pos.lat) moveCar(r.driver_pos);
@@ -1070,6 +1076,9 @@ async function confirmOffer() {
 async function rejectOffer() {
   clearInterval(offerTimer); offerKey = null;
   const b = $('#btnOtro'); if (b) { b.disabled = true; b.textContent = 'Buscando…'; }
+  // Borrar el auto y la ruta YA, sin esperar la respuesta ni el siguiente sondeo: el pasajero
+  // acaba de decir que no quiere a ese conductor, verlo un segundo más acercándose confunde.
+  clearDriverFromMap();
   try {
     const r = await api('api/rides/reject-driver', {});
     toast('Buscando otro conductor…');
@@ -1342,8 +1351,7 @@ function resetAfterRide() {
   closeChat(); chatLastId = 0; chatSeenId = 0; rideLastMsgId = 0;
   dest = null; quote = null; price = null; reference = ''; refOpen = false;
   if (dMarker) { dMarker.remove(); dMarker = null; }
-  if (routeLine) { routeLine.remove(); routeLine = null; }
-  if (carMarker) { carMarker.remove(); carMarker = null; }
+  clearDriverFromMap();
   curRide = null;
   originPinned = false;   // el recojo vuelve a seguir tu ubicación en vivo
   sheetState = 'peek';    // panel compacto otra vez para ver el mapa
@@ -1351,6 +1359,22 @@ function resetAfterRide() {
   reflectOrigin();
   setDefaultOrigin();
   renderPlanning();
+}
+
+/**
+ * Quita del mapa el auto del conductor y su ruta.
+ *
+ * ⚠ Hay que cancelar la animación en curso ANTES de soltar el marcador: moveCar() deja un
+ * requestAnimationFrame corriendo que llama a carMarker.setLatLng(), y si lo dejamos en null
+ * a mitad de camino, ese frame revienta.
+ */
+function clearDriverFromMap() {
+  if (routeLine) { routeLine.remove(); routeLine = null; }
+  if (carMarker) {
+    if (carMarker._anim) { cancelAnimationFrame(carMarker._anim); carMarker._anim = null; }
+    carMarker.remove(); carMarker = null;
+  }
+  carFrom = null;
 }
 
 /* auto del conductor con interpolación suave entre polls */
