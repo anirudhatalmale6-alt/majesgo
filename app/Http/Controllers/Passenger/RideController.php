@@ -239,8 +239,11 @@ class RideController extends Controller
     public function subscribeFcm(Request $request)
     {
         $passenger = $this->passenger($request);
-        $data = $request->validate(['token' => ['required', 'string', 'max:512']]);
-        $ok = \App\Services\FcmSender::store('passenger', $passenger->id, $data['token']);
+        $data = $request->validate([
+            'token' => ['required', 'string', 'max:512'],
+            'build' => ['nullable', 'integer', 'min:0', 'max:100000'],
+        ]);
+        $ok = \App\Services\FcmSender::store('passenger', $passenger->id, $data['token'], 'android', (int) ($data['build'] ?? 0));
 
         return response()->json(['ok' => $ok]);
     }

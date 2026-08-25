@@ -18,15 +18,23 @@ use Illuminate\Support\Facades\Log;
  */
 class FcmSender
 {
+    /**
+     * Primera versión de la app del conductor que lleva el timbre propio dentro del apk
+     * (res/raw/nuevo_viaje.mp3). Por debajo de esto el celular NO tiene el archivo, y un
+     * canal que apunte a un sonido inexistente sale mudo: a esos se les manda el canal
+     * de siempre, con el sonido del sistema.
+     */
+    public const BUILD_TIMBRE_PROPIO = 3;
+
     /** Guarda/actualiza el token FCM del dispositivo de un conductor o pasajero. */
-    public static function store(string $ownerType, int $ownerId, string $token, string $platform = 'android'): bool
+    public static function store(string $ownerType, int $ownerId, string $token, string $platform = 'android', int $appBuild = 0): bool
     {
         if ($token === '') {
             return false;
         }
         FcmToken::updateOrCreate(
             ['token' => $token],
-            ['owner_type' => $ownerType, 'owner_id' => $ownerId, 'platform' => $platform]
+            ['owner_type' => $ownerType, 'owner_id' => $ownerId, 'platform' => $platform, 'app_build' => $appBuild]
         );
 
         return true;
@@ -35,8 +43,9 @@ class FcmSender
     public static function toOwner(string $ownerType, int $ownerId, array $payload): void
     {
         self::send(
-            FcmToken::where('owner_type', $ownerType)->where('owner_id', $ownerId)->pluck('token')->all(),
-            $payload
+            FcmToken::where('owner_type', $ownerType)->where('owner_id', $ownerId)->get(['token', 'app_build'])->all(),
+            $payload,
+            $ownerType
         );
     }
 
@@ -47,15 +56,31 @@ class FcmSender
             return;
         }
         self::send(
-            FcmToken::where('owner_type', $ownerType)->whereIn('owner_id', $ownerIds)->pluck('token')->all(),
-            $payload
+            FcmToken::where('owner_type', $ownerType)->whereIn('owner_id', $ownerIds)->get(['token', 'app_build'])->all(),
+            $payload,
+            $ownerType
         );
     }
 
-    /** @param array<string> $tokens  payload: ['title'=>, 'body'=>, 'url'=>] */
-    private static function send(array $tokens, array $payload): void
+    /**
+     * @param array<FcmToken|string> $rows  payload: ['title'=>, 'body'=>, 'url'=>]
+     *
+     * Acepta modelos (con app_build) o strings sueltos; un string se trata como versión
+     * antigua, que es el supuesto seguro: suena con el sonido del sistema.
+     */
+    private static function send(array $rows, array $payload, string $ownerType = 'driver'): void
     {
-        $tokens = array_values(array_unique(array_filter($tokens)));
+        $builds = [];
+        foreach ($rows as $r) {
+            $t = is_string($r) ? $r : (string) $r->token;
+            if ($t === '') {
+                continue;
+            }
+            $b = is_string($r) ? 0 : (int) $r->app_build;
+            // Si el mismo token apareciera dos veces, quedarse con la versión más alta.
+            $builds[$t] = max($builds[$t] ?? 0, $b);
+        }
+        $tokens = array_keys($builds);
         if (! $tokens) {
             return;
         }
@@ -82,26 +107,40 @@ class FcmSender
         // Con TTL corto, Firebase lo descarta en vez de guardarlo para cuando el celular vuelva.
         $ttl = (int) ($payload['ttl'] ?? 45);
 
-        $android = [
-            'priority'     => $silent ? 'NORMAL' : 'HIGH',
-            'ttl'          => $ttl.'s',
-            'notification' => array_filter([
-                // El canal decide el sonido y si sale como aviso flotante encima de WhatsApp.
-                // ⚠ Sus ajustes quedan CONGELADOS al crearse: para cambiarlos hace falta un
-                // canal con id nuevo (lo crea native.js, sin recompilar la app).
-                'channel_id'          => $silent ? 'majesgo_avisos' : 'majesgo_viajes',
-                'sound'               => $silent ? null : 'default',
-                'notification_priority' => $silent ? 'PRIORITY_MIN' : 'PRIORITY_MAX',
-                'default_vibrate_timings' => ! $silent,
-                'visibility'          => 'PUBLIC', // se ve con la pantalla bloqueada
-                'tag'                 => $tag ?: null,
-            ], fn ($v) => $v !== null),
-        ];
-        if ($tag !== '') {
-            $android['collapse_key'] = $tag;
-        }
+        /*
+         * El bloque android depende de la VERSIÓN instalada en ese celular: el timbre propio
+         * vive dentro del apk, así que sólo se pide en los que ya lo tienen. Durante una
+         * actualización de Play conviven las dos versiones y cada una recibe lo suyo.
+         */
+        // El mp3 va sólo en el apk del CONDUCTOR: pedirlo en el del pasajero lo dejaría mudo.
+        $llevaTimbre = $ownerType === 'driver';
+
+        $bloque = function (int $build) use ($silent, $ttl, $tag, $llevaTimbre): array {
+            $propio = ! $silent && $llevaTimbre && $build >= self::BUILD_TIMBRE_PROPIO;
+            $android = [
+                'priority'     => $silent ? 'NORMAL' : 'HIGH',
+                'ttl'          => $ttl.'s',
+                'notification' => array_filter([
+                    // El canal decide el sonido y si sale como aviso flotante encima de WhatsApp.
+                    // ⚠ Sus ajustes quedan CONGELADOS al crearse: para cambiarlos hace falta un
+                    // canal con id nuevo (lo crea native.js, sin recompilar la app).
+                    'channel_id'          => $silent ? 'majesgo_avisos' : ($propio ? 'majesgo_viajes_v2' : 'majesgo_viajes'),
+                    'sound'               => $silent ? null : ($propio ? 'nuevo_viaje' : 'default'),
+                    'notification_priority' => $silent ? 'PRIORITY_MIN' : 'PRIORITY_MAX',
+                    'default_vibrate_timings' => ! $silent,
+                    'visibility'          => 'PUBLIC', // se ve con la pantalla bloqueada
+                    'tag'                 => $tag ?: null,
+                ], fn ($v) => $v !== null),
+            ];
+            if ($tag !== '') {
+                $android['collapse_key'] = $tag;
+            }
+
+            return $android;
+        };
 
         foreach ($tokens as $token) {
+            $android = $bloque($builds[$token] ?? 0);
             $message = [
                 'message' => [
                     'token'        => $token,

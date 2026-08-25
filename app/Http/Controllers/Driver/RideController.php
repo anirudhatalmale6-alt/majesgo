@@ -107,8 +107,12 @@ class RideController extends Controller
     public function subscribeFcm(Request $request)
     {
         $driver = $this->driver($request);
-        $data = $request->validate(['token' => ['required', 'string', 'max:512']]);
-        $ok = \App\Services\FcmSender::store('driver', $driver->id, $data['token']);
+        $data = $request->validate([
+            'token' => ['required', 'string', 'max:512'],
+            // versionCode del apk instalado: decide si este celular ya tiene el timbre propio
+            'build' => ['nullable', 'integer', 'min:0', 'max:100000'],
+        ]);
+        $ok = \App\Services\FcmSender::store('driver', $driver->id, $data['token'], 'android', (int) ($data['build'] ?? 0));
 
         return response()->json(['ok' => $ok]);
     }
