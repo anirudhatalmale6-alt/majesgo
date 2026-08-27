@@ -327,13 +327,40 @@ function updateNearbyPill(count, nearestM) {
 }
 
 /* ================= MAPA ================= */
+/**
+ * Acercar / alejar con un dedo. Los que trae Leaflet iban abajo a la izquierda, debajo del
+ * panel que sube desde el fondo: estaban ahí pero no se podían tocar. Con el pin central
+ * fijo, poder acercar es lo que separa "mi calle" de "mi manzana" al marcar el recojo.
+ * Acercar a mano cuenta como mover el mapa: apaga el recentrado automático, igual que
+ * arrastrar, para no llevarle el pin de vuelta mientras afina el punto.
+ */
+function setupZoomButtons() {
+  const mas = document.getElementById('btnZoomIn');
+  const menos = document.getElementById('btnZoomOut');
+  const pintar = () => {
+    if (!map || !mas || !menos) return;
+    const z = map.getZoom();
+    mas.disabled = z >= map.getMaxZoom();
+    menos.disabled = z <= map.getMinZoom();
+  };
+  const paso = (d) => {
+    if (!map) return;
+    followMe = false;
+    map.setZoom(map.getZoom() + d);
+  };
+  if (mas) mas.addEventListener('click', () => paso(1));
+  if (menos) menos.addEventListener('click', () => paso(-1));
+  map.on('zoomend', pintar);
+  pintar();
+}
+
 function initMap() {
   mapLight = initialLight();
   map = L.map('map', { zoomControl: false, attributionControl: true }).setView(MG.center, 15);
   baseTile = L.tileLayer(tileUrl(mapLight), {
     attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 20, subdomains: 'abcd',
   }).addTo(map);
-  L.control.zoom({ position: 'bottomleft' }).addTo(map);
+  setupZoomButtons();
   // puntos de referencia (grifos, mercados, hoteles): ayudan al pasajero a ubicarse
   if (window.MGPois) window.MGPois.attach(map);
   const bm = $('#btnMapMode'); if (bm) bm.addEventListener('click', toggleMapMode);

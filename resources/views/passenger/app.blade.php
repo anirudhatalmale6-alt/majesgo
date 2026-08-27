@@ -65,7 +65,7 @@
         /* zonas PRINCIPALES: su pin y su nombre se ven SIEMPRE, incluso de lejos */
         .zonemk.zprimary .zpin path{fill:#009d4f} /* verde para distinguir las principales */
         #app.lightmap .zonemk .zname{color:#173a70;background:rgba(255,255,255,.9);border-color:rgba(60,110,200,.45)}
-        .nearbypill{position:absolute;top:calc(env(safe-area-inset-top) + 62px);left:50%;transform:translateX(-50%);z-index:19;background:rgba(13,13,13,.80);backdrop-filter:blur(8px);color:#fff;font-size:12.5px;font-weight:600;padding:7px 14px;border-radius:20px;box-shadow:0 2px 10px rgba(0,0,0,.35);white-space:nowrap;pointer-events:none;max-width:88vw;overflow:hidden;text-overflow:ellipsis}
+        .nearbypill{position:absolute;top:calc(env(safe-area-inset-top) + 62px);left:50%;transform:translateX(-50%);z-index:19;background:rgba(13,13,13,.80);backdrop-filter:blur(8px);color:#fff;font-size:12.5px;font-weight:600;padding:7px 14px;border-radius:20px;box-shadow:0 2px 10px rgba(0,0,0,.35);white-space:nowrap;pointer-events:none;max-width:calc(100vw - 130px);overflow:hidden;text-overflow:ellipsis}
         #app.lightmap .nearbypill{background:rgba(255,255,255,.92);color:#14181c}
         /* Pin central fijo + punto exacto */
         .centerpin{position:absolute;left:50%;top:50%;z-index:24;pointer-events:none;transform:translate(-50%,-100%);transition:transform .13s ease}
@@ -85,6 +85,14 @@
         .mapbtn svg{display:block}
         .btnpin{display:inline-flex;vertical-align:-4px}.btnpin svg{filter:drop-shadow(0 1px 1px rgba(0,0,0,.4))}
         .mapmode{position:absolute;top:calc(env(safe-area-inset-top) + 66px);left:14px;z-index:19;width:40px;height:40px;border-radius:50%;border:0;background:rgba(13,13,13,.72);backdrop-filter:blur(8px);font-size:17px;cursor:pointer;display:grid;place-items:center;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+        /* Acercar / alejar. Los botones que trae Leaflet se ponían abajo a la izquierda,
+           justo donde sube el panel: quedaban tapados, y además miden 30 px, menos de lo
+           que necesita un dedo. Aquí arriba, de 40 px, y siempre a la vista. */
+        .mapzoom{position:absolute;top:calc(env(safe-area-inset-top) + 114px);left:14px;z-index:19;display:flex;flex-direction:column;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+        .mapzoom button{width:40px;height:40px;border:0;background:rgba(13,13,13,.72);backdrop-filter:blur(8px);color:#F5F7FA;font-size:21px;font-weight:700;line-height:1;cursor:pointer;-webkit-tap-highlight-color:transparent;display:grid;place-items:center}
+        .mapzoom button:first-child{border-bottom:1px solid rgba(255,255,255,.14)}
+        .mapzoom button:active{background:rgba(0,230,118,.28)}
+        .mapzoom button:disabled{opacity:.38;cursor:default}
         #app.lightmap #map{background:#e6e9e4}
         #app.lightmap .leaflet-container{background:#e6e9e4}
 
@@ -313,6 +321,10 @@
 <div id="app">
     <div id="map"></div>
     <button class="mapmode" id="btnMapMode" title="Modo claro / oscuro" aria-label="Modo claro u oscuro">🌙</button>
+    <div class="mapzoom" id="mapZoom">
+        <button type="button" id="btnZoomIn" title="Acercar" aria-label="Acercar el mapa">+</button>
+        <button type="button" id="btnZoomOut" title="Alejar" aria-label="Alejar el mapa">−</button>
+    </div>
 
     <div class="topbar">
         <div class="brand"><span style="font-size:18px">📍</span><b>Majes<span class="g">Go</span></b></div>
@@ -415,7 +427,7 @@ window.MG = {
 </script>
 <script src="/js/pois.js?v=5"></script>
 <script src="/js/majesgo-car.js?v=2"></script>
-<script src="/js/passenger.js?v=41"></script>
+<script src="/js/passenger.js?v=42"></script>
 <script src="/js/native.js?v=3"></script>
 </body>
 </html>

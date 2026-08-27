@@ -37,6 +37,14 @@
         .car{font-size:30px;filter:drop-shadow(0 4px 6px rgba(0,0,0,.5))}
         .medot{width:16px;height:16px;background:var(--amarillo);border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 6px rgba(255,193,7,.25)}
         .mapmode{position:absolute;top:calc(env(safe-area-inset-top) + 66px);left:14px;z-index:19;width:40px;height:40px;border-radius:50%;border:0;background:rgba(13,13,13,.72);backdrop-filter:blur(8px);font-size:17px;cursor:pointer;display:grid;place-items:center;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+        /* Acercar / alejar con el pulgar. El mapa ya responde al gesto de pellizcar, pero
+           el conductor suele mirar el viaje con UNA mano y con el celular en el soporte:
+           con dos dedos no llega. Van bajo el botón de modo claro/oscuro, misma columna. */
+        .mapzoom{position:absolute;top:calc(env(safe-area-inset-top) + 114px);left:14px;z-index:19;display:flex;flex-direction:column;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+        .mapzoom button{width:40px;height:40px;border:0;background:rgba(13,13,13,.72);backdrop-filter:blur(8px);color:#F5F7FA;font-size:21px;font-weight:700;line-height:1;cursor:pointer;-webkit-tap-highlight-color:transparent;display:grid;place-items:center}
+        .mapzoom button:first-child{border-bottom:1px solid rgba(255,255,255,.14)}
+        .mapzoom button:active{background:rgba(0,230,118,.28)}
+        .mapzoom button:disabled{opacity:.38;cursor:default}
         /* Zonas locales en el mapa del conductor (mismo criterio que el pasajero) */
         .zonemk{pointer-events:none}
         .zonemk .zpin{display:block;position:absolute;left:-7px;top:-20px;width:14px;height:20px;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5))}
@@ -169,7 +177,14 @@
 
         /* Solicitud entrante */
         /* solo la tarjeta abajo; el mapa arriba queda CLARO y visible (recojo+ruta+zona) */
-        .reqwrap{position:absolute;left:0;right:0;bottom:0;z-index:38;display:flex;align-items:flex-end;padding:0}
+        /* ⚠ pointer-events:none NO es cosmético. La ficha se compacta desplazándola hacia
+           abajo (transform), y un transform NO encoge la caja del envoltorio: éste seguía
+           ocupando el alto ENTERO de la tarjeta pegado al fondo, invisible pero mordiendo
+           cada toque. En un celular de 780 px eran 381 px de mapa que se veían y no
+           respondían: ni acercar, ni arrastrar. Los toques pasan de largo y sólo la
+           tarjeta de verdad (.reqcard) los recibe. */
+        .reqwrap{position:absolute;left:0;right:0;bottom:0;z-index:38;display:flex;align-items:flex-end;padding:0;pointer-events:none}
+        .reqcard{pointer-events:auto}
         /* La ficha de un viaje abre COMPACTA: se desplaza hacia abajo y solo asoma lo
            esencial (precio, recojo, destino, Aceptar). El resto se ve deslizando el asa.
            Sin esto la tarjeta ocupaba casi toda la pantalla y tapaba la ruta. */
@@ -408,6 +423,10 @@
 <div id="app">
     <div id="map"></div>
     <button class="mapmode" id="btnMapMode" title="Modo claro / oscuro" aria-label="Modo claro u oscuro">🌙</button>
+    <div class="mapzoom" id="mapZoom">
+        <button type="button" id="btnZoomIn" title="Acercar" aria-label="Acercar el mapa">+</button>
+        <button type="button" id="btnZoomOut" title="Alejar" aria-label="Alejar el mapa">−</button>
+    </div>
 
     <div class="topbar">
         <div class="brand"><span style="font-size:16px">🚕</span><b>Majes<span class="g">Go</span></b><span class="tag">CONDUCTOR</span></div>
@@ -519,7 +538,7 @@ window.MG = {
 </script>
 <script src="/js/pois.js?v=5"></script>
 <script src="/js/majesgo-car.js?v=2"></script>
-<script src="/js/driver.js?v=36"></script>
+<script src="/js/driver.js?v=37"></script>
 <script src="/js/native.js?v=3"></script>
 </body>
 </html>

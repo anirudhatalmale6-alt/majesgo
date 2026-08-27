@@ -467,7 +467,10 @@ function initMap() {
   baseTile = L.tileLayer(tileUrl(mapLight), {
     attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 20, subdomains: 'abcd',
   }).addTo(map);
-  L.control.zoom({ position: 'bottomleft' }).addTo(map);
+  // Los botones de zoom de Leaflet vivían abajo a la izquierda, justo donde se levanta la
+  // ficha del viaje: quedaban SEPULTADOS bajo la tarjeta y el conductor nunca los veía.
+  // Ahora son los nuestros, arriba a la izquierda (40 px, alcanzables con el pulgar).
+  setupZoomButtons();
   // mismos puntos de referencia que ve el pasajero, para hablar el mismo idioma en el chat
   if (window.MGPois) window.MGPois.attach(map);
   $('#btnMenu').addEventListener('click', openDrawer);
@@ -477,6 +480,40 @@ function initMap() {
     setupDSheetDrag();
   const ro = new ResizeObserver(() => { if (!dSheetDragging) applyDSheetSnap(false); });
   ro.observe($('#sheet'));
+}
+
+/**
+ * Acercar / alejar con un solo dedo, y respetar el encuadre que elija el conductor.
+ *
+ * `mapaTocado` se enciende cuando el movimiento lo hace ÉL (arrastrar o los botones) y no
+ * nosotros: a partir de ahí la app deja de reencuadrar sola. Si mira la calle del recojo
+ * de cerca y luego desliza la tarjeta, no queremos devolverle el mapa a su sitio y que
+ * tenga que volver a buscar la calle. Se apaga solo al abrir/cerrar una ficha.
+ */
+let mapaTocado = false, encuadrando = false;
+
+function setupZoomButtons() {
+  const mas = document.getElementById('btnZoomIn');
+  const menos = document.getElementById('btnZoomOut');
+  const pintar = () => {
+    if (!map || !mas || !menos) return;
+    const z = map.getZoom();
+    mas.disabled = z >= map.getMaxZoom();
+    menos.disabled = z <= map.getMinZoom();
+  };
+  const paso = (d) => {
+    if (!map) return;
+    mapaTocado = true;
+    map.setZoom(map.getZoom() + d);
+  };
+  if (mas) mas.addEventListener('click', () => paso(1));
+  if (menos) menos.addEventListener('click', () => paso(-1));
+  // 'dragstart' sólo lo dispara el dedo; 'zoomstart' también salta con los encuadres
+  // automáticos, por eso ahí preguntamos si el movimiento es nuestro.
+  map.on('dragstart', () => { mapaTocado = true; });
+  map.on('zoomstart', () => { if (!encuadrando) mapaTocado = true; });
+  map.on('zoomend', pintar);
+  pintar();
 }
 
 /* ============ Zonas locales (nombres en el mapa; ayuda al conductor a ubicarse) ============ */
@@ -1152,6 +1189,7 @@ function reqRow(r) {
 function showRequest(req) {
   reqCode = req.code;
   reqBump = 0; // cada solicitud arranca sin ajuste
+  mapaTocado = false; // viaje nuevo, encuadre nuevo: el suyo era para el viaje anterior
   rideAlert.stop(); // ya la está mirando: no tiene sentido seguir sonando
   const wrap = $('#reqwrap'); wrap.classList.remove('hidden');
   mostrarPanelHome(false); // el mapa manda mientras mira un viaje
@@ -1166,7 +1204,7 @@ function showRequest(req) {
     <div class="grab" id="reqGrab"></div>
     <div id="reqEssential">
       <div class="reqhead">
-        <button type="button" class="backlist" id="reqBack">‹ Ver los ${reqList.length} viajes</button>
+        <button type="button" class="backlist" id="reqBack">${reqList.length === 1 ? '‹ Volver a la lista' : '‹ Ver los ' + reqList.length + ' viajes'}</button>
         <span style="color:var(--muted);font-size:12px">a ${km(req.to_pickup_m)} de ti</span>
       </div>
       <div class="bar"><i id="reqBar"></i></div>
@@ -1261,11 +1299,18 @@ function pintarBarra() {
  */
 function encuadrarViaje(req) {
   if (!req || !map) return;
+  // Si el conductor ya movió el mapa con la mano, mandan sus ojos: acercó la calle del
+  // recojo por algo. Reencuadrar aquí le borraba ese trabajo cada vez que subía y bajaba
+  // la tarjeta.
+  if (mapaTocado) return;
   const alto = reqPeekHeight() || 300;
+  encuadrando = true;
   map.fitBounds(
     L.latLngBounds([[req.origin.lat, req.origin.lng], [req.dest.lat, req.dest.lng]]).pad(0.15),
     { paddingTopLeft: [30, 66], paddingBottomRight: [30, Math.round(alto) + 24] }
   );
+  // el encuadre va animado: se baja la bandera cuando termina, no en la línea siguiente
+  setTimeout(() => { encuadrando = false; }, 400);
 }
 /**
  * Repinta las cifras de la tarjeta según el ajuste elegido (reqBump).
@@ -1339,6 +1384,7 @@ function clearPreview() {
 function closeDetail() {
   clearInterval(reqTimer); reqTimer = null; reqCode = null;
   reqSheetState = 'peek'; // la próxima ficha vuelve a abrir compacta
+  mapaTocado = false;
   clearPreview();
   // volver a pintar la lista tal como la dejó el último sondeo (ya sin el que se fue).
   // No vuelve a sonar: renderRequests solo avisa por códigos que no estaban antes.
