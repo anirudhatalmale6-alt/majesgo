@@ -105,6 +105,11 @@ let reqCode = null, reqTimer = null, poll = null, lastPostAt = 0;
 let reqList = [];
 let reqSeen = new Set();        // códigos ya avisados: el sonido suena solo con lo NUEVO
 let reqSort = 'cerca';          // 'cerca' | 'paga'
+// La ficha de un viaje abre COMPACTA (~35 % de pantalla) para no tapar el mapa: el
+// conductor necesita ver por dónde recoge y hacia dónde va antes de decidir. Deslizando
+// el asa hacia arriba se ve el resto (pasajero, direcciones completas, desglose).
+let reqSheetState = 'peek', reqSheetDragging = false;
+let reqLeftS = 0, reqTotalS = 0; // barra = tiempo REAL que le queda a la búsqueda
 // ¿el servidor tiene con qué avisarle si la app está cerrada? null = todavía no lo sabemos
 let pushOk = null;
 let commissionPct = 5, minSaldo = 0.5;   // comisión = % de la tarifa (la fija el panel)
@@ -862,6 +867,59 @@ function setupDSheetDrag() {
   grab.addEventListener('pointercancel', end);
 }
 
+/* ====== Ficha de un viaje: compacta por defecto, deslizable para ver el detalle ======
+ * Mismo mecanismo que el panel del home, pero con su propio estado: el conductor decide
+ * si quiere mapa (compacta) o letra chica (abierta), y la decisión no se le pisa sola.
+ */
+function reqPeekHeight() {
+  const card = $('#reqcard');
+  if (!card || $('#reqwrap').classList.contains('hidden')) return null;
+  const grab = card.querySelector('.grab');
+  const ess = document.getElementById('reqEssential');
+  if (!ess) return null; // la LISTA no se colapsa: ya es corta
+  // +22: el aviso "desliza para ver el detalle" es el último renglón de los esenciales y
+  // sin este margen queda cortado justo por el borde de la pantalla.
+  return (grab ? grab.offsetHeight : 0) + ess.offsetHeight + 22;
+}
+function applyReqSnap(animate) {
+  const card = $('#reqcard');
+  if (!card) return;
+  card.style.transition = (animate === false) ? 'none' : '';
+  const peek = reqPeekHeight();
+  const off = (reqSheetState === 'peek' && peek) ? Math.max(0, card.offsetHeight - peek) : 0;
+  card.style.transform = 'translateY(' + off + 'px)';
+  const hint = document.getElementById('reqMoreHint');
+  if (hint) hint.textContent = reqSheetState === 'peek' ? 'Desliza para ver el detalle ▲' : 'Desliza para ver el mapa ▼';
+}
+function setupReqDrag(req) {
+  const card = $('#reqcard');
+  const grab = card && card.querySelector('.grab');
+  if (!grab) return;
+  let startY = 0, startOff = 0, h = 0, moved = 0, peek = 0;
+  grab.addEventListener('pointerdown', (e) => {
+    peek = reqPeekHeight(); if (!peek) return;
+    reqSheetDragging = true; moved = 0; h = card.offsetHeight;
+    startY = e.clientY; startOff = reqSheetState === 'peek' ? Math.max(0, h - peek) : 0;
+    card.style.transition = 'none';
+    try { grab.setPointerCapture(e.pointerId); } catch (_) {}
+  });
+  grab.addEventListener('pointermove', (e) => {
+    if (!reqSheetDragging) return;
+    const dy = e.clientY - startY; moved = Math.max(moved, Math.abs(dy));
+    card.style.transform = 'translateY(' + Math.max(0, Math.min(startOff + dy, h - peek)) + 'px)';
+  });
+  const end = (e) => {
+    if (!reqSheetDragging) return; reqSheetDragging = false;
+    if (moved < 6) { reqSheetState = (reqSheetState === 'peek') ? 'open' : 'peek'; }
+    else { const off = startOff + (e.clientY - startY); reqSheetState = off > (h - peek) / 2 ? 'peek' : 'open'; }
+    applyReqSnap(true);
+    // al volver a compacta se reencuadra: el mapa recuperó espacio y hay que aprovecharlo
+    if (reqSheetState === 'peek') setTimeout(() => encuadrarViaje(req), 210);
+  };
+  grab.addEventListener('pointerup', end);
+  grab.addEventListener('pointercancel', end);
+}
+
 async function refreshStats() {
   try {
     dstats = await api('api/stats');
@@ -1006,8 +1064,17 @@ function renderRequests(reqs) {
   // devolverlo a la lista en vez de dejarlo mirando una tarjeta muerta.
   if (reqCode) {
     if (!codes.includes(reqCode)) {
-      toast('Ese viaje ya fue tomado por otro conductor.');
+      // ⚠ Aquí se decía SIEMPRE "lo tomó otro conductor". Casi nunca era verdad: el
+      // pasajero cancela, se acaba la búsqueda, o el conductor se alejó del radio. Esa
+      // frase hizo creer en las pruebas que abrir la ficha reservaba el viaje.
+      // Preguntamos el motivo real (una sola vez, cuando la ficha muere).
+      const codigo = reqCode;
       closeDetail();
+      motivoDeBaja(codigo).then((m) => toast(m));
+    } else {
+      // sigue viva: sincronizar la barra con el tiempo real que le queda a la búsqueda
+      const r = reqs.find((x) => x.code === reqCode);
+      if (r && r.search_left_s != null) { reqLeftS = Number(r.search_left_s) || 0; pintarBarra(); }
     }
     return; // mientras lee una ficha, no le movemos nada debajo
   }
@@ -1019,6 +1086,9 @@ function renderRequests(reqs) {
     : (a, b) => (a.to_pickup_m - b.to_pickup_m) || (b.total_price - a.total_price));
 
   $('#reqwrap').classList.remove('hidden');
+  mostrarPanelHome(false);
+  // la LISTA se muestra entera: quitar el desplazamiento que dejó la ficha compacta
+  $('#reqcard').style.transform = '';
   $('#reqcard').innerHTML = `
     <div class="reqhead">
       <span class="ping"><i></i> ${ord.length} ${ord.length === 1 ? 'viaje disponible' : 'viajes disponibles'}</span>
@@ -1071,21 +1141,40 @@ function showRequest(req) {
   reqBump = 0; // cada solicitud arranca sin ajuste
   rideAlert.stop(); // ya la está mirando: no tiene sentido seguir sonando
   const wrap = $('#reqwrap'); wrap.classList.remove('hidden');
+  mostrarPanelHome(false); // el mapa manda mientras mira un viaje
   // El total incluye el acercamiento hasta el pasajero, calculado con la distancia de ESTE
   // conductor: por eso la cifra grande puede ser mayor que lo que ofreció el pasajero.
   const apFee = Number(req.approach_fee) || 0;
+  // Lo IMPRESCINDIBLE va primero y dentro de #reqEssential: es lo único que se ve con la
+  // ficha compacta. Todo lo que va después queda debajo del borde hasta que la deslice.
+  const oZona = req.origin_zone || (req.origin.address || 'Punto de recojo').split(',')[0];
+  const dZona = req.dest_zone || (req.dest.address || 'Destino').split(',')[0];
   $('#reqcard').innerHTML = `
-    <div class="reqhead">
-      <button type="button" class="backlist" id="reqBack">‹ Ver los ${reqList.length} viajes</button>
-      <span style="color:var(--muted);font-size:12px">a ${km(req.to_pickup_m)} de ti</span>
-    </div>
-    <div class="bar"><i id="reqBar"></i></div>
-    <div class="fare">
-      <div class="n"><span class="cur">${CUR}</span> <span id="reqTotal">0.00</span></div>
-      <div class="l">${req.payment_method === 'yape' ? '💜 Pago con Yape' : '💵 Pago en efectivo'}${apFee > 0 ? '' : ` · sugerido ${money(req.suggested_price)}`}</div>
+    <div class="grab" id="reqGrab"></div>
+    <div id="reqEssential">
+      <div class="reqhead">
+        <button type="button" class="backlist" id="reqBack">‹ Ver los ${reqList.length} viajes</button>
+        <span style="color:var(--muted);font-size:12px">a ${km(req.to_pickup_m)} de ti</span>
+      </div>
+      <div class="bar"><i id="reqBar"></i></div>
+      <div class="rqtop">
+        <div class="rqprice"><span class="cur">${CUR}</span> <span id="reqTotal">0.00</span></div>
+        <div class="rqpay">
+          ${req.payment_method === 'yape' ? '💜 Yape' : '💵 Efectivo'}
+          <small id="reqEarn"></small>
+        </div>
+      </div>
+      <div class="rqroute">
+        <div class="rql"><span class="dot o"></span><span class="tx">${esc(oZona)}<small>Recojo · a ${km(req.to_pickup_m)}</small></span></div>
+        <div class="rql"><span class="dot d"></span><span class="tx">${esc(dZona)}<small>${km(req.trip_distance_m)} · ${mins(req.trip_duration_s)}</small></span></div>
+      </div>
+      <div class="acts">
+        <button class="btn ghost" id="reqNo">Rechazar</button>
+        <button class="btn" id="reqYes">Aceptar</button>
+      </div>
+      <div class="rqmore" id="reqMoreHint">Desliza para ver el detalle ▲</div>
     </div>
     <div class="breakdown hidden" id="reqBd"></div>
-    <div class="earnnote" id="reqEarn"></div>
     <div class="earnnote lock" id="reqLock"></div>
     <div class="drv">
       <div class="av">${req.passenger.initial || 'P'}</div>
@@ -1103,24 +1192,25 @@ function showRequest(req) {
              ${counterOptions.map((b) => `<button type="button" class="bump" data-b="${b}">+ ${CUR} ${Number(b).toFixed(2)}</button>`).join('')}
            </div>
          </div>`
-      : ''}
-    <div class="acts">
-      <button class="btn ghost" id="reqNo">Rechazar</button>
-      <button class="btn" id="reqYes">Aceptar</button>
-    </div>`;
+      : ''}`;
   paintReq(req);
   // vista previa en el mapa: recojo + destino + RUTA (para que el conductor mire el mapa, no la dirección escrita)
   setPin('o', [req.origin.lat, req.origin.lng]);
   setPin('d', [req.dest.lat, req.dest.lng]);
   drawRoute(req.route_trip, '#00C853');
-  // encuadre con margen: arriba para que no se corte la etiqueta, abajo para que la tarjeta no tape los pines
-  map.fitBounds(L.latLngBounds([[req.origin.lat, req.origin.lng], [req.dest.lat, req.dest.lng]]), { paddingTopLeft: [30, 66], paddingBottomRight: [30, 410] });
   // durante la oferta: mapa limpio → ocultar las demás zonas y resaltar recojo + destino
   document.getElementById('app').classList.add('offering');
   offerLabels.forEach((m) => m.remove()); offerLabels = [];
   if (req.origin_zone) addOfferLabel([req.origin.lat, req.origin.lng], req.origin_zone, '');
   const destLabel = req.dest_zone || (req.dest.address ? req.dest.address.split(',')[0].trim() : '');
   if (destLabel) addOfferLabel([req.dest.lat, req.dest.lng], destLabel, 'dest');
+
+  // Arranca compacta: el mapa manda. El encuadre se hace DESPUÉS de aplicar el alto,
+  // si no se calcularía contra una tarjeta que todavía ocupa toda la pantalla.
+  reqSheetState = 'peek';
+  applyReqSnap(false);
+  setupReqDrag(req);
+  requestAnimationFrame(() => { applyReqSnap(false); encuadrarViaje(req); });
 
   $('#reqBack').addEventListener('click', () => closeDetail());
   $('#reqYes').addEventListener('click', () => acceptRequest(req));
@@ -1134,15 +1224,35 @@ function showRequest(req) {
     });
   });
 
-  // Cuenta regresiva 28 s para no dejarlo clavado en una ficha. Al vencerse VUELVE A LA LISTA:
-  // dudar no puede costarle el viaje. Solo el botón «Rechazar» lo descarta de verdad.
-  let left = 28;
-  const bar = $('#reqBar');
+  // Barra = lo que le queda a la BÚSQUEDA del pasajero (dato real del servidor), no una
+  // cuenta inventada. Y NO cierra la ficha: mirar un viaje es pasivo, el conductor puede
+  // estudiar la ruta el tiempo que quiera. Si el viaje muere de verdad, el sondeo lo
+  // detecta y closeDetail() dice el motivo cierto.
+  reqTotalS = Math.max(1, Number(req.search_left_s) || 180);
+  reqLeftS = reqTotalS;
   clearInterval(reqTimer);
-  reqTimer = setInterval(() => {
-    left--; if (bar) bar.style.width = Math.max(0, (left / 28) * 100) + '%';
-    if (left <= 0) closeDetail();
-  }, 1000);
+  pintarBarra();
+  reqTimer = setInterval(() => { reqLeftS = Math.max(0, reqLeftS - 1); pintarBarra(); }, 1000);
+}
+
+/** Pinta la barra de tiempo restante de la búsqueda (no decide nada, solo informa). */
+function pintarBarra() {
+  const bar = $('#reqBar');
+  if (bar) bar.style.width = Math.max(0, (reqLeftS / reqTotalS) * 100) + '%';
+}
+
+/**
+ * Encuadra recojo + destino en el trozo de mapa que QUEDA VISIBLE sobre la ficha.
+ * El margen de abajo se mide de la tarjeta real: antes eran 410 px fijos, que en un
+ * celular de 640 px de alto dejaban el mapa reducido a una franja.
+ */
+function encuadrarViaje(req) {
+  if (!req || !map) return;
+  const alto = reqPeekHeight() || 300;
+  map.fitBounds(
+    L.latLngBounds([[req.origin.lat, req.origin.lng], [req.dest.lat, req.dest.lng]]).pad(0.15),
+    { paddingTopLeft: [30, 66], paddingBottomRight: [30, Math.round(alto) + 24] }
+  );
 }
 /**
  * Repinta las cifras de la tarjeta según el ajuste elegido (reqBump).
@@ -1157,22 +1267,23 @@ function paintReq(req) {
   const t = $('#reqTotal'); if (t) t.textContent = total.toFixed(2);
 
   // desglose: solo aparece si hay algo que desglosar (acercamiento o ajuste)
+  // Siempre visible: vive en la parte que se ve al deslizar, así que no le quita mapa a
+  // nadie, y ahí es donde ahora vive el detalle de la comisión.
   const bd = $('#reqBd');
   if (bd) {
-    if (apFee > 0 || reqBump > 0) {
-      bd.classList.remove('hidden');
-      bd.innerHTML =
-        `<div><span>Viaje (recojo → destino)</span><b>${money(req.offered_price)}</b></div>` +
-        (apFee > 0 ? `<div><span>Tu acercamiento · ${km(req.approach_m != null ? req.approach_m : req.to_pickup_m)}</span><b>+ ${money(apFee)}</b></div>` : '') +
-        (reqBump > 0 ? `<div><span>Lo que pides de más</span><b>+ ${money(reqBump)}</b></div>` : '');
-    } else {
-      bd.classList.add('hidden');
-      bd.innerHTML = '';
-    }
+    bd.classList.remove('hidden');
+    bd.innerHTML =
+      `<div><span>Viaje (recojo → destino)</span><b>${money(req.offered_price)}</b></div>` +
+      (apFee > 0 ? `<div><span>Tu acercamiento · ${km(req.approach_m != null ? req.approach_m : req.to_pickup_m)}</span><b>+ ${money(apFee)}</b></div>` : '') +
+      (reqBump > 0 ? `<div><span>Lo que pides de más</span><b>+ ${money(reqBump)}</b></div>` : '') +
+      `<div><span>Comisión (${commissionPct}%)</span><b>− ${money(com)}</b></div>` +
+      `<div class="tot"><span>Recibes</span><b>${money(total - com)}</b></div>`;
   }
 
+  // Va en la esquina de la ficha compacta: corto. El desglose completo (comisión incluida)
+  // está unos centímetros más abajo, al deslizar.
   const e = $('#reqEarn');
-  if (e) e.textContent = `Recibes ${money(total - com)} (comisión ${money(com)} · ${commissionPct}%)`;
+  if (e) e.textContent = `recibes ${money(total - com)}`;
 
   // Con ajuste el precio NO está cerrado todavía: el pasajero puede irse con otro conductor.
   // Decírselo aquí evita que crea que ya ganó la carrera por tocar «+5».
@@ -1214,18 +1325,49 @@ function clearPreview() {
  */
 function closeDetail() {
   clearInterval(reqTimer); reqTimer = null; reqCode = null;
+  reqSheetState = 'peek'; // la próxima ficha vuelve a abrir compacta
   clearPreview();
   // volver a pintar la lista tal como la dejó el último sondeo (ya sin el que se fue).
   // No vuelve a sonar: renderRequests solo avisa por códigos que no estaban antes.
   renderRequests(reqList);
 }
 
+/**
+ * Por qué desapareció un viaje de la lista. Se consulta UNA vez, justo cuando la ficha
+ * muere, así que no añade sondeo. Si el servidor no contesta, se dice lo único que
+ * consta con certeza: que ya no está — nunca inventar un culpable.
+ */
+async function motivoDeBaja(code) {
+  const generico = 'Ese viaje ya no está disponible.';
+  try {
+    const d = await api('api/request-state?code=' + encodeURIComponent(code));
+    return {
+      tomado:     'Otro conductor tomó ese viaje.',
+      cancelado:  'El pasajero canceló ese viaje.',
+      expirado:   'Se acabó el tiempo de búsqueda de ese viaje.',
+      disponible: 'Ese viaje salió de tu lista, pero sigue buscando conductor.',
+    }[d && d.state] || generico;
+  } catch (e) { return generico; }
+}
+
 /** Esconde TODO el panel de solicitudes (aceptó un viaje, se desconectó o ya no hay nada). */
 function hideRequests() {
   clearInterval(reqTimer); reqTimer = null; reqCode = null;
+  reqSheetState = 'peek';
   rideAlert.stop();
   clearPreview();
   $('#reqwrap').classList.add('hidden');
+  mostrarPanelHome(true);
+}
+
+/**
+ * El panel del home ("EN LÍNEA · buscando viajes" + saldo) estorba mientras se mira un
+ * viaje: son dos paneles apilados con dos asas, y le roba al mapa ~90 px justo cuando
+ * el conductor necesita ver la ruta. Se esconde mientras haya solicitudes en pantalla.
+ */
+function mostrarPanelHome(visible) {
+  const s = $('#sheet');
+  if (s) s.classList.toggle('hidden', !visible);
 }
 async function acceptRequest(req) {
   const btn = $('#reqYes'); btn.disabled = true; btn.innerHTML = '<span class="spin"></span>';

@@ -234,6 +234,10 @@ class RideController extends Controller
                 'origin_zone'         => CustomPlace::zoneAt((float) $ride->origin_lat, (float) $ride->origin_lng),
                 'dest_zone'           => CustomPlace::zoneAt((float) $ride->dest_lat, (float) $ride->dest_lng),
                 'route_trip'          => $ride->route_trip, // para dibujar la ruta en la tarjeta de oferta
+                // Tiempo REAL que le queda a la búsqueda del pasajero. La barra de la ficha
+                // muestra esto: antes era una cuenta de 28 s inventada que además cerraba la
+                // ficha sola, y el conductor perdía de vista el mapa mientras lo estudiaba.
+                'search_left_s'       => Dispatch::searchSecondsLeft($ride),
                 'reference'           => $ride->reference,
                 'passenger'           => $this->passengerCard($ride),
             ];
@@ -337,6 +341,35 @@ class RideController extends Controller
         ]));
 
         return response()->json(['ok' => true, 'ride' => $this->payload($ride)]);
+    }
+
+    /**
+     * Por qué un viaje dejó de aparecer en la lista de ESTE conductor.
+     *
+     * Abrir la ficha de un viaje NO lo reserva ni lo quita a nadie: no escribe nada.
+     * Pero cuando el viaje se cae de la lista el conductor merece el motivo REAL —
+     * antes se le decía siempre "lo tomó otro conductor", y en las pruebas del
+     * 2026-08-27 eso hizo creer que mirar un viaje lo reservaba, cuando lo que
+     * pasaba era que el pasajero cancelaba mientras lo miraba.
+     */
+    public function requestState(Request $request)
+    {
+        $data = $request->validate(['code' => ['required', 'string', 'max:40']]);
+        $ride = Ride::where('code', $data['code'])->first();
+        if (! $ride) {
+            return response()->json(['state' => 'desconocido']);
+        }
+
+        // 'solicitando' = sigue buscando conductor; si no está en SU lista es porque se
+        // alejó del radio, lo descartó él mismo, o el pasajero lo excluyó. Sigue vivo.
+        $state = match (true) {
+            $ride->status === 'solicitando'   => 'disponible',
+            $ride->status === 'sin_conductor' => 'expirado',
+            $ride->status === 'cancelado'     => 'cancelado',
+            default                           => 'tomado',
+        };
+
+        return response()->json(['state' => $state]);
     }
 
     /** Rechazar/omitir una solicitud (no se le vuelve a mostrar a este conductor). */

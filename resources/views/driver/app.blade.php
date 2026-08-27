@@ -170,7 +170,25 @@
         /* Solicitud entrante */
         /* solo la tarjeta abajo; el mapa arriba queda CLARO y visible (recojo+ruta+zona) */
         .reqwrap{position:absolute;left:0;right:0;bottom:0;z-index:38;display:flex;align-items:flex-end;padding:0}
-        .reqcard{background:var(--panel);width:100%;border-radius:22px 22px 0 0;padding:16px 18px calc(env(safe-area-inset-bottom) + 18px);box-shadow:0 -12px 44px rgba(0,0,0,.6);animation:slideup .25s ease}
+        /* La ficha de un viaje abre COMPACTA: se desplaza hacia abajo y solo asoma lo
+           esencial (precio, recojo, destino, Aceptar). El resto se ve deslizando el asa.
+           Sin esto la tarjeta ocupaba casi toda la pantalla y tapaba la ruta. */
+        .reqcard{background:var(--panel);width:100%;border-radius:22px 22px 0 0;padding:16px 18px calc(env(safe-area-inset-bottom) + 18px);box-shadow:0 -12px 44px rgba(0,0,0,.6);animation:slideup .25s ease;
+                 max-height:88vh;overflow-y:auto;-webkit-overflow-scrolling:touch;transition:transform .2s ease;will-change:transform}
+        /* Cabecera compacta: importe grande a la izquierda, forma de pago y ganancia a la derecha */
+        .rqtop{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:2px 0 10px}
+        .rqprice{font-size:32px;font-weight:800;line-height:1}
+        .rqprice .cur{font-size:17px;color:var(--muted)}
+        .rqpay{text-align:right;font-size:12.5px;color:var(--muted);line-height:1.35}
+        .rqpay small{display:block;color:#7DE9AC;font-size:11.5px}
+        /* Recojo → destino en dos renglones: lo mínimo para decidir sin abrir el detalle */
+        .rqroute{display:flex;flex-direction:column;gap:7px;margin:0 0 12px}
+        .rql{display:flex;gap:9px;align-items:flex-start}
+        .rql .dot{width:10px;height:10px;border-radius:50%;flex:none;margin-top:4px}
+        .rql .dot.o{background:var(--verde)} .rql .dot.d{background:#ff5252}
+        .rql .tx{flex:1;min-width:0;font-size:13.5px;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .rql .tx small{display:block;color:var(--muted);font-size:11px;font-weight:500}
+        .rqmore{text-align:center;color:var(--muted);font-size:11px;padding:9px 0 2px;letter-spacing:.2px}
         @keyframes slideup{from{transform:translateY(40px);opacity:.4}to{transform:none;opacity:1}}
         .reqhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
         .reqhead .ping{display:inline-flex;align-items:center;gap:6px;color:var(--verde);font-weight:700;font-size:13px}
@@ -499,7 +517,7 @@ window.MG = {
 </script>
 <script src="/js/pois.js?v=5"></script>
 <script src="/js/majesgo-car.js?v=2"></script>
-<script src="/js/driver.js?v=34"></script>
+<script src="/js/driver.js?v=35"></script>
 <script src="/js/native.js?v=3"></script>
 </body>
 </html>
