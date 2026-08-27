@@ -358,10 +358,18 @@ async function doReroute() {
 }
 
 /* ---------- modo del mapa (claro de día / oscuro de noche) ---------- */
+/**
+ * Mosaicos del mapa base. Desde 2026 CARTO estampa "API KEY REQUIRED" sobre cada
+ * mosaico servido sin llave: la llave es gratis y va como ?key=. Si aún no está
+ * configurada devolvemos la URL sin ella — el mapa sigue funcionando, solo que con
+ * la marca de agua. Nunca dejar al conductor sin mapa por una llave que falta.
+ */
 function tileUrl(light) {
-  return light
+  const base = light
     ? 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
     : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+  const k = (MG && MG.mapKey) || '';
+  return k ? base + '?key=' + encodeURIComponent(k) : base;
 }
 function initialLight() {
   const saved = localStorage.getItem('mg_map_mode');
@@ -574,12 +582,17 @@ function navArrowIcon() {
 }
 
 function initNavMap() {
-  const base = { zoomControl: false, attributionControl: false };
+  // La atribución de OpenStreetMap y CARTO es condición de la licencia de los mapas,
+  // también en modo navegación: se muestra, pero diminuta (9 px) para no estorbar.
+  const base = { zoomControl: false, attributionControl: true };
   try {
     navMap = L.map('navmap', Object.assign({ rotate: true, bearing: 0, rotateControl: false, touchRotate: false, shiftKeyRotate: false }, base));
   } catch (e) { navMap = L.map('navmap', base); }
   navCanRotate = typeof navMap.setBearing === 'function';
-  navTile = L.tileLayer(tileUrl(mapLight), { maxZoom: 20, subdomains: 'abcd' }).addTo(navMap);
+  navTile = L.tileLayer(tileUrl(mapLight), {
+    attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 20, subdomains: 'abcd',
+  }).addTo(navMap);
+  if (navMap.attributionControl) navMap.attributionControl.setPrefix('');
   navMap.setView(myPos ? [myPos.lat, myPos.lng] : MG.center, 17);
   navMap.on('dragstart', () => { navFollow = false; $('#navRecenter').classList.remove('hidden'); });
 }

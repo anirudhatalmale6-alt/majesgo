@@ -34,6 +34,16 @@ return [
         'key' => env('POSTMARK_API_KEY'),
     ],
 
+    /*
+     | Llave de los mapas base de CARTO. Desde 2026 los mosaicos sin llave se sirven
+     | con la marca de agua "API KEY REQUIRED" encima. Es gratis (5 M de mosaicos al
+     | mes) y se pide en carto.com/basemaps/apikey. Si está vacía la app sigue
+     | funcionando igual, solo que con la marca de agua: nunca romper el mapa por esto.
+     */
+    'carto' => [
+        'basemaps_key' => env('CARTO_BASEMAPS_KEY'),
+    ],
+
     'resend' => [
         'key' => env('RESEND_API_KEY'),
     ],

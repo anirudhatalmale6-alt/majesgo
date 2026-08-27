@@ -406,6 +406,8 @@ window.MG = {
     currency: @json($currency),
     csrf: document.querySelector('meta[name=csrf-token]').content,
     vapidPublic: @json(config('services.webpush.public_key')),
+    // Llave de los mapas de CARTO (gratis). Vacía = mosaicos con marca de agua.
+    mapKey: @json(config('services.carto.basemaps_key')),
     // Motivos de denuncia contra el conductor. Vienen del modelo para que la app y el
     // panel de la central hablen siempre de lo mismo.
     reportReasons: @json(\App\Models\UserReport::REASONS_ON_DRIVER),
@@ -413,7 +415,7 @@ window.MG = {
 </script>
 <script src="/js/pois.js?v=5"></script>
 <script src="/js/majesgo-car.js?v=2"></script>
-<script src="/js/passenger.js?v=40"></script>
+<script src="/js/passenger.js?v=41"></script>
 <script src="/js/native.js?v=3"></script>
 </body>
 </html>

@@ -107,10 +107,18 @@ let nearbyMarkers = {}, nearbyTimer = null; // carritos de taxis disponibles en 
 let zoneLayer = null; // etiquetas de las zonas locales en el mapa
 
 /* ---------- modo del mapa (claro de día / oscuro de noche) ---------- */
+/**
+ * Mosaicos del mapa base. Desde 2026 CARTO estampa "API KEY REQUIRED" sobre cada
+ * mosaico servido sin llave: la llave es gratis y va como ?key=. Si aún no está
+ * configurada devolvemos la URL sin ella — el mapa sigue funcionando, solo que con
+ * la marca de agua. Nunca dejar al pasajero sin mapa por una llave que falta.
+ */
 function tileUrl(light) {
-  return light
+  const base = light
     ? 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
     : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+  const k = (MG && MG.mapKey) || '';
+  return k ? base + '?key=' + encodeURIComponent(k) : base;
 }
 function initialLight() {
   const saved = localStorage.getItem('mg_map_mode');

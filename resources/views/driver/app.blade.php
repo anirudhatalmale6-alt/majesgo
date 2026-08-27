@@ -510,6 +510,8 @@ window.MG = {
     csrf: document.querySelector('meta[name=csrf-token]').content,
     vapidPublic: @json(config('services.webpush.public_key')),
     alertSound: @json($alertSound),
+    // Llave de los mapas de CARTO (gratis). Vacía = mosaicos con marca de agua.
+    mapKey: @json(config('services.carto.basemaps_key')),
     // Motivos de denuncia contra el pasajero. Vienen del modelo para que la app y el
     // panel de la central hablen siempre de lo mismo.
     reportReasons: @json(\App\Models\UserReport::REASONS_ON_PASSENGER),
@@ -517,7 +519,7 @@ window.MG = {
 </script>
 <script src="/js/pois.js?v=5"></script>
 <script src="/js/majesgo-car.js?v=2"></script>
-<script src="/js/driver.js?v=35"></script>
+<script src="/js/driver.js?v=36"></script>
 <script src="/js/native.js?v=3"></script>
 </body>
 </html>
