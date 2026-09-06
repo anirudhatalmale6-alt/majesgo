@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>MajesGo · paso a producción en Google Play</title>
+<style>
+  :root{ --verde:#00A651; --naranja:#E8830C; --rojo:#C62828; --tinta:#16202A; --gris:#5C6672; --linea:#DFE4EA; }
+  *{ box-sizing:border-box }
+  body{ margin:0; background:#F4F6F8; color:var(--tinta);
+        font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif }
+  .wrap{ max-width:860px; margin:0 auto; padding:20px 16px 64px }
+  header{ background:var(--tinta); color:#fff; padding:22px 16px }
+  header .wrap{ padding:0 }
+  h1{ margin:0; font-size:21px }
+  header p{ margin:6px 0 0; color:#B7C0CA; font-size:14px }
+  h2{ font-size:17px; margin:34px 0 10px; padding-bottom:8px; border-bottom:2px solid var(--linea) }
+  .card{ background:#fff; border:1px solid var(--linea); border-radius:12px; padding:14px 16px; margin:12px 0 }
+  .card.alerta{ border-left:5px solid var(--rojo) }
+  .card.hacer{ border-left:5px solid var(--naranja) }
+  .card.listo{ border-left:5px solid var(--verde) }
+  .tag{ display:inline-block; font-size:11px; font-weight:700; letter-spacing:.04em;
+        text-transform:uppercase; padding:3px 8px; border-radius:99px; color:#fff; margin-bottom:8px }
+  .tag.r{ background:var(--rojo) } .tag.n{ background:var(--naranja) } .tag.v{ background:var(--verde) }
+  .ruta{ font-size:13px; color:var(--gris); background:#F0F3F6; border-radius:8px;
+         padding:8px 10px; margin:10px 0 0 }
+  table{ width:100%; border-collapse:collapse; font-size:14px }
+  th,td{ text-align:left; padding:7px 8px; border-bottom:1px solid var(--linea); vertical-align:top }
+  th{ color:var(--gris); font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.03em }
+  td.num{ text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums }
+  .ok{ color:var(--verde); font-weight:700 } .mal{ color:var(--rojo); font-weight:700 }
+  .texto{ white-space:pre-wrap; background:#F0F3F6; border:1px solid var(--linea); border-radius:8px;
+          padding:12px; font-size:14px; margin:10px 0 0 }
+  button{ background:var(--verde); color:#fff; border:0; border-radius:8px; padding:10px 16px;
+          font-size:14px; font-weight:600; cursor:pointer; margin-top:10px }
+  button.copiado{ background:var(--tinta) }
+  ul{ margin:8px 0; padding-left:20px } li{ margin:4px 0 }
+  .chico{ font-size:13px; color:var(--gris) }
+  .scroll{ overflow-x:auto }
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <h1>MajesGo · paso a producción en Google Play</h1>
+  <p>Estado al día 12 de la prueba cerrada · 5 de setiembre de 2026</p>
+</div></header>
+
+<div class="wrap">
+
+<h2>1. Lo que dicen los datos del servidor</h2>
+
+<div class="card listo">
+  <span class="tag v">sin novedad</span>
+  <p><strong>Cero errores de la aplicación en los 14 días.</strong> El registro de fallas
+  (<code>laravel.log</code>) no tiene una sola entrada desde el 21 de agosto, que fue el último
+  arreglo antes de subir las apps. Y cero respuestas 5xx del servidor en todo el periodo.</p>
+  <p class="chico">Es decir: si un verificador tuvo un problema, no fue una caída ni un error del
+  programa. Habría quedado registrado.</p>
+</div>
+
+<div class="card alerta">
+  <span class="tag r">revisar antes del día 14</span>
+  <p><strong>Dos conductores de la lista pueden no estar contando.</strong> Le pregunté al
+  servidor de Google, uno por uno, si el celular de cada conductor sigue registrado:</p>
+  <div class="scroll"><table>
+    <tr><th>Conductor</th><th>Qué dice Google</th><th>Qué significa</th></tr>
+    <tr><td>13 conductores</td><td class="ok">registrado</td><td>todo bien</td></tr>
+    <tr><td>Alex Paredes (MG-0019)</td><td class="mal">NotRegistered</td>
+        <td>tenía la app y su celular ya no responde: o la desinstaló, o borró los datos</td></tr>
+    <tr><td>Teofilo Jove Ito (MG-0020)</td><td class="mal">nunca apareció</td>
+        <td>nunca entró a la app de conductor con su usuario</td></tr>
+  </table></div>
+  <p><strong>Por qué importa justo ahora:</strong> Google exige 12 verificadores <em>sin
+  interrupción</em> durante los 14 días. Si alguno desinstala, deja de contar y el reloj se corta.</p>
+  <p class="chico">Salvedad honesta: lo que yo veo es la app de MajesGo, no el contador de Google.
+  Alex pudo desinstalar la app (y entonces sí es un problema) o solo haber borrado los datos.
+  Y Teofilo pudo instalarla desde Play y nunca haber iniciado sesión con su usuario de conductor,
+  en cuyo caso para Google sigue contando. El único número que manda es el de Play Console.
+  <strong>Vale la pena escribirles hoy mismo a los dos</strong>: cuesta un mensaje y evita perder semanas.</p>
+</div>
+
+<div class="card">
+  <p><strong>El contador que sí puede mirar usted:</strong> en el Panel de cada app, el punto
+  «Ten al menos 12 verificadores que acepten» tiene que seguir tachado. Si volvió a aparecer
+  sin tachar, es que alguien se salió.</p>
+</div>
+
+<h2>2. Lo que falta hacer en Play Console (su parte)</h2>
+
+<div class="card hacer">
+  <span class="tag n">pendiente</span>
+  <p><strong>a) Calificación de contenido de MajesGo Conductor.</strong> Hay una pregunta que hoy
+  está respondida «No» y ya deberia decir «Sí»: <em>«¿Incluye la posibilidad de denunciar
+  usuarios?»</em>. El 23 de agosto puse el botón de denunciar en el chat y al terminar el viaje,
+  en las dos apps, así que ahora la respuesta correcta es Sí.</p>
+  <div class="ruta">Play Console → MajesGo Conductor → Política → Contenido de la app →
+  Calificación de contenido → Iniciar cuestionario</div>
+  <p class="chico">Responder mal esa pregunta es motivo de suspensión, y es de las que Google
+  revisa. Se cambia en dos minutos.</p>
+</div>
+
+<div class="card hacer">
+  <span class="tag n">verificar</span>
+  <p><strong>b) La URL de la política de privacidad, en las DOS fichas.</strong> Tiene que decir
+  <code>https://majesgo.com/privacidad</code>. Si quedó la dirección vieja
+  (<code>majesgo.167.99.14.42.nip.io</code>) funciona igual porque la dejé redirigiendo, pero la
+  ficha debe llevar el dominio bueno.</p>
+  <div class="ruta">Play Console → cada app → Política → Contenido de la app → Política de privacidad</div>
+</div>
+
+<div class="card hacer">
+  <span class="tag n">no tocar</span>
+  <p><strong>c) No modifique el grupo de verificadores hasta que Google habilite producción.</strong>
+  Ni quitar ni cambiar correos. Agregar uno nuevo tampoco ayuda a esta altura: los 14 días se
+  cuentan por persona desde que <em>esa</em> persona acepta, así que alguien agregado hoy llegaría
+  al día 14 recién a fin de mes.</p>
+</div>
+
+<h2>3. Respuestas listas para el formulario de acceso a producción</h2>
+
+<p class="chico">Cuando el día 14 se habilite «Solicitar acceso a producción», Google hace tres
+preguntas sobre la prueba. Acá están respondidas con lo que realmente pasó. Copie y pegue.</p>
+
+<div class="card">
+  <p><strong>¿Cómo reclutaste a los verificadores?</strong></p>
+  <div class="texto" id="t1">Los verificadores son conductores de taxi y vecinos de El Pedregal (Majes, Arequipa), que es la ciudad donde va a operar MajesGo. Los contactamos personalmente y por grupos de WhatsApp del gremio de taxistas local. Son 16 conductores y 17 pasajeros, gente que hoy trabaja o se moviliza en esa zona, no verificadores contratados: queríamos que la prueba se hiciera con los recorridos, las calles y los precios reales de Majes.</div>
+  <button data-copiar="t1">Copiar</button>
+</div>
+
+<div class="card">
+  <p><strong>¿Qué comentarios recibiste de los verificadores?</strong></p>
+  <div class="texto" id="t2">Los comentarios se recogieron por WhatsApp y en pruebas presenciales con los conductores. Los principales fueron:
+
+1. Los conductores dejaban de recibir viajes al minimizar la aplicación o al apagarse la pantalla del celular, y no les llegaba ningún aviso con la app cerrada.
+2. El aviso de viaje nuevo no se distinguía de cualquier otra notificación y con el celular en el bolsillo se perdían carreras.
+3. Solo veían una carrera a la vez y pedían ver todas las disponibles para elegir según su ubicación.
+4. La tarjeta del viaje tapaba casi todo el mapa y no se podía ampliar para ver la calle exacta del punto de recojo.
+5. Un mensaje decía que otro conductor se había llevado el viaje incluso cuando en realidad el pasajero lo había cancelado, y eso hacía pensar que abrir un viaje lo reservaba.
+6. Cuando el pasajero rechazaba a un conductor, el auto de ese conductor seguía dibujado en el mapa como si viniera igual.
+7. El panel del pasajero ocupaba demasiada pantalla y en celulares chicos el botón de pedir taxi quedaba fuera de la vista.
+8. El mapa se veía con una marca de agua encima de las calles.</div>
+  <button data-copiar="t2">Copiar</button>
+</div>
+
+<div class="card">
+  <p><strong>¿Qué cambios hiciste a partir de esos comentarios?</strong></p>
+  <div class="texto" id="t3">Todos los comentarios se atendieron durante la prueba cerrada. Los cambios principales:
+
+1. El conductor sigue disponible con la aplicación en segundo plano, y se agregaron notificaciones push de alta prioridad que llegan con la pantalla bloqueada, con la tarifa y la distancia al punto de recojo en el propio aviso.
+2. Se agregó un sonido propio de MajesGo para el aviso de viaje nuevo, distinto del sonido del sistema.
+3. Se rehízo la pantalla del conductor: ahora ve la lista completa de viajes disponibles y puede ordenarlos por cercanía o por tarifa.
+4. La tarjeta del viaje se redujo para dejar el mapa a la vista, se le agregó un panel deslizable para el detalle y botones de acercar y alejar el mapa.
+5. Los mensajes de la aplicación ahora informan el motivo real por el que un viaje ya no está disponible (el pasajero canceló, venció la búsqueda, o lo tomó otro conductor).
+6. Al rechazar a un conductor, su auto y su ruta desaparecen del mapa del pasajero de inmediato.
+7. Se rediseñó el panel del pasajero para que el mapa ocupe más pantalla y el botón principal quede siempre visible, incluso en pantallas chicas.
+8. Se contrató la capa de mapas con licencia y se quitó la marca de agua.
+9. Se agregó la posibilidad de denunciar a otro usuario desde el chat y al terminar el viaje, con una bandeja de revisión para la central.</div>
+  <button data-copiar="t3">Copiar</button>
+</div>
+
+<h2>4. Lo que se corrigió durante los 14 días</h2>
+
+<p class="chico">Esta es la lista completa, por si le piden más detalle o quiere tenerla a mano.
+Ninguno de estos cambios obligó a subir una versión nueva a Play ni reinició el reloj: las apps
+cargan el sitio en vivo.</p>
+
+<div class="card"><div class="scroll"><table>
+  <tr><th>Fecha</th><th>Cambio</th></tr>
+  <tr><td class="num">23 ago</td><td>Botón de denunciar usuarios (chat y fin de viaje) + bandeja en el panel</td></tr>
+  <tr><td class="num">23 ago</td><td>Sesión caída: vuelve a la pantalla de acceso con el motivo, en vez de un aviso suelto</td></tr>
+  <tr><td class="num">23 ago</td><td>Panel: columna «Desde», para saber quién usa la app de Play y quién el navegador</td></tr>
+  <tr><td class="num">24 ago</td><td>Corregir el saldo de un conductor desde el panel</td></tr>
+  <tr><td class="num">24 ago</td><td>Aviso sonoro de viaje nuevo en la app del conductor</td></tr>
+  <tr><td class="num">24 ago</td><td>Lista de viajes disponibles: los ve todos y elige, ordenados por cercanía o tarifa</td></tr>
+  <tr><td class="num">24 ago</td><td>El conductor sigue disponible con la app en segundo plano</td></tr>
+  <tr><td class="num">24 ago</td><td>Aviso de carrera completo, que insiste hasta 3 veces y se apaga solo</td></tr>
+  <tr><td class="num">24 ago</td><td>El conductor rechazado desaparece del mapa del pasajero al instante</td></tr>
+  <tr><td class="num">24-25 ago</td><td>Timbre propio de MajesGo, elegido tramo por tramo del jingle</td></tr>
+  <tr><td class="num">27 ago</td><td>Ficha de viaje compacta, y el motivo real de por qué un viaje ya no está</td></tr>
+  <tr><td class="num">27 ago</td><td>Mapas con licencia: se fue la marca de agua de las calles</td></tr>
+  <tr><td class="num">27 ago</td><td>El mapa de la ficha vuelve a responder al dedo, y botones de + / − a la vista</td></tr>
+  <tr><td class="num">6 set</td><td>El viaje de la cuenta de revisión de Google nunca le llega a un conductor real</td></tr>
+</table></div></div>
+
+<h2>5. Después de pedir el acceso</h2>
+
+<div class="card">
+  <ul>
+    <li>Google vuelve a revisar la app. La cuenta de revisión (<strong>900111222</strong>) sigue
+        activa y probada; hoy le agregué el aislamiento para que su viaje de prueba no le suene
+        a un conductor de Majes.</li>
+    <li>La revisión de acceso a producción suele tardar unos días. No hay que tocar nada mientras.</li>
+    <li>Recién <strong>cuando esté aprobado</strong> compilo la versión 1.1 de la app de conductor,
+        que lleva el timbre de MajesGo dentro del apk. Compilarla antes no aporta nada y sí puede
+        complicar el trámite.</li>
+    <li>Voy a medir el consumo real de mapas durante el primer mes y le aviso bastante antes de
+        acercarnos al límite gratuito.</li>
+  </ul>
+</div>
+
+</div>
+
+<script>
+document.querySelectorAll('button[data-copiar]').forEach(function (b) {
+  b.addEventListener('click', function () {
+    var txt = document.getElementById(b.dataset.copiar).textContent;
+    navigator.clipboard.writeText(txt).then(function () {
+      var antes = b.textContent;
+      b.textContent = 'Copiado ✓';
+      b.classList.add('copiado');
+      setTimeout(function () { b.textContent = antes; b.classList.remove('copiado'); }, 2000);
+    });
+  });
+});
+</script>
+</body>
+</html>
