@@ -69,6 +69,21 @@ class Ride extends Model
             ->orWhereHas('driver', fn ($d) => $d->withTrashed()->where('is_demo', true)));
     }
 
+    /**
+     * ¿Es un viaje de la cuenta de revisión de las tiendas? Esos NUNCA pueden llegar a un
+     * conductor real: el revisor prueba desde otro país y a cualquier hora, y un conductor
+     * de Majes saldría a recoger a nadie.
+     *
+     * ⚠ No sirve preguntar por `is_demo`: Dispatch::releaseOffer() lo pone en false al
+     * re-emitir, así que en cuanto el revisor rechaza al conductor de prueba —o simplemente
+     * deja vencer los 15 s de confirmación— el viaje volvería a la búsqueda marcado como
+     * real. Lo que no cambia nunca es QUIÉN lo pidió.
+     */
+    public function esDeRevision(): bool
+    {
+        return (bool) ($this->passenger?->is_reviewer);
+    }
+
     public function isDemo(): bool
     {
         return (bool) $this->is_demo || (bool) $this->driver?->is_demo;

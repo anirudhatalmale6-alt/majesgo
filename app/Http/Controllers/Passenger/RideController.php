@@ -188,8 +188,13 @@ class RideController extends Controller
             $waited = max(0, now()->getTimestamp() - $ride->requested_at->getTimestamp());
             $radius = Dispatch::radiusForWait($waited);
             $realOnline = false;
-            foreach (Dispatch::eligibleDrivers((float) $ride->origin_lat, (float) $ride->origin_lng, $radius, $excluded) as $e) {
-                if (! $e['driver']->is_demo) { $realOnline = true; break; }
+            // Al revisor de las tiendas no se le hace esperar a un conductor real: no puede
+            // haber ninguno a su alcance (prueba desde otro país) y, si lo hubiera, sería un
+            // conductor de Majes saliendo a recoger a nadie. Va derecho al de simulación.
+            if (! $ride->esDeRevision()) {
+                foreach (Dispatch::eligibleDrivers((float) $ride->origin_lat, (float) $ride->origin_lng, $radius, $excluded) as $e) {
+                    if (! $e['driver']->is_demo) { $realOnline = true; break; }
+                }
             }
 
             // Si hay conductores reales en línea, esperamos a que uno ofrezca desde su app.

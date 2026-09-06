@@ -189,6 +189,10 @@ class RideController extends Controller
             $rides = Ride::where('status', 'solicitando')
                 ->whereNull('driver_id')
                 ->where('is_demo', false)
+                // is_demo no alcanza: releaseOffer() lo pone en false al re-emitir, así que
+                // el viaje del revisor reaparecía acá en cuanto rechazaba al conductor de
+                // prueba. Se descarta por el pasajero, que es lo que no cambia.
+                ->whereDoesntHave('passenger', fn ($p) => $p->where('is_reviewer', true))
                 ->where('requested_at', '>=', now()->subSeconds(Dispatch::searchTimeoutS()))
                 ->latest('id')
                 ->get();

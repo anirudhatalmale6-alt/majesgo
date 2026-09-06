@@ -137,6 +137,11 @@ class Dispatch
         if ($ride->status !== 'solicitando') {
             return;
         }
+        // El viaje del revisor de las tiendas no le suena a nadie: es una simulación para que
+        // pueda completar el flujo, no una carrera que alguien deba ir a recoger.
+        if ($ride->esDeRevision()) {
+            return;
+        }
         $waited = max(0, now()->timestamp - $ride->requested_at->timestamp);
         $radius = self::radiusForWait($waited);
         $restan = self::searchSecondsLeft($ride);
