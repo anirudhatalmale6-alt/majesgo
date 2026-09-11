@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\AuthController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\DriverController;
+use App\Http\Controllers\Admin\DocumentTypeController;
 use App\Http\Controllers\Admin\DriverDocumentController;
 use App\Http\Controllers\Admin\DriverPhotoController;
 use App\Http\Controllers\Admin\RechargeController;
@@ -162,6 +163,12 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('fotos/{photo}/rechazar', [DriverPhotoController::class, 'reject'])->name('photos.reject');
 
         // Denuncias entre usuarios (pasajero ↔ conductor)
+        // Catálogo de documentos exigidos, editable por la central
+        Route::get('tipos-documento', [DocumentTypeController::class, 'index'])->name('doctypes.index');
+        Route::post('tipos-documento', [DocumentTypeController::class, 'store'])->name('doctypes.store');
+        Route::post('tipos-documento/{tipo}', [DocumentTypeController::class, 'update'])->name('doctypes.update');
+        Route::post('tipos-documento/{tipo}/activar', [DocumentTypeController::class, 'toggle'])->name('doctypes.toggle');
+
         // Postulaciones de conductores y sus documentos
         Route::get('postulaciones', [DriverDocumentController::class, 'index'])->name('onboarding.index');
         Route::get('postulaciones/{driver}', [DriverDocumentController::class, 'show'])->name('onboarding.show');
