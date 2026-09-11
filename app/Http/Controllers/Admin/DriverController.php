@@ -288,14 +288,13 @@ class DriverController extends Controller
         return $data;
     }
 
+    /**
+     * El generador vive en el modelo: desde que el conductor también puede darse de alta
+     * solo desde la app hay dos puertas, y no puede haber dos numeradores para una misma
+     * serie de códigos.
+     */
     private function nextCode(): string
     {
-        // mayor sufijo numérico entre los códigos con forma MG-#### (ignora MG-DEMO u otros no numéricos)
-        // withTrashed: un MG-0007 dado de baja sigue ocupando su código en la tabla
-        $max = Driver::withTrashed()->pluck('code')
-            ->filter(fn ($c) => preg_match('/^MG-\d+$/', (string) $c))
-            ->map(fn ($c) => (int) Str::afterLast($c, '-'))
-            ->max() ?? 0;
-        return 'MG-' . str_pad($max + 1, 4, '0', STR_PAD_LEFT);
+        return Driver::makeCode();
     }
 }

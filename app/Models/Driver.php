@@ -21,6 +21,11 @@ class Driver extends Model
         'rating'         => 'decimal:2',
         'last_active_at' => 'datetime',
         'app_seen_at'    => 'datetime',
+        // sin el cast, docs_due_at llega como texto y `->isFuture()` revienta justo en el
+        // punto donde se decide si alguien puede o no trabajar
+        'docs_due_at'    => 'datetime',
+        'approved_at'    => 'datetime',
+        'self_registered'=> 'boolean',
     ];
 
     public function recharges()
@@ -55,7 +60,39 @@ class Driver extends Model
         return $this->hasMany(DriverPhoto::class)->latest('id');
     }
 
+    /** Documentos enviados a la central (DNI, licencia, SOAT…). */
+    public function documents()
+    {
+        return $this->hasMany(DriverDocument::class)->latest('id');
+    }
+
+    public function approver()
+    {
+        return $this->belongsTo(User::class, 'approved_by');
+    }
+
     /* ---- Helpers de negocio ---- */
+
+    /**
+     * Siguiente código MG-####.
+     *
+     * Vive en el modelo y no en el panel porque ahora hay DOS puertas de alta: la central
+     * y el registro desde la app. Dos generadores distintos terminan dando dos códigos
+     * distintos para la misma serie.
+     *
+     * withTrashed: un MG-0007 dado de baja sigue ocupando su código.
+     * ⚠ Dos altas simultáneas pueden calcular el mismo número; el índice único de `code`
+     * es el que lo impide de verdad, y quien inserta reintenta.
+     */
+    public static function makeCode(): string
+    {
+        $max = self::withTrashed()->pluck('code')
+            ->filter(fn ($c) => preg_match('/^MG-\d+$/', (string) $c))
+            ->map(fn ($c) => (int) \Illuminate\Support\Str::afterLast($c, '-'))
+            ->max() ?? 0;
+
+        return 'MG-'.str_pad($max + 1, 4, '0', STR_PAD_LEFT);
+    }
 
     public function isBlocked(): bool
     {
@@ -73,7 +110,11 @@ class Driver extends Model
     {
         return $this->account_status === 'activo'
             && (float) $this->saldo >= \App\Services\Fare::minSaldo()
-            && ! \App\Services\DriverPhotos::missing($this);
+            && ! \App\Services\DriverPhotos::missing($this)
+            // El alta con documentos pasa por acá y por ningún otro lado: es el único punto
+            // que atraviesan tanto conectarse (connect) como entrar al despacho
+            // (Dispatch::eligibleDrivers). Poner el control en la pantalla no serviría.
+            && ! \App\Services\DriverDocuments::blocking($this);
     }
 
     /**

@@ -40,9 +40,13 @@ class RideController extends Controller
         if ($d['online']) {
             if (! $driver->canReceiveRides()) {
                 return response()->json([
+                    // Orden a propósito: primero la cuenta, después la postulación (que es
+                    // lo que tiene bloqueado a un conductor nuevo), después las fotos y al
+                    // final el saldo. Se le dice el motivo REAL, no el primero que aparezca.
                     'message' => $driver->account_status !== 'activo'
                         ? 'Tu cuenta no está activa. Comunícate con la central.'
-                        : (\App\Services\DriverPhotos::blockMessage($driver)
+                        : (\App\Services\DriverDocuments::blockMessage($driver)
+                            ?: \App\Services\DriverPhotos::blockMessage($driver)
                             ?: 'Tu saldo no alcanza para la comisión. Recarga para conectarte.'),
                 ], 422);
             }
