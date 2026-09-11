@@ -76,7 +76,7 @@ Route::prefix('conductor')->name('driver.')->group(function () {
     Route::post('api/logout', [DriverAuth::class, 'logout']);
     // Alta desde la app. Nace SIN poder trabajar: el candado de canReceiveRides() lo
     // mantiene fuera del despacho hasta que la central apruebe sus documentos.
-    Route::post('api/register', [DriverOnboarding::class, 'register'])->middleware('throttle:6,60');
+    Route::post('api/register', [DriverOnboarding::class, 'register'])->middleware('throttle:registro-conductor');
 
     Route::middleware('driver')->group(function () {
         // Conexión y ubicación

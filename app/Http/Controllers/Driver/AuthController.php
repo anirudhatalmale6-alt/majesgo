@@ -26,6 +26,10 @@ class AuthController extends Controller
             // ¿el servidor tiene con qué avisarle si la app está cerrada? (ver RideController::pushReady)
             'push_ok' => \App\Models\FcmToken::where('owner_type', 'driver')->where('owner_id', $d->id)->exists()
                 || \App\Models\PushSubscription::where('owner_type', 'driver')->where('owner_id', $d->id)->exists(),
+            // Estado de la postulación, para que la app lleve al conductor a la pantalla de
+            // documentos en vez de dejarlo mirando un mapa donde nunca le va a entrar un viaje.
+            'onboarding'   => $d->onboarding_status,
+            'docs_blocked' => \App\Services\DriverDocuments::blocking($d),
             'csrf' => csrf_token(),
         ]);
     }

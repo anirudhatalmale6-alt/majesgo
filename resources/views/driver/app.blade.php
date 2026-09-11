@@ -45,6 +45,28 @@
         .mapzoom button:first-child{border-bottom:1px solid rgba(255,255,255,.14)}
         .mapzoom button:active{background:rgba(0,230,118,.28)}
         .mapzoom button:disabled{opacity:.38;cursor:default}
+        /* ⚠ La .overlay original pega el contenido contra el fondo y NO tiene scroll: sirve
+           para la tarjeta de acceso, que es corta. Estas dos pantallas son más altas que un
+           celular, y sin esto lo que no entra se sale por ARRIBA y queda inalcanzable — el
+           conductor no llegaba ni a ver la barra de avance ni sus primeros documentos. */
+        #signup,#docs{justify-content:flex-start;overflow-y:auto;-webkit-overflow-scrolling:touch}
+        #signup .hero,#docs .hero{flex:0 0 auto}
+        .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+        .docprog{height:8px;border-radius:99px;background:rgba(255,255,255,.12);overflow:hidden;margin-bottom:14px}
+        .docbar{height:100%;width:0;background:var(--verde);transition:width .35s ease}
+        .docrow{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-bottom:1px solid rgba(255,255,255,.08)}
+        .docrow:last-child{border-bottom:0}
+        .docrow .di{flex:1;min-width:0}
+        .docrow .dn{font-weight:700;font-size:15px}
+        .docrow .dh{font-size:12.5px;color:#9aa4b0;margin-top:2px}
+        .docrow .dstate{font-size:12.5px;margin-top:6px}
+        .docchip{font-size:11px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;padding:3px 9px;border-radius:99px;white-space:nowrap}
+        .docchip.falta{background:rgba(255,255,255,.12);color:#c8d0d8}
+        .docchip.pendiente{background:rgba(255,193,7,.2);color:#ffd45e}
+        .docchip.aprobado{background:rgba(0,200,83,.2);color:#5ce08b}
+        .docchip.rechazado,.docchip.vencido{background:rgba(255,82,82,.2);color:#ff8a8a}
+        .docup{margin-top:8px;display:grid;gap:6px}
+        .docup input{margin:0}
         /* Zonas locales en el mapa del conductor (mismo criterio que el pasajero) */
         .zonemk{pointer-events:none}
         .zonemk .zpin{display:block;position:absolute;left:-7px;top:-20px;width:14px;height:20px;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5))}
@@ -461,7 +483,57 @@
             <label>Clave</label>
             <input id="inPass" type="password" placeholder="Tu clave" autocomplete="current-password">
             <button class="btn amber" id="btnAuth">Ingresar</button>
+@if($signupOpen)
+            <button class="btn ghost" id="btnGoSignup" style="margin-top:10px">Quiero ser conductor de MajesGo</button>
+            <div class="hint">Regístrate, envía tus documentos y la central revisa tu solicitud.</div>
+@else
             <div class="hint">Tu cuenta de conductor la crea la central. Si no tienes acceso, comunícate con el administrador.</div>
+@endif
+        </div>
+    </div>
+
+@if($signupOpen)
+    <!-- Alta desde la app. Crea la cuenta, pero NO habilita: el candado del servidor
+         mantiene al postulante fuera del despacho hasta que la central apruebe. -->
+    <div class="overlay hidden" id="signup">
+        <div class="hero" style="padding-top:18px">
+            <h1>Postúlate</h1>
+            <p>Completa tus datos y los de tu vehículo</p>
+        </div>
+        <div class="authcard">
+            <div class="err" id="suErr"></div>
+            <label>Nombre completo</label>
+            <input id="suName" type="text" placeholder="Como figura en tu DNI" autocomplete="name">
+            <label>Celular</label>
+            <input id="suPhone" type="tel" inputmode="numeric" placeholder="9XXXXXXXX" autocomplete="tel">
+            <label>DNI</label>
+            <input id="suDni" type="text" inputmode="numeric" placeholder="8 dígitos">
+            <label>Clave</label>
+            <input id="suPass" type="password" placeholder="Mínimo 6 caracteres" autocomplete="new-password">
+            <div class="row2">
+                <div><label>Marca</label><input id="suMake" type="text" placeholder="Toyota"></div>
+                <div><label>Modelo</label><input id="suModel" type="text" placeholder="Yaris"></div>
+            </div>
+            <div class="row2">
+                <div><label>Placa</label><input id="suPlate" type="text" placeholder="V1A-123"></div>
+                <div><label>Color</label><input id="suColor" type="text" placeholder="Blanco"></div>
+            </div>
+            <button class="btn amber" id="btnSignup">Crear mi cuenta</button>
+            <button class="btn ghost" id="btnSignupBack" style="margin-top:8px">Ya tengo cuenta</button>
+        </div>
+    </div>
+@endif
+
+    <!-- Mi postulación: la lista de papeles con su estado -->
+    <div class="overlay hidden" id="docs">
+        <div class="hero" style="padding-top:18px">
+            <h1>Tus documentos</h1>
+            <p id="docsLead">La central los revisa antes de habilitarte</p>
+        </div>
+        <div class="authcard" style="max-width:520px">
+            <div class="docprog"><div class="docbar" id="docBar"></div></div>
+            <div id="docList"></div>
+            <button class="btn ghost" id="btnDocsBack" style="margin-top:12px">Volver</button>
         </div>
     </div>
 
@@ -534,11 +606,12 @@ window.MG = {
     // Motivos de denuncia contra el pasajero. Vienen del modelo para que la app y el
     // panel de la central hablen siempre de lo mismo.
     reportReasons: @json(\App\Models\UserReport::REASONS_ON_PASSENGER),
+    signupOpen: @json($signupOpen),
 };
 </script>
 <script src="/js/pois.js?v=5"></script>
 <script src="/js/majesgo-car.js?v=2"></script>
-<script src="/js/driver.js?v=37"></script>
+<script src="/js/driver.js?v=38"></script>
 <script src="/js/native.js?v=3"></script>
 </body>
 </html>

@@ -28,6 +28,23 @@ class AppServiceProvider extends ServiceProvider
         \Carbon\Carbon::setLocale('es');
 
         /*
+         * Freno del alta de conductores. Existe para que nadie llene la bandeja de la
+         * central con cuentas basura desde la misma conexión.
+         *
+         * Va con respuesta propia porque el mensaje que trae Laravel es «Too Many
+         * Attempts.», en inglés: un conductor de Majes no tiene por qué leer eso ni
+         * quedarse sin saber qué hacer. Se le dice en su idioma y con el tiempo de espera.
+         */
+        \Illuminate\Support\Facades\RateLimiter::for('registro-conductor', function ($request) {
+            return \Illuminate\Cache\RateLimiting\Limit::perHour(6)
+                ->by($request->ip())
+                ->response(fn ($request, array $headers) => response()->json([
+                    'message' => 'Demasiados intentos desde esta conexión. Espera unos minutos '
+                                 .'y vuelve a intentarlo, o comunícate con la central.',
+                ], 429, $headers));
+        });
+
+        /*
          * El paginador por defecto de Laravel está escrito con clases de Tailwind, que
          * este panel no usa: se veía «Showing 1 to 30 of 275 results» sin estilo y en
          * inglés en las siete pantallas que paginan. La vista propia usa el CSS que el

@@ -418,6 +418,8 @@ async function doAuth() {
     const r = await api('api/login', { phone, password: pass });
     if (r && r.csrf) MG.csrf = r.csrf;
     $('#auth').classList.add('hidden');
+    const m = await api('api/me');
+    if (m.docs_blocked) { me = m.driver; await abrirDocumentos(); return; }
     await boot();
   } catch (e) {
     err.textContent = e.errors ? Object.values(e.errors)[0][0] : e.message;
@@ -427,13 +429,161 @@ async function doAuth() {
   }
 }
 
+/* ================= POSTULACIÓN ================= */
+/* El alta y la lista de papeles. Nada de esto habilita a nadie: el permiso para trabajar
+   lo decide el servidor en canReceiveRides(). Acá sólo se envía y se muestra el estado. */
+
+function verPantalla(id) {
+  ['auth', 'signup', 'docs'].forEach((k) => {
+    const el = $('#' + k);
+    if (el) el.classList.toggle('hidden', k !== id);
+  });
+}
+
+if ($('#btnGoSignup')) $('#btnGoSignup').addEventListener('click', () => verPantalla('signup'));
+if ($('#btnSignupBack')) $('#btnSignupBack').addEventListener('click', () => verPantalla('auth'));
+if ($('#btnDocsBack')) $('#btnDocsBack').addEventListener('click', () => {
+  $('#docs').classList.add('hidden');
+  if (!me) verPantalla('auth');
+});
+
+if ($('#btnSignup')) $('#btnSignup').addEventListener('click', async () => {
+  const err = $('#suErr'); err.style.display = 'none';
+  const btn = $('#btnSignup'); const orig = btn.textContent;
+  btn.disabled = true; btn.innerHTML = '<span class="spin"></span>';
+  try {
+    const r = await api('api/register', {
+      full_name: $('#suName').value.trim(),
+      phone: $('#suPhone').value.trim(),
+      dni: $('#suDni').value.trim(),
+      password: $('#suPass').value,
+      vehicle_make: $('#suMake').value.trim(),
+      vehicle_model: $('#suModel').value.trim(),
+      vehicle_plate: $('#suPlate').value.trim(),
+      vehicle_color: $('#suColor').value.trim(),
+    });
+    if (r && r.csrf) MG.csrf = r.csrf;
+    await abrirDocumentos();
+  } catch (e) {
+    err.textContent = e.errors ? Object.values(e.errors)[0][0] : e.message;
+    err.style.display = 'block';
+  } finally {
+    btn.disabled = false; btn.textContent = orig;
+  }
+});
+
+async function abrirDocumentos() {
+  verPantalla('docs');
+  await pintarDocumentos();
+}
+
+async function pintarDocumentos() {
+  let d;
+  try {
+    d = await api('api/documents', null, 'GET');
+  } catch (e) {
+    $('#docList').innerHTML = '<div class="dh">No pudimos cargar tus documentos. Revisa tu conexión.</div>';
+    return;
+  }
+
+  const lista = d.documents || [];
+  const listos = lista.filter((x) => x.status === 'aprobado').length;
+  $('#docBar').style.width = lista.length ? Math.round((listos / lista.length) * 100) + '%' : '0%';
+  $('#docsLead').textContent = d.message || 'Ya está todo en orden. Puedes conectarte.';
+
+  const etiqueta = {
+    falta: 'Falta', pendiente: 'En revisión', aprobado: 'Aprobado',
+    rechazado: 'Rechazado', vencido: 'Vencido',
+  };
+
+  $('#docList').innerHTML = lista.map((x) => `
+    <div class="docrow">
+      <div class="di">
+        <div class="dn">${esc(x.name)}</div>
+        ${x.help ? `<div class="dh">${esc(x.help)}</div>` : ''}
+        ${x.status === 'rechazado' && x.reason
+          ? `<div class="dstate" style="color:#ff8a8a">La central lo rechazó: ${esc(x.reason)}</div>` : ''}
+        ${x.status === 'aprobado' && x.expires_at
+          ? `<div class="dstate" style="color:#9aa4b0">Vence el ${fecha(x.expires_at)}</div>` : ''}
+        ${x.status === 'vencido'
+          ? `<div class="dstate" style="color:#ff8a8a">Venció el ${fecha(x.expires_at)}. Sube uno vigente.</div>` : ''}
+        ${x.status === 'aprobado' ? '' : `
+          <div class="docup">
+            ${x.number ? `<input type="text" placeholder="Número" data-num="${x.key}">` : ''}
+            ${x.expiry ? `<input type="date" placeholder="Vencimiento" data-exp="${x.key}">` : ''}
+            <input type="file" accept="image/*,application/pdf" data-file="${x.key}">
+          </div>`}
+      </div>
+      <span class="docchip ${x.status}">${etiqueta[x.status] || x.status}</span>
+    </div>`).join('');
+
+  $('#docList').querySelectorAll('input[data-file]').forEach((inp) => {
+    inp.addEventListener('change', () => enviarDocumento(inp.dataset.file, inp));
+  });
+}
+
+async function enviarDocumento(key, inp) {
+  if (!inp.files || !inp.files[0]) return;
+
+  const fd = new FormData();
+  fd.append('file', inp.files[0]);
+  const num = $(`input[data-num="${key}"]`);
+  const exp = $(`input[data-exp="${key}"]`);
+  if (num && num.value.trim()) fd.append('number', num.value.trim());
+  if (exp && exp.value) fd.append('expires_at', exp.value);
+
+  inp.disabled = true;
+  try {
+    const r = await fetch('/conductor/api/documents/' + key, {
+      method: 'POST',
+      headers: { 'X-CSRF-TOKEN': MG.csrf, 'X-Requested-With': 'XMLHttpRequest' },
+      body: fd,
+      credentials: 'same-origin',
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw data;
+    await pintarDocumentos();
+  } catch (e) {
+    // El motivo va pegado a la fila del documento, no en una alerta suelta: así el
+    // conductor ve QUÉ archivo falló sin tener que adivinar cuál de los siete era.
+    const fila = inp.closest('.docrow');
+    const msg = e && e.errors ? Object.values(e.errors)[0][0] : (e && e.message) || 'No se pudo enviar.';
+    if (fila) {
+      let aviso = fila.querySelector('.docerr');
+      if (!aviso) {
+        aviso = document.createElement('div');
+        aviso.className = 'dstate docerr';
+        aviso.style.color = '#ff8a8a';
+        fila.querySelector('.di').appendChild(aviso);
+      }
+      aviso.textContent = msg;
+    }
+  } finally {
+    inp.disabled = false;
+    inp.value = '';
+  }
+}
+
+function fecha(iso) {
+  if (!iso) return '';
+  const [a, m, d] = iso.split('-');
+  return `${d}/${m}/${a}`;
+}
+
 /* ================= BOOT ================= */
 async function start() {
   showKickNotice();
   try {
     const m = await api('api/me');
     if (m.csrf) MG.csrf = m.csrf;
-    if (m.authenticated) { me = m.driver; $('#auth').classList.add('hidden'); await boot(); }
+    if (m.authenticated) {
+      me = m.driver;
+      $('#auth').classList.add('hidden');
+      // Un postulante sin aprobar no tiene nada que hacer en el mapa: no le va a entrar
+      // ningún viaje. Se lo lleva directo a su lista de papeles.
+      if (m.docs_blocked) { await abrirDocumentos(); return; }
+      await boot();
+    }
     else { $('#auth').classList.remove('hidden'); }
   } catch (e) { $('#auth').classList.remove('hidden'); }
 }
