@@ -24,7 +24,18 @@ class FcmSender
      * canal que apunte a un sonido inexistente sale mudo: a esos se les manda el canal
      * de siempre, con el sonido del sistema.
      */
-    public const BUILD_TIMBRE_PROPIO = 3;
+    /**
+     * Primera versión de CADA apk que trae su timbre propio en res/raw.
+     *
+     * Son dos entradas a propósito aunque hoy valgan lo mismo: las dos apps se versionan
+     * por separado, y con un único número el día que una se adelante la otra recibiría un
+     * canal que pide un sonido que su apk no tiene. Ese aviso NO suena con el tono del
+     * sistema: sale MUDO.
+     */
+    public const BUILD_TIMBRE_PROPIO = ['driver' => 3, 'passenger' => 3];
+
+    /** El sonido que lleva cada app dentro. */
+    private const SONIDO = ['driver' => 'nuevo_viaje', 'passenger' => 'viaje_confirmado'];
 
     /** Guarda/actualiza el token FCM del dispositivo de un conductor o pasajero. */
     public static function store(string $ownerType, int $ownerId, string $token, string $platform = 'android', int $appBuild = 0): bool
@@ -112,11 +123,13 @@ class FcmSender
          * vive dentro del apk, así que sólo se pide en los que ya lo tienen. Durante una
          * actualización de Play conviven las dos versiones y cada una recibe lo suyo.
          */
-        // El mp3 va sólo en el apk del CONDUCTOR: pedirlo en el del pasajero lo dejaría mudo.
-        $llevaTimbre = $ownerType === 'driver';
+        // Cada app lleva SU mp3 y desde SU versión. Pedirle a un apk un sonido que no tiene
+        // deja el aviso mudo, así que se compara contra el mínimo de esa app.
+        $minimo = self::BUILD_TIMBRE_PROPIO[$ownerType] ?? PHP_INT_MAX;
+        $sonido = self::SONIDO[$ownerType] ?? null;
 
-        $bloque = function (int $build) use ($silent, $ttl, $tag, $llevaTimbre): array {
-            $propio = ! $silent && $llevaTimbre && $build >= self::BUILD_TIMBRE_PROPIO;
+        $bloque = function (int $build) use ($silent, $ttl, $tag, $minimo, $sonido): array {
+            $propio = ! $silent && $sonido !== null && $build >= $minimo;
             $android = [
                 'priority'     => $silent ? 'NORMAL' : 'HIGH',
                 'ttl'          => $ttl.'s',
@@ -125,7 +138,7 @@ class FcmSender
                     // ⚠ Sus ajustes quedan CONGELADOS al crearse: para cambiarlos hace falta un
                     // canal con id nuevo (lo crea native.js, sin recompilar la app).
                     'channel_id'          => $silent ? 'majesgo_avisos' : ($propio ? 'majesgo_viajes_v2' : 'majesgo_viajes'),
-                    'sound'               => $silent ? null : ($propio ? 'nuevo_viaje' : 'default'),
+                    'sound'               => $silent ? null : ($propio ? $sonido : 'default'),
                     'notification_priority' => $silent ? 'PRIORITY_MIN' : 'PRIORITY_MAX',
                     'default_vibrate_timings' => ! $silent,
                     'visibility'          => 'PUBLIC', // se ve con la pantalla bloqueada
