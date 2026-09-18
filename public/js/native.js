@@ -10,8 +10,15 @@
   var base = isDriver ? '/conductor' : '/app';
   var csrf = (window.MG && MG.csrf) || (document.querySelector('meta[name=csrf-token]') || {}).content || '';
 
-  // Primera versión del apk del conductor que trae el timbre propio en res/raw.
-  var BUILD_TIMBRE_PROPIO = 3;
+  // Primera versión de CADA apk que trae su timbre propio en res/raw. Son dos números
+  // distintos a propósito: las dos apps se versionan por separado y que hoy coincidan en 3
+  // es casualidad. Si se escribiera uno solo, el día que una se adelante la otra quedaría
+  // pidiendo un sonido que su apk no tiene, y ese aviso sale MUDO.
+  var BUILD_TIMBRE = { conductor: 3, pasajero: 3 };
+  var BUILD_TIMBRE_PROPIO = isDriver ? BUILD_TIMBRE.conductor : BUILD_TIMBRE.pasajero;
+  // Cada app tiene su sonido: el del conductor avisa una carrera nueva y es insistente;
+  // el del pasajero avisa que su taxi ya viene y es más corto.
+  var SONIDO_PROPIO = isDriver ? 'nuevo_viaje' : 'viaje_confirmado';
   var appBuild = 0;
 
   function postToken(token) {
@@ -59,15 +66,18 @@
           importance: 5, visibility: 1, sound: 'default', vibration: true, lights: true,
         }).catch(function () {});
 
-        // Timbre propio de MajesGo. Sólo en la app del conductor y sólo desde la versión
-        // que lleva el mp3: crearlo sin el archivo dejaría el aviso sin sonido.
+        // Timbre propio de MajesGo, en las DOS apps, y sólo desde la versión que lleva el
+        // mp3: crearlo sin el archivo dejaría el aviso sin sonido.
         // Va en un canal con id NUEVO porque los ajustes de un canal quedan congelados
         // al crearse — cambiarle el sonido a 'majesgo_viajes' no haría nada.
-        if (isDriver && appBuild >= BUILD_TIMBRE_PROPIO) {
+        if (appBuild >= BUILD_TIMBRE_PROPIO) {
           PN.createChannel({
-            id: 'majesgo_viajes_v2', name: 'Viajes MajesGo',
-            description: 'Alertas de nuevos viajes y estado del viaje',
-            importance: 5, visibility: 1, sound: 'nuevo_viaje', vibration: true, lights: true,
+            id: 'majesgo_viajes_v2',
+            name: isDriver ? 'Viajes MajesGo' : 'Tu taxi',
+            description: isDriver
+              ? 'Alertas de nuevos viajes y estado del viaje'
+              : 'Cuando un conductor acepta tu viaje y cuando llega',
+            importance: 5, visibility: 1, sound: SONIDO_PROPIO, vibration: true, lights: true,
           }).catch(function () {});
         }
 
