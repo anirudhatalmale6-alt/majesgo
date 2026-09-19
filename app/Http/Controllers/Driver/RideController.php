@@ -518,12 +518,29 @@ class RideController extends Controller
         if (! $ride) {
             return response()->json(['message' => 'No hay un viaje para marcar como llegado.'], 422);
         }
+        $primeraVez = $ride->arrived_at === null;
         $ride->forceFill(['status' => 'llego', 'arrived_at' => $ride->arrived_at ?? now()])->save();
 
-        // Avisar por push al pasajero que su taxi llegó.
+        /*
+         * El aviso queda TAMBIÉN escrito en el chat del viaje.
+         *
+         * Va como mensaje del conductor y no como un mensaje "del sistema" porque eso es
+         * exactamente lo que es: el conductor avisando. Además así el chat se lee como una
+         * conversación y no hace falta tocar el enum de la tabla, que sólo admite pasajero
+         * y conductor.
+         *
+         * Sólo la primera vez: volver a marcar la llegada (pasa al reintentar con mala señal)
+         * no debe llenar el chat de mensajes repetidos.
+         */
+        if ($primeraVez) {
+            $ride->messages()->create(['sender' => 'conductor', 'body' => 'Ya llegué al punto de recojo 🚕']);
+        }
+
+        // Avisar por push al pasajero que su taxi llegó. WebPushSender reparte a las dos vías:
+        // la app nativa (FCM) y el navegador.
         defer(fn () => WebPushSender::toOwner('passenger', (int) $ride->passenger_id, [
-            'title' => 'Tu taxi llegó 🚕',
-            'body'  => 'Tu conductor está en el punto de recojo.',
+            'title' => 'Tu conductor ya llegó 🚕',
+            'body'  => 'Te está esperando en el punto de recojo.',
             'url'   => '/app',
             'tag'   => 'ride-arrived',
         ]));
@@ -994,6 +1011,9 @@ class RideController extends Controller
             'route_to_pickup' => $ride->route_to_pickup,
             'route_trip'   => $ride->route_trip,
             'last_message_id' => (int) $ride->messages()->max('id'),
+            // El pasajero ya avisó que está bajando. El push puede perderse (celular en
+            // silencio, sin datos un rato); esto queda a la vista mientras dure la espera.
+            'on_my_way'    => $ride->on_my_way_at !== null,
             'passenger'    => $this->passengerCard($ride),
             'currency'     => Setting::get('currency', 'S/'),
         ];

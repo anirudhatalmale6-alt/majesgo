@@ -23,6 +23,7 @@ class Ride extends Model
         'offered_at'       => 'datetime',
         'accepted_at'      => 'datetime',
         'arrived_at'       => 'datetime',
+        'on_my_way_at'     => 'datetime',
         'started_at'       => 'datetime',
         'completed_at'     => 'datetime',
         'cancelled_at'     => 'datetime',

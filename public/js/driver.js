@@ -1496,6 +1496,7 @@ function renderRide(r) {
 
   $('#sheetBody').innerHTML = `
     <div class="statusband">${r.status_label}<small>${goingToDest ? 'Lleva al pasajero a su destino' : 'Recoge al pasajero en el punto marcado'}</small></div>
+    ${r.status === 'llego' && r.on_my_way ? '<div class="paxsalgo">🚶 El pasajero ya está saliendo</div>' : ''}
     <div class="drv">
       <div class="av">${p.initial || 'P'}</div>
       <div><div class="nm">${esc(p.name || 'Pasajero')}</div><div class="car2">⭐ ${(p.rating || 5).toFixed(1)} · ${p.trips || 0} viajes</div></div>

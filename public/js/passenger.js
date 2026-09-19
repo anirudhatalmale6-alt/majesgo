@@ -1232,6 +1232,7 @@ function renderAssigned(r) {
     </div>` : ''}
     <div class="pricelock">🔒 Precio fijo pactado: ${money(rideTotal(r))}. No cambia por el tráfico.</div>
     <div class="sheetcta">
+      ${salgoBtn(r)}
       <div class="acts">
         <button class="btn ghost" id="btnChat">💬 Chat${(rideLastMsgId > chatSeenId && !chatOpen) ? ' <span class="undot"></span>' : ''}</button>
         ${canCancel ? '<button class="btn danger" id="btnCancel">Cancelar</button>' : ''}
@@ -1240,6 +1241,38 @@ function renderAssigned(r) {
   bindVehiclePhoto(d);
   const c = $('#btnCancel'); if (c) c.addEventListener('click', cancelRide);
   $('#btnChat').addEventListener('click', () => openChat(d.name));
+  bindSalgo();
+}
+
+/* ====== "Ya salgo": respuesta rápida al aviso de llegada ======
+   El conductor está en la puerta y el pasajero está saliendo: es justo el momento en que
+   nadie quiere ponerse a escribir. Un toque y el conductor recibe el aviso con sonido.
+
+   Sólo aparece cuando el conductor YA avisó que llegó. Antes de eso no dice nada útil
+   ("ya salgo" cuando el taxi está a diez cuadras no es información, es ruido) y encima
+   sonaría mientras el conductor maneja. */
+function salgoBtn(r) {
+  if (r.status !== 'llego') return '';
+  return r.on_my_way
+    ? '<button class="btn ghost" id="btnSalgo" disabled>✅ Le avisaste que ya sales</button>'
+    : '<button class="btn" id="btnSalgo">🚶 Ya salgo</button>';
+}
+
+function bindSalgo() {
+  const b = $('#btnSalgo');
+  if (!b || b.disabled) return;
+  b.addEventListener('click', async () => {
+    b.disabled = true; b.textContent = 'Avisando…';
+    try {
+      await api('api/rides/on-my-way', {});
+      if (curRide) curRide.on_my_way = true;   // que un sondeo lento no lo vuelva atrás
+      b.classList.add('ghost'); b.textContent = '✅ Le avisaste que ya sales';
+      toast('Tu conductor ya sabe que estás saliendo.');
+    } catch (e) {
+      b.disabled = false; b.textContent = '🚶 Ya salgo';
+      toast((e && e.message) || 'No se pudo avisar. Intenta de nuevo.');
+    }
+  });
 }
 
 function renderCompleted(r) {

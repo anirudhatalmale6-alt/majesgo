@@ -58,6 +58,9 @@
         .offerzone .ozlabel{position:absolute;left:0;top:-54px;transform:translateX(-50%);white-space:nowrap;max-width:170px;overflow:hidden;text-overflow:ellipsis;font-size:12.5px;font-weight:800;color:#fff;background:#009d4f;padding:4px 12px;border-radius:12px;box-shadow:0 3px 12px rgba(0,0,0,.55);border:1.5px solid rgba(255,255,255,.9)}
         .offerzone .ozlabel.dest{background:#e23b3b}
         /* ---- Home rediseñado del conductor ---- */
+        /* Aviso de "el pasajero ya está saliendo": verde y quieto, no un toast que se va.
+           El conductor mira el celular de reojo y puede perderse cualquier cosa que parpadee. */
+        .paxsalgo{margin:10px 0 2px;padding:11px 14px;border-radius:13px;font-weight:700;font-size:14px;color:#9ff0c0;background:rgba(0,200,83,.14);border:1px solid rgba(0,200,83,.4)}
         .dstatetxt{font-weight:700;font-size:15px;margin:2px 0 12px;color:#fff}
         /* ⚠ El COLOR indica el ESTADO, no la acción: rojo = desconectado, verde = en línea.
            Por eso el deslizador para CONECTARSE es rojo (todavía no recibe viajes) y al conectarse
@@ -540,7 +543,7 @@ window.MG = {
 <script src="/js/pois.js?v=5"></script>
 <script src="/js/majesgo-car.js?v=2"></script>
 <script src="/js/despierto.js?v=1"></script>
-<script src="/js/driver.js?v=38"></script>
+<script src="/js/driver.js?v=39"></script>
 <script src="/js/native.js?v=5"></script>
 </body>
 </html>

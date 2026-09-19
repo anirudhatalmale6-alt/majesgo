@@ -518,6 +518,46 @@ class RideController extends Controller
     }
 
     /**
+     * "Ya salgo": respuesta rápida del pasajero cuando el conductor avisó que llegó.
+     *
+     * Existe para que nadie tenga que escribir nada en el momento en que menos se puede
+     * escribir: el pasajero está cerrando la puerta de su casa y el conductor está en la
+     * calle esperando.
+     */
+    public function onMyWay(Request $request)
+    {
+        $ride = $this->chatRide($this->passenger($request));
+        if (! $ride) {
+            return response()->json(['message' => 'No hay un viaje activo con conductor.'], 422);
+        }
+        // Sólo tiene sentido mientras el conductor espera. Ya a bordo, el botón sobra.
+        if (! in_array($ride->status, ['llego', 'en_camino', 'aceptado'], true)) {
+            return response()->json(['message' => 'El viaje ya no está en la espera del recojo.'], 422);
+        }
+
+        /*
+         * Antirrebote. El botón grande invita a tocarlo dos veces "por si acaso", y cada toque
+         * le sonaría de nuevo al conductor, que está manejando o esperando. Dentro del minuto
+         * se responde OK sin repetir ni el mensaje del chat ni el aviso: para el pasajero el
+         * resultado es el mismo y el conductor no recibe el mismo aviso dos veces.
+         */
+        $repetido = $ride->on_my_way_at && $ride->on_my_way_at->gt(now()->subMinute());
+        if (! $repetido) {
+            $ride->forceFill(['on_my_way_at' => now()])->save();
+            $ride->messages()->create(['sender' => 'pasajero', 'body' => 'Ya salgo 🚶']);
+
+            defer(fn () => WebPushSender::toOwner('driver', (int) $ride->driver_id, [
+                'title' => 'El pasajero ya está saliendo',
+                'body'  => 'Va en camino al punto de recojo.',
+                'url'   => '/conductor',
+                'tag'   => 'pax-on-my-way',
+            ]));
+        }
+
+        return response()->json(['ok' => true, 'on_my_way' => true]);
+    }
+
+    /**
      * El pasajero denuncia al conductor de un viaje suyo.
      *
      * Se puede denunciar durante el viaje (desde el chat) o al terminarlo. También
@@ -591,6 +631,9 @@ class RideController extends Controller
             'driver_pos'   => $pos,
             'offer'        => $offer,
             'last_message_id' => $ride->driver_id ? (int) $ride->messages()->max('id') : 0,
+            // Si ya avisó "Ya salgo", el botón queda en su estado de confirmado aunque
+            // recargue la app o se le corte la señal a mitad.
+            'on_my_way'    => $ride->on_my_way_at !== null,
             'driver'       => $driver ? [
                 'name'    => $driver->full_name,
                 'vehicle' => trim(($driver->vehicle_make . ' ' . $driver->vehicle_model)),

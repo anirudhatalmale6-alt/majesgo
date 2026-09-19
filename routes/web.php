@@ -54,6 +54,7 @@ Route::prefix('app')->name('app.')->group(function () {
         Route::post('api/rides/reject-driver', [PassengerRide::class, 'rejectDriver']);
         Route::get('api/rides/messages', [PassengerRide::class, 'messages']);
         Route::post('api/rides/messages', [PassengerRide::class, 'sendMessage']);
+        Route::post('api/rides/on-my-way', [PassengerRide::class, 'onMyWay']);
         Route::post('api/rides/cancel', [PassengerRide::class, 'cancel']);
         Route::post('api/rides/rate', [PassengerRide::class, 'rate']);
         Route::post('api/rides/report', [PassengerRide::class, 'report']);
