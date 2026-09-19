@@ -800,6 +800,7 @@ try {
 
 /* ================= HOME (conectar/desconectar) ================= */
 function renderHome() {
+  if (MG.pantalla) MG.pantalla(false);   // sin carrera, el celular vuelve a su comportamiento normal
   clearTrip();
   closeChat(); chatLastId = 0; chatSeenId = 0; rideLastMsgId = 0; arrivedFor = null;
   const lowSaldo = me.saldo < minSaldo;
@@ -1467,6 +1468,10 @@ function renderRide(r) {
   $('#reqwrap').classList.add('hidden');
   if (typeof r.last_message_id === 'number') rideLastMsgId = r.last_message_id;
   if (r.status === 'ofrecido') { renderWaitingConfirm(r); return; }
+  // Carrera en marcha (yendo a recoger o con el pasajero a bordo): el celular va en el
+  // soporte y mirándose de reojo, así que la pantalla no debe dormirse. Se suelta al
+  // terminar o cancelar, en renderHome/renderCompleted.
+  if (MG.pantalla) MG.pantalla(true);
   // rutas (usa la ruta activa: recalculada si el conductor se desvió)
   syncActiveRoute(r);
   drawRoute(activeRoute.coords, activeRoute.toDest ? '#00C853' : '#FFC107');
@@ -1583,6 +1588,7 @@ async function cancelRide() {
 }
 
 function renderCompleted(r) {
+  if (MG.pantalla) MG.pantalla(false);
   const fp = r.final_price || rideTotal(r);
   const earn = fp - (r.commission != null ? r.commission : commissionFor(fp));
   $('#sheetBody').innerHTML = `

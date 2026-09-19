@@ -104,5 +104,42 @@
     } catch (e) {}
   }
 
+  /* 4) Botón ATRÁS del celular.
+
+     Sin un oyente propio, Capacitor lo interpreta como "volver en el historial" y, como la
+     app es una sola pantalla, no hay historial: CIERRA LA APP. Estando en una carrera eso
+     es lo peor que puede pasar. Acá el atrás cierra lo que esté abierto encima — la
+     denuncia, el chat — y si no hay nada abierto no hace nada mientras dure el viaje.
+
+     Se cierra apretando el MISMO botón que ve el usuario, no escondiendo el elemento a
+     mano: así corre la limpieza que hace la app (vaciar el formulario, soltar timers) y no
+     quedan dos caminos de salida que puedan divergir.
+
+     ⚠ Y sólo se cierra lo que YA ofrece una salida explícita. El aviso de "el pasajero
+     canceló" es un acuse obligatorio: su único botón es "Aceptar y continuar", que además
+     libera al conductor en el servidor. Si el atrás lo escondiera, el conductor quedaría
+     creyendo que sigue en un viaje que ya no existe. */
+  function cerrarLoDeArriba() {
+    var volver = document.querySelector('.modal:not(.hidden) #rpBack, .modal:not(.hidden) #cxBack');
+    if (volver) { volver.click(); return true; }
+    var atrasChat = document.querySelector('#chat.open #chatBack');
+    if (atrasChat) { atrasChat.click(); return true; }
+    return false;
+  }
+
+  try {
+    if (P.App && P.App.addListener) {
+      P.App.addListener('backButton', function (ev) {
+        if (cerrarLoDeArriba()) return;
+        // Nada abierto. Si hay una carrera en curso NO se cierra la app: el conductor
+        // dejaría de recibir ubicación y avisos sin darse cuenta.
+        var enViaje = !!document.querySelector('#chatFab, #chatReport, .tripbar');
+        if (enViaje) return;
+        if (ev && ev.canGoBack) window.history.back();
+        else if (P.App.minimizeApp) P.App.minimizeApp();
+      });
+    }
+  } catch (e) {}
+
   leerVersion().then(iniciarPush);
 })();
