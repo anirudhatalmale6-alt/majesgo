@@ -176,7 +176,12 @@
         .addr .dot.o{background:var(--verde)} .addr .dot.d{background:#ff5252}
         .addr .tx{font-size:13.5px;line-height:1.3}
         .addr .tx small{display:block;color:var(--muted);font-size:11px}
-        .acts{display:flex;gap:10px;margin-top:4px}
+        .acts{display:flex;gap:8px;margin-top:4px}
+        /* El enlace a Google Maps es un <a>, no un <button>: hay que devolverle el aspecto y
+           el centrado que el navegador sólo le da a los botones. */
+        .acts .btn{min-width:0;padding-left:6px;padding-right:6px;font-size:12.5px;white-space:nowrap}
+        a.btn{display:flex;align-items:center;justify-content:center;text-decoration:none}
+        .gmapsnav{margin-bottom:10px}
 
         /* Solicitud entrante */
         /* solo la tarjeta abajo; el mapa arriba queda CLARO y visible (recojo+ruta+zona) */
@@ -543,7 +548,7 @@ window.MG = {
 <script src="/js/pois.js?v=5"></script>
 <script src="/js/majesgo-car.js?v=2"></script>
 <script src="/js/despierto.js?v=1"></script>
-<script src="/js/driver.js?v=39"></script>
+<script src="/js/driver.js?v=40"></script>
 <script src="/js/native.js?v=5"></script>
 </body>
 </html>

@@ -700,6 +700,35 @@ function navUpdate(pos) {
   navLastLL = cur; navLastT = pos.timestamp;
 }
 
+/* ====== Abrir la navegación en Google Maps ======
+   El mapa de adentro sirve para ver el viaje; para MANEJAR, el conductor quiere la voz y el
+   tráfico de Google Maps, que ya conoce.
+
+   Se abre con un enlace normal a google.com/maps. Eso NO usa la API de pagos de Google: es
+   la misma dirección que se comparte por WhatsApp. No hay clave, ni cuota, ni factura.
+   Android reconoce el enlace y lo abre con la app de Google Maps si está instalada; si no,
+   cae en el navegador y funciona igual.
+
+   El destino cambia solo según el momento del viaje: mientras va a recoger apunta al punto
+   de recojo, y con el pasajero a bordo apunta al destino. Que el conductor tenga que elegir
+   sería justo la clase de decisión que no se puede tomar manejando. */
+function gmapsUrl(r) {
+  const t = r.status === 'a_bordo' ? r.dest : r.origin;
+  if (!t || typeof t.lat !== 'number' || typeof t.lng !== 'number') return null;
+  return 'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='
+    + encodeURIComponent(t.lat + ',' + t.lng);
+}
+
+function gmapsBtn(r, clase) {
+  const u = gmapsUrl(r);
+  if (!u) return '';
+  const q = r.status === 'a_bordo' ? 'al destino' : 'al pasajero';
+  // Es un enlace de verdad y no un botón con window.open: dentro de la app, window.open
+  // puede quedar bloqueado y no pasar nada. Un enlace siempre sale.
+  return `<a class="${clase}" id="btnGmaps" href="${u}" target="_blank" rel="noopener"
+             title="Ir ${q} con Google Maps">🗺️ Maps</a>`;
+}
+
 function renderNavAction() {
   const r = ride; if (!r) { $('#navAction').innerHTML = ''; return; }
   const p = r.passenger || {};
@@ -710,7 +739,7 @@ function renderNavAction() {
   if (r.status === 'en_camino' || r.status === 'aceptado') html = '<button class="btn amber" id="navPrimary">Llegué al punto</button>';
   else if (r.status === 'llego') html = '<button class="btn" id="navPrimary">Iniciar viaje</button>';
   else if (r.status === 'a_bordo') html = '<button class="btn" id="navPrimary">Finalizar viaje</button>';
-  $('#navAction').innerHTML = html;
+  $('#navAction').innerHTML = gmapsBtn(r, 'btn ghost gmapsnav') + html;
   const b = $('#navPrimary');
   if (b) b.addEventListener('click', async () => {
     const st = r.status;
@@ -1508,7 +1537,8 @@ function renderRide(r) {
     ${primary}
     <div class="acts">
       <button class="btn ghost" id="btnChat">💬 Chat${(rideLastMsgId > chatSeenId && !chatOpen) ? ' <span class="undot"></span>' : ''}</button>
-      <button class="btn ghost" id="btnNav">🧭 Navegar</button>
+      <button class="btn ghost" id="btnNav">🧭 Ruta</button>
+      ${gmapsBtn(r, 'btn ghost')}
       ${goingToDest ? '' : '<button class="btn danger" id="btnCancel">Cancelar</button>'}
     </div>`;
 
