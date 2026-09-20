@@ -65,7 +65,7 @@
                         <span class="muted">Nunca entró</span>
                     @endif
                 </td>
-                <td class="muted" style="font-size:12.5px">{{ $p->last_active_at ? $p->last_active_at->diffForHumans() : 'Nunca entró' }}</td>
+                <td class="muted" style="font-size:12.5px">@php($ult = $p->ultimaActividad())@if($ult){{ $ult->diffForHumans() }}@else Nunca entró @endif</td>
                 <td class="muted" style="font-size:12.5px">{{ $p->created_at->format('d/m/Y') }}</td>
                 <td style="text-align:right;white-space:nowrap">
                     <a href="{{ route('admin.passengers.show',$p) }}" class="btn ghost sm">Ver</a>

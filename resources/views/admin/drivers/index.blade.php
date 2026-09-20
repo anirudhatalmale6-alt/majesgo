@@ -54,8 +54,9 @@
                     @else
                         <span class="muted">Nunca entró</span>
                     @endif
-                    @if($d->app_seen_at)
-                        <div class="muted" style="font-size:11.5px;margin-top:3px">{{ $d->app_seen_at->diffForHumans() }}</div>
+                    @php($ult = $d->ultimaActividad())
+                    @if($ult)
+                        <div class="muted" style="font-size:11.5px;margin-top:3px">{{ $ult->diffForHumans() }}</div>
                     @endif
                 </td>
                 <td style="text-align:right"><span class="money">{{ $cur }} {{ number_format($d->saldo,2) }}</span></td>

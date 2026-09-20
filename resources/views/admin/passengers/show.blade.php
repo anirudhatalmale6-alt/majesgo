@@ -36,7 +36,7 @@
 
             <div class="row" style="margin-top:14px">
                 <div><div class="muted" style="font-size:12px">Se registró</div><div style="font-weight:600">{{ $passenger->created_at->format('d/m/Y H:i') }}</div></div>
-                <div><div class="muted" style="font-size:12px">Última vez en la app</div><div style="font-weight:600">{{ $passenger->last_active_at ? $passenger->last_active_at->format('d/m/Y H:i') : 'Nunca entró' }}</div></div>
+                <div><div class="muted" style="font-size:12px">Última vez en la app</div><div style="font-weight:600">@php($ult = $passenger->ultimaActividad())@if($ult){{ $ult->format('d/m/Y H:i') }}@else Nunca entró @endif</div></div>
             </div>
 
             @if($stats['demo'])
