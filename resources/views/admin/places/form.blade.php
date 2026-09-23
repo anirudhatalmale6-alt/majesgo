@@ -62,7 +62,14 @@
     var lat = parseFloat(document.getElementById('lat').value) || -16.3627;
     var lng = parseFloat(document.getElementById('lng').value) || -72.1908;
     var map = L.map('pmap').setView([lat,lng], 15);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {maxZoom:20, subdomains:'abcd'}).addTo(map);
+    // ⚠ La llave de CARTO NO es opcional desde 2026: sin ella cada mosaico llega estampado
+    // con "API KEY REQUIRED" y el mapa queda ilegible para elegir el punto. Es la misma
+    // llave gratuita que ya usan las dos apps (config/services.php), pero acá se había
+    // quedado sin poner: el panel se armó antes de que CARTO empezara a exigirla.
+    var mapKey = @json(config('services.carto.basemaps_key'));
+    var tiles = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+    if (mapKey) tiles += '?key=' + encodeURIComponent(mapKey);
+    L.tileLayer(tiles, {maxZoom:20, subdomains:'abcd'}).addTo(map);
     var marker = L.marker([lat,lng], {draggable:true}).addTo(map);
     var circle = L.circle([lat,lng], {radius: parseInt(document.getElementById('radius_m').value)||300, color:'#00C853', fillColor:'#00C853', fillOpacity:.12}).addTo(map);
     function set(ll){
