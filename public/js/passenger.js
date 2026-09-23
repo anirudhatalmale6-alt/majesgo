@@ -753,6 +753,41 @@ async function searchPlaces(q, box) {
   }, 400);
 }
 
+/* ====== Deshacer una dirección equivocada ======
+   Elegir mal es lo normal: uno escribe "Mercado", toca la primera sugerencia y no era esa.
+   Sin una salida, el pasajero se queda con una ruta que no quiere y el único camino es
+   cerrar la app.
+
+   Se suelta TODO lo que dependía del destino —el punto, el precio, el pin y la línea del
+   mapa— porque dejar cualquiera de esas cosas haría que la pantalla afirme dos cosas
+   distintas a la vez: campo vacío arriba y precio de la ruta vieja abajo. */
+function limpiarDestino(yaEscribiendo) {
+  dest = null; quote = null; price = null;
+  clearTimeout(quoteT);              // una cotización en vuelo repintaría la ruta recién borrada
+  if (dMarker) { dMarker.remove(); dMarker = null; }
+  if (routeLine) { routeLine.remove(); routeLine = null; }
+  const caja = $('#sugg'); if (caja) caja.innerHTML = '';
+  openSheet();
+  renderPlanning();
+  const el = $('#dIn');
+  if (el) {
+    el.value = '';
+    // Si venía escribiendo, el teclado ya está donde tiene que estar: enfocar otra vez
+    // lo cerraría en algunos Android y parecería que la app se le "cae".
+    if (!yaEscribiendo) el.focus();
+  }
+}
+
+/** El recojo vuelve a seguir el GPS, que es lo que espera quien pidió desde donde está. */
+function volverAMiUbicacion() {
+  originPinned = false;
+  followMe = true;
+  setOrigin({ lat: MG.center[0], lng: MG.center[1] }, 'Mi ubicación');
+  locate(true);
+  refreshQuote();
+  renderPlanning();
+}
+
 /* ============ Cotización ============ */
 let quoteT;
 function refreshQuote() {
@@ -839,9 +874,9 @@ function renderPlanning() {
     <div id="planEssential">
       <h2>¿A dónde vamos?</h2>
       <div class="fieldgroup">
-        <div class="fieldrow"><span class="dot o"></span><div class="fcol"><label class="flbl" for="oIn">¿Dónde te recogemos?</label><input id="oIn" value="${(origin && origin.address) ? esc(origin.address) : 'Mi ubicación'}" placeholder="Tu punto de recojo"></div><button class="mapbtn o" id="oMap" title="Elegir el recojo en el mapa" aria-label="Elegir el recojo en el mapa">${pinBtn('#00C853')}</button></div>
+        <div class="fieldrow"><span class="dot o"></span><div class="fcol"><label class="flbl" for="oIn">¿Dónde te recogemos?</label><input id="oIn" value="${(origin && origin.address) ? esc(origin.address) : 'Mi ubicación'}" placeholder="Tu punto de recojo"></div>${(originPinned || (origin && origin.address && origin.address !== 'Mi ubicación')) ? '<button class="clearbtn" id="oClear" title="Volver a mi ubicación" aria-label="Volver a mi ubicación">✕</button>' : ''}<button class="mapbtn o" id="oMap" title="Elegir el recojo en el mapa" aria-label="Elegir el recojo en el mapa">${pinBtn('#00C853')}</button></div>
         <div class="sugg">
-          <div class="fieldrow"><span class="dot d"></span><div class="fcol"><label class="flbl" for="dIn">¿A dónde vas?</label><input id="dIn" placeholder="Escríbelo o elígelo en el mapa" value="${dest && dest.address ? esc(dest.address) : ''}"></div><button class="mapbtn d" id="dMap" title="Elegir destino en el mapa" aria-label="Elegir destino en el mapa">${pinBtn('#ff5252')}</button></div>
+          <div class="fieldrow"><span class="dot d"></span><div class="fcol"><label class="flbl" for="dIn">¿A dónde vas?</label><input id="dIn" placeholder="Escríbelo o elígelo en el mapa" value="${dest && dest.address ? esc(dest.address) : ''}"></div>${dest ? '<button class="clearbtn" id="dClear" title="Borrar el destino" aria-label="Borrar el destino">✕</button>' : ''}<button class="mapbtn d" id="dMap" title="Elegir destino en el mapa" aria-label="Elegir destino en el mapa">${pinBtn('#ff5252')}</button></div>
           <div class="suggbox" id="sugg"></div>
         </div>
         ${showRef ? `<div class="fieldrow"><span class="dot" style="background:#FFC107"></span><div class="fcol"><label class="flbl" for="refIn">Referencia del recojo (opcional)</label><input id="refIn" placeholder="Casa, color, algo cercano…" value="${reference ? esc(reference) : ''}"></div></div>` : ''}
@@ -873,9 +908,16 @@ function renderPlanning() {
   const oMap = $('#oMap'); if (oMap) oMap.addEventListener('click', () => enterPick('origin'));
   const dMap = $('#dMap'); if (dMap) dMap.addEventListener('click', () => enterPick('dest'));
   const pickDest = $('#pickDest'); if (pickDest) pickDest.addEventListener('click', () => enterPick('dest'));
+  const dClear = $('#dClear'); if (dClear) dClear.addEventListener('click', () => limpiarDestino());
+  const oClear = $('#oClear'); if (oClear) oClear.addEventListener('click', volverAMiUbicacion);
   const dIn = $('#dIn'); if (dIn) {
     dIn.addEventListener('focus', openSheet);   // al tocar el destino, se abre el panel (búsqueda + teclado)
-    dIn.addEventListener('input', () => searchPlaces(dIn.value.trim(), $('#sugg')));
+    dIn.addEventListener('input', () => {
+      // Si borra el texto a mano, el destino elegido también se suelta. Si no, la pantalla
+      // se contradice: campo vacío pero precio, ruta y "Buscar taxi" del punto anterior.
+      if (dest && dIn.value.trim() === '') { limpiarDestino(true); return; }
+      searchPlaces(dIn.value.trim(), $('#sugg'));
+    });
   }
   const oIn = $('#oIn'); if (oIn) {
     oIn.addEventListener('focus', openSheet);

@@ -80,6 +80,10 @@
         .confirmbar .cbback{width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:var(--panel-2);color:#fff;font-size:15px;cursor:pointer;flex:none}
         .confirmbar .cbtitle{font-weight:700;font-size:16px}
         .confirmbar .cbaddr{background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:12px 13px;font-size:14px;margin-bottom:12px;min-height:20px;word-break:break-word}
+        /* ✕ para soltar una dirección equivocada. Va a la izquierda del pin del mapa, con el
+           mismo alto de fila para que el dedo no falle y sin robarle ancho al texto. */
+        .clearbtn{flex:none;width:30px;height:34px;border:0;background:none;color:var(--muted);font-size:17px;line-height:1;cursor:pointer;display:grid;place-items:center;margin-left:2px}
+        .clearbtn:active{color:#fff}
         .mapbtn{flex:none;width:34px;height:34px;border-radius:10px;border:1px solid var(--line);background:var(--panel);font-size:16px;cursor:pointer;margin-left:6px;display:grid;place-items:center}
         .mapbtn.o{border-color:rgba(0,200,83,.5)} .mapbtn.d{border-color:rgba(255,82,82,.5)}
         .mapbtn svg{display:block}
@@ -428,7 +432,7 @@ window.MG = {
 </script>
 <script src="/js/pois.js?v=5"></script>
 <script src="/js/majesgo-car.js?v=2"></script>
-<script src="/js/passenger.js?v=44"></script>
+<script src="/js/passenger.js?v=45"></script>
 <script src="/js/native.js?v=5"></script>
 </body>
 </html>
