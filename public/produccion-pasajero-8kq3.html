@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>MajesGo Pasajero · solicitud de producción</title>
+<style>
+  :root{--verde:#00C853;--tinta:#12161b;--gris:#5b6672;--linea:#e3e7ec;--fondo:#f6f8fa}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--fondo);color:var(--tinta);
+       font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:22px 16px 60px}
+  .wrap{max-width:760px;margin:0 auto}
+  h1{font-size:23px;margin:0 0 4px}
+  .sub{color:var(--gris);margin:0 0 26px;font-size:14.5px}
+  .card{background:#fff;border:1px solid var(--linea);border-radius:14px;padding:18px 18px 20px;margin-bottom:16px}
+  .q{font-weight:700;font-size:15px;margin:0 0 4px}
+  .hint{color:var(--gris);font-size:13px;margin:0 0 12px}
+  .a{background:#f2f5f8;border:1px solid var(--linea);border-radius:10px;padding:13px 14px;
+     font-size:14.5px;white-space:pre-wrap;word-break:break-word}
+  .row{display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap}
+  button{background:var(--verde);color:#fff;border:0;border-radius:9px;padding:9px 16px;
+         font:inherit;font-size:14px;font-weight:600;cursor:pointer}
+  button.copiado{background:#0a7f3f}
+  .n{color:var(--gris);font-size:12.5px}
+  table{border-collapse:collapse;width:100%;font-size:14.5px}
+  td{padding:6px 0;border-bottom:1px solid var(--linea)}
+  td:last-child{text-align:right;font-weight:700;white-space:nowrap}
+  tr:last-child td{border-bottom:0}
+  .ojo{background:#fff8e6;border:1px solid #f0d89a;border-radius:12px;padding:14px 16px;margin-bottom:22px;font-size:14.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Solicitud de producción · MajesGo Pasajero</h1>
+  <p class="sub">Copia cada respuesta y pégala en el formulario de Play Console.
+     Todas entran en el límite de 300 caracteres.</p>
+
+  <div class="ojo">
+    <b>Antes de empezar.</b> La vez pasada esta misma app fue rechazada con un texto casi
+    idéntico, mientras que la app del conductor, con las mismas respuestas, fue aprobada.
+    O sea que lo que decidió no fue la redacción: fue el uso real. Por eso esta vez lo que
+    importa son los números de abajo, no las palabras.
+  </div>
+
+  <div class="card">
+    <p class="q">1. ¿Cómo reclutaste a los verificadores?</p>
+    <p class="hint">Quiénes son y por qué tiene sentido que prueben esta app.</p>
+    <div class="a" id="r1">Convocamos vecinos y taxistas de Majes por WhatsApp y en persona: 31 personas, pasajeros de la zona y conductores del servicio local. Todos viven en Majes, que es donde opera la app, y aceptaron la invitacion con su cuenta de Google.</div>
+    <div class="row"><button data-c="r1">Copiar</button><span class="n">233 de 300 caracteres</span></div>
+  </div>
+
+  <div class="card">
+    <p class="q">2. ¿Qué comentarios recibiste de los verificadores?</p>
+    <p class="hint">Concreto y verificable. Estos son problemas que los testers reportaron de verdad.</p>
+    <div class="a" id="r2">Reportaron fallas concretas: no se podia salir de la pantalla de denuncia ni borrar una direccion mal elegida, la pantalla se apagaba durante la carrera, el aviso de llegada pasaba desapercibido y los conductores pedian navegar con Google Maps.</div>
+    <div class="row"><button data-c="r2">Copiar</button><span class="n">244 de 300 caracteres</span></div>
+  </div>
+
+  <div class="card">
+    <p class="q">3. ¿Cómo aplicaste esos comentarios?</p>
+    <p class="hint">Es la pregunta que más pesa: demuestra que la prueba cerrada sirvió para algo.</p>
+    <div class="a" id="r3">Corregimos todo lo reportado y publicamos versiones nuevas: salida en la pantalla de denuncia, boton para borrar la direccion, pantalla encendida durante la carrera, aviso sonoro propio al llegar con respuesta rapida Ya salgo, y acceso a Google Maps.</div>
+    <div class="row"><button data-c="r3">Copiar</button><span class="n">250 de 300 caracteres</span></div>
+  </div>
+
+  <div class="card">
+    <p class="q">Los números reales, por si te preguntan</p>
+    <p class="hint">Medidos en la base de datos el 26 de setiembre. No hace falta pegarlos,
+       pero conviene tenerlos a mano.</p>
+    <table>
+      <tr><td>Viajes pedidos desde el 18 de setiembre</td><td>55</td></tr>
+      <tr><td>Viajes completados</td><td>21</td></tr>
+      <tr><td>Duración promedio de un viaje completado</td><td>10.9 min</td></tr>
+      <tr><td>Pasajeros distintos que pidieron viaje</td><td>10</td></tr>
+      <tr><td>Conductores distintos que atendieron</td><td>6</td></tr>
+      <tr><td>Pasajeros registrados en la app</td><td>25</td></tr>
+      <tr><td>Conductores activos</td><td>19</td></tr>
+      <tr><td>Versiones publicadas durante la prueba</td><td>2 (1.1 y 1.2)</td></tr>
+    </table>
+    <p class="n" style="margin:12px 0 0">Lo más fuerte de esta lista es la duración promedio:
+       casi 11 minutos por viaje completado. Eso es gente que se subió a un auto y llegó a
+       algún lado, no alguien tocando botones.</p>
+  </div>
+
+</div>
+<script>
+  document.querySelectorAll('button[data-c]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var t = document.getElementById(b.dataset.c).textContent;
+      navigator.clipboard.writeText(t).then(function () {
+        b.textContent = '¡Copiado!'; b.classList.add('copiado');
+        setTimeout(function () { b.textContent = 'Copiar'; b.classList.remove('copiado'); }, 1800);
+      });
+    });
+  });
+</script>
+</body>
+</html>
