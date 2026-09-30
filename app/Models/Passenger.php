@@ -64,7 +64,7 @@ class Passenger extends Model
     public function blockedMessage(): string
     {
         return $this->account_status === 'bloqueado'
-            ? 'Tu cuenta fue bloqueada. Comunícate con MajesGo para más información.'
-            : 'Tu cuenta está suspendida. Comunícate con MajesGo para reactivarla.';
+            ? 'Tu cuenta fue bloqueada. Comunícate con Majes Drive para más información.'
+            : 'Tu cuenta está suspendida. Comunícate con Majes Drive para reactivarla.';
     }
 }

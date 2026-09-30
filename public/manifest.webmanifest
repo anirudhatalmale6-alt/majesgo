@@ -1,7 +1,7 @@
 {
-  "name": "MajesGo · Panel de administración",
-  "short_name": "MajesGo",
-  "description": "Panel de administración de MajesGo — Tu taxi en un toque.",
+  "name": "Majes Drive · Panel de administración",
+  "short_name": "Majes Drive",
+  "description": "Panel de administración de Majes Drive — Tu taxi en un toque.",
   "start_url": "/admin",
   "scope": "/",
   "display": "standalone",

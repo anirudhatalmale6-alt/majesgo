@@ -148,7 +148,7 @@ class GeocodeController extends Controller
                 if (mb_strpos(mb_strtolower($n), $needle) !== false) {
                     $out[] = [
                         'label' => $p['name'],
-                        'full'  => 'Zona local · MajesGo',
+                        'full'  => 'Zona local · Majes Drive',
                         'lat'   => $p['lat'],
                         'lng'   => $p['lng'],
                     ];

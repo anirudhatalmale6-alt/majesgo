@@ -3,12 +3,12 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Ingresar · MajesGo</title>
+    <title>Ingresar · Majes Drive</title>
     <link rel="manifest" href="/manifest.webmanifest">
     <meta name="theme-color" content="#0D0D0D">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-title" content="MajesGo">
+    <meta name="apple-mobile-web-app-title" content="Majes Drive">
     <link rel="apple-touch-icon" href="/icons/icon-192.png">
     <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
     <link rel="icon" type="image/png" sizes="64x64" href="/icons/favicon-64.png">
@@ -64,7 +64,7 @@
             <button class="btn">Ingresar →</button>
         </form>
     </div>
-    <div class="foot">© {{ date('Y') }} MajesGo · Majes, Arequipa</div>
+    <div class="foot">© {{ date('Y') }} Majes Drive · Majes, Arequipa</div>
 </div>
 <script>
     if ('serviceWorker' in navigator) {

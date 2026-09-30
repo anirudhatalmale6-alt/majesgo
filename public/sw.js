@@ -1,5 +1,5 @@
 // Service worker MajesGo — habilita instalacion PWA y carga offline del cascaron.
-const CACHE = 'majesgo-v3';
+const CACHE = 'majesdrive-v4';
 // Clave pública VAPID (es pública; se usa para re-suscribir si el navegador rota la suscripción).
 const VAPID_PUBLIC = 'BDV6J4XobtuFG8SljAasHxOSM_t_Pwn-iAGJUaL3ycL_W4wLMpSYJ6-dKw7LK50IUXrIHBwuI5MpC_oVbGPGo50';
 function vapidKey() {
@@ -46,7 +46,7 @@ self.addEventListener('fetch', (e) => {
 self.addEventListener('push', (e) => {
   let data = {};
   try { data = e.data ? e.data.json() : {}; } catch (_) {}
-  const title = data.title || 'MajesGo';
+  const title = data.title || 'Majes Drive';
   const url = data.url || '/';
   e.waitUntil(self.registration.showNotification(title, {
     body: data.body || '',

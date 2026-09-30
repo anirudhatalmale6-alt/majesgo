@@ -16,7 +16,7 @@ class DatabaseSeeder extends Seeder
         $admin = User::updateOrCreate(
             ['email' => 'rosmel_gh11@hotmail.com'],
             [
-                'name'     => 'Administrador MajesGo',
+                'name'     => 'Administrador Majes Drive',
                 'password' => Hash::make('MajesGo2026'),
                 'role'     => 'super_admin',
                 'active'   => true,
@@ -25,7 +25,7 @@ class DatabaseSeeder extends Seeder
 
         // Configuración inicial de la plataforma
         $defaults = [
-            'app_name'         => 'MajesGo',
+            'app_name'         => 'Majes Drive',
             'app_slogan'       => 'Tu taxi en un toque.',
             'city'             => 'Majes - El Pedregal, Arequipa',
             'currency'         => 'S/',

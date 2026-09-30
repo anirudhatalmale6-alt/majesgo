@@ -11,7 +11,7 @@ class SettingController extends Controller
     public function edit()
     {
         $settings = [
-            'app_name'         => Setting::get('app_name', 'MajesGo'),
+            'app_name'         => Setting::get('app_name', 'Majes Drive'),
             'app_slogan'       => Setting::get('app_slogan', 'Tu taxi en un toque.'),
             'city'             => Setting::get('city', ''),
             'currency'         => Setting::get('currency', 'S/'),

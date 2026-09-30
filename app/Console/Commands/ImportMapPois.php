@@ -61,7 +61,7 @@ class ImportMapPois extends Command
 
         $this->info('Consultando OpenStreetMap…');
         $res = Http::timeout(120)
-            ->withHeaders(['User-Agent' => 'MajesGo/1.0 (app de taxi, El Pedregal)'])
+            ->withHeaders(['User-Agent' => 'MajesDrive/1.0 (app de taxi, El Pedregal)'])
             ->asForm()->post('https://overpass-api.de/api/interpreter', ['data' => $query]);
 
         if (! $res->successful()) {

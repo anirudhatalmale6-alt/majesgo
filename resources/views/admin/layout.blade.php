@@ -4,13 +4,13 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>@yield('title', 'Panel') · MajesGo</title>
+    <title>@yield('title', 'Panel') · Majes Drive</title>
     <link rel="manifest" href="/manifest.webmanifest">
     <meta name="theme-color" content="#0D0D0D">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
-    <meta name="apple-mobile-web-app-title" content="MajesGo">
+    <meta name="apple-mobile-web-app-title" content="Majes Drive">
     <link rel="apple-touch-icon" href="/icons/icon-192.png">
     <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
     <link rel="icon" type="image/png" sizes="64x64" href="/icons/favicon-64.png">
@@ -195,7 +195,7 @@
                 Configuración
             </a>
         </nav>
-        <div class="foot">MajesGo · Panel de administración<br>Tu taxi en un toque.</div>
+        <div class="foot">Majes Drive · Panel de administración<br>Tu taxi en un toque.</div>
     </aside>
 
     <div class="main">

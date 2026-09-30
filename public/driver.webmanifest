@@ -1,7 +1,7 @@
 {
-  "name": "MajesGo Conductor",
-  "short_name": "MajesGo Driver",
-  "description": "App para conductores de MajesGo. Recibe viajes, navega y gestiona tu saldo.",
+  "name": "Majes Drive Conductor",
+  "short_name": "Majes Drive",
+  "description": "App para conductores de Majes Drive. Recibe viajes, navega y gestiona tu saldo.",
   "start_url": "/conductor",
   "scope": "/conductor",
   "display": "standalone",

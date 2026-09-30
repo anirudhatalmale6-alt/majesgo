@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Política de Privacidad — MajesGo</title>
+  <title>Política de Privacidad — Majes Drive</title>
   <style>
     :root{--verde:#00C853}
     *{box-sizing:border-box}
@@ -27,8 +27,8 @@
   <h1>Política de Privacidad</h1>
   <div class="upd">Última actualización: 8 de agosto de 2026</div>
 
-  <p>MajesGo ("nosotros") opera las aplicaciones móviles y el servicio de solicitud de taxis
-  MajesGo para pasajeros y conductores en Majes / El Pedregal, Arequipa, Perú. Esta política
+  <p>Majes Drive ("nosotros") opera las aplicaciones móviles y el servicio de solicitud de taxis
+  Majes Drive para pasajeros y conductores en Majes / El Pedregal, Arequipa, Perú. Esta política
   explica qué datos recopilamos, para qué los usamos y con quién los compartimos.</p>
 
   <h2>1. Datos que recopilamos</h2>
@@ -48,7 +48,7 @@
     <li>Seguridad, prevención de fraude y soporte al usuario.</li>
   </ul>
   <div class="card">
-    <b>Uso de la ubicación:</b> MajesGo usa la ubicación <b>mientras la app está en uso</b> para
+    <b>Uso de la ubicación:</b> Majes Drive usa la ubicación <b>mientras la app está en uso</b> para
     prestar el servicio de taxi. La ubicación del conductor se comparte con el pasajero de su viaje
     (y viceversa el punto de recojo) únicamente durante el viaje activo. No usamos la ubicación con
     fines publicitarios.
@@ -104,7 +104,7 @@
   (fecha, importe y tarifa), sin datos que permitan identificarte, porque la ley peruana obliga a
   guardar el respaldo de las operaciones cobradas.</p>
 
-  <footer>MajesGo — Servicio de taxi para Majes / El Pedregal, Arequipa, Perú.</footer>
+  <footer>Majes Drive — Servicio de taxi para Majes / El Pedregal, Arequipa, Perú.</footer>
 </div>
 </body>
 </html>

@@ -158,7 +158,7 @@ class FcmSender
                 'message' => [
                     'token'        => $token,
                     'notification' => [
-                        'title' => (string) ($payload['title'] ?? 'MajesGo'),
+                        'title' => (string) ($payload['title'] ?? 'Majes Drive'),
                         'body'  => (string) ($payload['body'] ?? ''),
                     ],
                     'data' => [

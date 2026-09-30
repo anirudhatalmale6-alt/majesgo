@@ -842,7 +842,7 @@ function renderHome() {
         : `<div class="offlinebar"><span class="odot"></span><span>DESCONECTADO · no recibes viajes</span></div>
            <div class="slide" id="slide"><div class="knob" id="knob"><svg viewBox="0 0 24 24" fill="none" stroke="#5a1414" stroke-width="3" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></div><span class="slidetext" id="slidetext">Desliza para conectarte</span></div>`}
       ${lowSaldo ? `<div class="warn red" style="margin-top:12px">⚠️ Tu saldo (${money(me.saldo)}) no alcanza para la comisión mínima de ${money(minSaldo)}. Recarga para recibir viajes.</div>` : ''}
-      ${online && pushOk === false ? `<div class="warn red" style="margin-top:12px">🔕 Los avisos con la app cerrada están apagados: solo verás las carreras si tienes MajesGo en pantalla. <button class="minibtn" id="btnFixPush" style="margin-top:8px">Activar avisos</button></div>` : ''}
+      ${online && pushOk === false ? `<div class="warn red" style="margin-top:12px">🔕 Los avisos con la app cerrada están apagados: solo verás las carreras si tienes Majes Drive en pantalla. <button class="minibtn" id="btnFixPush" style="margin-top:8px">Activar avisos</button></div>` : ''}
       <div class="essrow">
         <div class="statcell earn"><div class="sv g" id="stEarn">${dstats ? money(dstats.today_earnings) : '…'}</div><div class="sl">Ganancias del día</div></div>
         <div class="statcell saldocell"><div class="sv a" id="stSaldo">${money(me.saldo)}</div><div class="sl">Saldo</div><button class="minibtn" id="btnRecharge">Recargar</button></div>
@@ -891,7 +891,7 @@ async function fixPush() {
   await refreshPushState();
 
   if (pushOk) toast('Listo, ya te avisaremos aunque tengas la app cerrada.');
-  else toast('No se pudo activar. Revisa los permisos de notificaciones de MajesGo en los ajustes del celular.');
+  else toast('No se pudo activar. Revisa los permisos de notificaciones de Majes Drive en los ajustes del celular.');
   renderHome();
 }
 

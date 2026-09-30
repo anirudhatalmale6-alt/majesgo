@@ -4,14 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>MajesGo — Pide tu taxi</title>
+    <title>Majes Drive — Pide tu taxi</title>
 
     <link rel="manifest" href="/app.webmanifest">
     <meta name="theme-color" content="#00C853">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="MajesGo">
+    <meta name="apple-mobile-web-app-title" content="Majes Drive">
     <link rel="apple-touch-icon" href="/icons/icon-192.png">
     <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
 
@@ -332,7 +332,7 @@
     </div>
 
     <div class="topbar">
-        <div class="brand"><span style="font-size:18px">📍</span><b>Majes<span class="g">Go</span></b></div>
+        <div class="brand"><span style="font-size:18px">📍</span><b>Majes <span class="g">Drive</span></b></div>
         <button class="iconbtn" id="btnMenu" title="Menú" aria-label="Menú">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
         </button>
@@ -367,7 +367,7 @@
     <div class="overlay" id="auth">
         <div class="hero">
             <div class="big">🚕</div>
-            <h1>Majes<span class="g">Go</span></h1>
+            <h1>Majes <span class="g">Drive</span></h1>
             <p>Tu taxi en un toque · {{ $city }}</p>
         </div>
         <div class="authcard">
@@ -432,7 +432,7 @@ window.MG = {
 </script>
 <script src="/js/pois.js?v=5"></script>
 <script src="/js/majesgo-car.js?v=2"></script>
-<script src="/js/passenger.js?v=45"></script>
-<script src="/js/native.js?v=5"></script>
+<script src="/js/passenger.js?v=46"></script>
+<script src="/js/native.js?v=6"></script>
 </body>
 </html>

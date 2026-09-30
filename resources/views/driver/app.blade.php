@@ -4,14 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>MajesGo Conductor</title>
+    <title>Majes Drive Conductor</title>
 
     <link rel="manifest" href="/driver.webmanifest">
     <meta name="theme-color" content="#FFC107">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="MajesGo Conductor">
+    <meta name="apple-mobile-web-app-title" content="Majes Drive Conductor">
     <link rel="apple-touch-icon" href="/icons/driver-apple-180.png">
     <link rel="icon" type="image/png" sizes="192x192" href="/icons/driver-192.png">
 
@@ -438,7 +438,7 @@
     </div>
 
     <div class="topbar">
-        <div class="brand"><span style="font-size:16px">🚕</span><b>Majes<span class="g">Go</span></b><span class="tag">CONDUCTOR</span></div>
+        <div class="brand"><span style="font-size:16px">🚕</span><b>Majes <span class="g">Drive</span></b><span class="tag">CONDUCTOR</span></div>
         <div class="rgt">
             <button class="iconbtn" id="btnBell" title="Avisos" aria-label="Avisos">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
@@ -459,7 +459,7 @@
     <div class="overlay" id="auth">
         <div class="hero">
             <div class="big">🚕</div>
-            <h1>Majes<span class="g">Go</span></h1>
+            <h1>Majes <span class="g">Drive</span></h1>
             <span class="tag">CONDUCTOR</span>
             <p>Conéctate y empieza a recibir viajes · {{ $city }}</p>
         </div>
@@ -548,7 +548,7 @@ window.MG = {
 <script src="/js/pois.js?v=5"></script>
 <script src="/js/majesgo-car.js?v=2"></script>
 <script src="/js/despierto.js?v=1"></script>
-<script src="/js/driver.js?v=40"></script>
-<script src="/js/native.js?v=5"></script>
+<script src="/js/driver.js?v=41"></script>
+<script src="/js/native.js?v=6"></script>
 </body>
 </html>

@@ -1321,7 +1321,7 @@ function renderCompleted(r) {
   stopPolling();
   $('#sheetBody').classList.remove('hascta'); // sin botón fijo: estas pantallas no tienen acción principal al pie
   $('#sheetBody').innerHTML = `
-    <div style="text-align:center"><div style="font-size:44px">✅</div><h2>¡Llegaste!</h2><div class="sub">Gracias por viajar con MajesGo.</div></div>
+    <div style="text-align:center"><div style="font-size:44px">✅</div><h2>¡Llegaste!</h2><div class="sub">Gracias por viajar con Majes Drive.</div></div>
     <div class="fare-big"><div class="n">${money(r.final_price || rideTotal(r))}</div><div class="l">${r.payment_method === 'yape' ? 'Pagas con Yape' : 'Pagas en efectivo'}</div></div>
     <div class="pricelock">🔒 Es el mismo precio que aceptaste al pedir el viaje.</div>
     <div class="sub" style="text-align:center">¿Cómo estuvo tu conductor?</div>

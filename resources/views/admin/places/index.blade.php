@@ -5,7 +5,7 @@
 
 <div class="between" style="margin-bottom:16px">
     <div class="muted" style="font-size:13px;max-width:640px">
-        Zonas y referencias propias de MajesGo (ej. "El Pionero", "Villa El Pedregal"). Cuando el pasajero
+        Zonas y referencias propias de Majes Drive (ej. "El Pionero", "Villa El Pedregal"). Cuando el pasajero
         pone el pin dentro de una zona o la busca por su nombre, la app la reconoce aunque no exista en Google.
     </div>
     <a href="{{ route('admin.places.create') }}" class="btn">＋ Nueva zona</a>

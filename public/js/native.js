@@ -61,7 +61,7 @@
       // Canal Android con sonido + vibración (coincide con channel_id del servidor).
       if (PN.createChannel) {
         PN.createChannel({
-          id: 'majesgo_viajes', name: 'Viajes MajesGo',
+          id: 'majesgo_viajes', name: 'Viajes Majes Drive',
           description: 'Alertas de nuevos viajes y estado del viaje',
           importance: 5, visibility: 1, sound: 'default', vibration: true, lights: true,
         }).catch(function () {});
@@ -73,7 +73,7 @@
         if (appBuild >= BUILD_TIMBRE_PROPIO) {
           PN.createChannel({
             id: 'majesgo_viajes_v2',
-            name: isDriver ? 'Viajes MajesGo' : 'Tu taxi',
+            name: isDriver ? 'Viajes Majes Drive' : 'Tu taxi',
             description: isDriver
               ? 'Alertas de nuevos viajes y estado del viaje'
               : 'Cuando un conductor acepta tu viaje y cuando llega',

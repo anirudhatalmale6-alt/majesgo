@@ -1,6 +1,6 @@
 {
-  "name": "MajesGo — Pide tu taxi",
-  "short_name": "MajesGo",
+  "name": "Majes Drive — Pide tu taxi",
+  "short_name": "Majes Drive",
   "description": "Pide tu taxi en Majes / El Pedregal. Tu taxi en un toque.",
   "start_url": "/app",
   "scope": "/app",
