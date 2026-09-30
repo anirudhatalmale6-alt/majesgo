@@ -41,7 +41,7 @@
         .car{position:absolute;left:1px;top:-9px;width:28px;height:47px;filter:drop-shadow(0 4px 6px rgba(0,0,0,.5));transform-origin:50% 50%;transition:transform .7s ease-out}
         .car svg{display:block;width:100%;height:100%}
         .medot{width:16px;height:16px;background:#2b8fff;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 6px rgba(43,143,255,.25)}
-        /* Ubicación actual del usuario: personaje 3D de MajesGo con su maleta.
+        /* Ubicación actual del usuario: personaje 3D de Majes Drive con su maleta.
            El recuadro del marcador es 0x0 y los hijos se centran a mano (igual que .car),
            así el punto exacto queda donde el personaje pisa el piso. Halo AZUL a propósito:
            el verde es el pin de origen y no deben confundirse. */

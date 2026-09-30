@@ -1,4 +1,4 @@
-/* MajesGo — puente nativo (solo se activa dentro de la app nativa de Play Store, vía Capacitor).
+/* Majes Drive — puente nativo (solo se activa dentro de la app nativa de Play Store, vía Capacitor).
    En el navegador web normal no hace nada (retorna de inmediato). */
 (function () {
   'use strict';
@@ -66,7 +66,7 @@
           importance: 5, visibility: 1, sound: 'default', vibration: true, lights: true,
         }).catch(function () {});
 
-        // Timbre propio de MajesGo, en las DOS apps, y sólo desde la versión que lleva el
+        // Timbre propio de Majes Drive, en las DOS apps, y sólo desde la versión que lleva el
         // mp3: crearlo sin el archivo dejaría el aviso sin sonido.
         // Va en un canal con id NUEVO porque los ajustes de un canal quedan congelados
         // al crearse — cambiarle el sonido a 'majesgo_viajes' no haría nada.

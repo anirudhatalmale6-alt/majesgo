@@ -1,7 +1,7 @@
 /*
  * Puntos de referencia sobre el mapa (grifos, mercados, hoteles, bancos…).
  *
- * Lo usan la app del pasajero y la del conductor. El mapa de MajesGo no es Google Maps,
+ * Lo usan la app del pasajero y la del conductor. El mapa de Majes Drive no es Google Maps,
  * es Leaflet con imágenes de CARTO, así que los puntos los dibujamos nosotros con datos
  * de OpenStreetMap. Eso además nos deja elegir QUÉ se muestra: mostrar todo lo que trae
  * OSM deja el mapa ilegible (en El Pedregal la mitad son colegios y nidos).

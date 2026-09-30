@@ -1,4 +1,4 @@
-// Service worker MajesGo — habilita instalacion PWA y carga offline del cascaron.
+// Service worker Majes Drive — habilita instalacion PWA y carga offline del cascaron.
 const CACHE = 'majesdrive-v4';
 // Clave pública VAPID (es pública; se usa para re-suscribir si el navegador rota la suscripción).
 const VAPID_PUBLIC = 'BDV6J4XobtuFG8SljAasHxOSM_t_Pwn-iAGJUaL3ycL_W4wLMpSYJ6-dKw7LK50IUXrIHBwuI5MpC_oVbGPGo50';

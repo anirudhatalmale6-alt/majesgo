@@ -1,4 +1,4 @@
-/* MajesGo — el auto que sale en los mapas de las dos apps.
+/* Majes Drive — el auto que sale en los mapas de las dos apps.
  *
  * Sedán visto desde arriba, calcado del 3er auto de la guía que mandó el cliente:
  * carrocería y TECHO claros, y oscuros solo los cristales (parabrisas, lunas
@@ -8,7 +8,7 @@
  * las esquinas delanteras en gris oscuro.
  *
  *   verde = false → blanco/plata. Es el propio conductor en su mapa.
- *   verde = true  → verde MajesGo. Son los taxis que ve el PASAJERO: él se ve a sí
+ *   verde = true  → verde Majes Drive. Son los taxis que ve el PASAJERO: él se ve a sí
  *                   mismo como el círculo azul, y dos manchas claras sobre un mapa
  *                   oscuro no se distinguen de un vistazo.
  *

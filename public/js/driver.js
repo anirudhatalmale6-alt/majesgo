@@ -1,4 +1,4 @@
-/* MajesGo — App del conductor (Hito 3) */
+/* Majes Drive — App del conductor (Hito 3) */
 'use strict';
 
 const CUR = MG.currency || 'S/';

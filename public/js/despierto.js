@@ -1,4 +1,4 @@
-/* MajesGo — mantener la pantalla encendida mientras hay una carrera activa.
+/* Majes Drive — mantener la pantalla encendida mientras hay una carrera activa.
 
    El conductor lleva el celular en el soporte y lo mira de reojo: que se apague a los
    segundos es como si se apagara el GPS. Mientras dura la carrera pedimos que la pantalla

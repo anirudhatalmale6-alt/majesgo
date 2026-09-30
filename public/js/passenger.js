@@ -1,4 +1,4 @@
-/* MajesGo — App del pasajero (Hito 2) */
+/* Majes Drive — App del pasajero (Hito 2) */
 'use strict';
 
 const CUR = MG.currency || 'S/';
@@ -91,7 +91,7 @@ let searchLeft = null; // {seconds_left, timeout} de la búsqueda en curso, tal 
 const SHEET_PEEK = 96; // respaldo: px visibles si no hay bloque "esencial" para medir
 
 /* Icono de persona/pasajero para la ubicación actual del usuario (se distingue del origen) */
-// Personaje 3D de MajesGo (el pasajero con su maleta). El halo azul va debajo, a la altura del
+// Personaje 3D de Majes Drive (el pasajero con su maleta). El halo azul va debajo, a la altura del
 // piso, para que el punto exacto sea donde pisa el personaje y no se confunda con el pin verde.
 const ME_ICON = '<div class="mepax"><span class="mehalo"></span>'
   + '<img class="mefig" src="/img/pasajero.png?v=1" alt="Tu ubicación" draggable="false"></div>';
