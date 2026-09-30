@@ -259,7 +259,7 @@
         /* Aviso ámbar: con contraoferta el precio todavía no está cerrado */
         .earnnote.warn{color:#FFD97A;background:rgba(255,193,7,.10);border:1px solid rgba(255,193,7,.28);border-radius:10px;padding:6px 10px;margin:-6px 0 12px}
         /* Contraoferta: importes cerrados que el conductor puede pedir de más */
-        .bumps{margin:2px 0 12px}
+        .bumps{margin:2px 0 9px}
         .bumps .bl{color:var(--muted);font-size:11.5px;text-align:center;margin-bottom:7px}
         .bumps .brow{display:flex;gap:8px;justify-content:center}
         .bump{flex:1;max-width:150px;min-height:44px;border:1px solid var(--line);background:#12151a;color:#F5F7FA;
@@ -548,7 +548,7 @@ window.MG = {
 <script src="/js/pois.js?v=5"></script>
 <script src="/js/majesgo-car.js?v=2"></script>
 <script src="/js/despierto.js?v=1"></script>
-<script src="/js/driver.js?v=41"></script>
+<script src="/js/driver.js?v=42"></script>
 <script src="/js/native.js?v=6"></script>
 </body>
 </html>

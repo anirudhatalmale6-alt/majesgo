@@ -1228,6 +1228,14 @@ function showRequest(req) {
   const apFee = Number(req.approach_fee) || 0;
   // Lo IMPRESCINDIBLE va primero y dentro de #reqEssential: es lo único que se ve con la
   // ficha compacta. Todo lo que va después queda debajo del borde hasta que la deslice.
+  //
+  // La contraoferta vive AQUÍ ARRIBA, no al final, porque es una decisión de segundos que se
+  // toma manejando: tenerla al pie obligaba a deslizar el panel con el auto en movimiento.
+  // El desglose de comisión y la ficha del pasajero sí se quedan abajo: se miran cuando hay
+  // tiempo, no mientras corre el contador de la oferta.
+  //
+  // ⚠ reqPeekHeight() MIDE #reqEssential, no lleva número fijo: al agregarle una fila la
+  // parte visible crece sola y Aceptar/Rechazar se quedan donde estaban.
   const oZona = req.origin_zone || (req.origin.address || 'Punto de recojo').split(',')[0];
   const dZona = req.dest_zone || (req.dest.address || 'Destino').split(',')[0];
   $('#reqcard').innerHTML = `
@@ -1249,6 +1257,13 @@ function showRequest(req) {
         <div class="rql"><span class="dot o"></span><span class="tx">${esc(oZona)}<small>Recojo · a ${km(req.to_pickup_m)}</small></span></div>
         <div class="rql"><span class="dot d"></span><span class="tx">${esc(dZona)}<small>${km(req.trip_distance_m)} · ${mins(req.trip_duration_s)}</small></span></div>
       </div>
+      ${counterOptions.length
+        ? `<div class="bumps" id="reqBumps">
+             <div class="brow">
+               ${counterOptions.map((b) => `<button type="button" class="bump" data-b="${b}">+ ${CUR} ${Number(b).toFixed(2)}</button>`).join('')}
+             </div>
+           </div>`
+        : ''}
       <div class="acts">
         <button class="btn ghost" id="reqNo">Rechazar</button>
         <button class="btn" id="reqYes">Aceptar</button>
@@ -1266,14 +1281,7 @@ function showRequest(req) {
       : `<div class="addr"><span class="dot o"></span><div class="tx">${esc(req.origin.address || 'Punto de recojo')}<small>Recojo · a ${km(req.to_pickup_m)}</small></div></div>`}
     ${req.reference ? `<div class="addr"><span class="dot" style="background:var(--amarillo)"></span><div class="tx">${esc(req.reference)}<small>Referencia del pasajero</small></div></div>` : ''}
     <div class="addr"><span class="dot d"></span><div class="tx">${esc(req.dest.address || 'Destino')}<small>Destino · ${km(req.trip_distance_m)} · ${mins(req.trip_duration_s)}</small></div></div>
-    ${counterOptions.length
-      ? `<div class="bumps" id="reqBumps">
-           <div class="bl">¿Te queda justo? Puedes pedir un poco más:</div>
-           <div class="brow">
-             ${counterOptions.map((b) => `<button type="button" class="bump" data-b="${b}">+ ${CUR} ${Number(b).toFixed(2)}</button>`).join('')}
-           </div>
-         </div>`
-      : ''}`;
+`;
   paintReq(req);
   // vista previa en el mapa: recojo + destino + RUTA (para que el conductor mire el mapa, no la dirección escrita)
   setPin('o', [req.origin.lat, req.origin.lng]);
