@@ -67,6 +67,10 @@ Route::prefix('app')->name('app.')->group(function () {
 | App del CONDUCTOR (PWA instalable) — Hito 3
 */
 Route::prefix('conductor')->name('driver.')->group(function () {
+    // FUERA del middleware de sesión a propósito: lo llama el servicio en segundo plano del
+    // celular con su propio token, porque ahí el pedido ya no sale del WebView y no se puede
+    // dar por sentado que viaje la cookie. Ver backgroundLocation().
+    Route::post('api/location-bg', [DriverRide::class, 'backgroundLocation']);
     Route::get('/', [DriverPage::class, 'app'])->name('home');
 
     // Autenticación (las cuentas las crea el administrador; el conductor solo inicia sesión)

@@ -21,6 +21,13 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->validateCsrfTokens(except: [
             'app/api/push/subscribe',
             'conductor/api/push/subscribe',
+            // La posición en segundo plano la manda el cliente HTTP NATIVO del celular, que
+            // no tiene de dónde sacar el token CSRF (no hay página, no hay meta). Sin esta
+            // excepción cada envío respondería 419 y el pasajero seguiría viendo al conductor
+            // congelado, sin un solo error visible en la app. Lo cazó la prueba del endpoint.
+            // No abre un agujero: backgroundLocation() exige el token propio del conductor y
+            // además un viaje vivo.
+            'conductor/api/location-bg',
         ]);
         // Invitados (no logueados) que entran a una URL del panel → a la pantalla de login
         // (evita el error "Route [login] not defined").

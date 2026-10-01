@@ -14,7 +14,23 @@ class Driver extends Model
 
     protected $guarded = ['id'];
 
-    protected $hidden = ['password'];
+    protected $hidden = ['password', 'location_token'];
+
+    /**
+     * Token con el que el servicio en segundo plano reporta la posición.
+     *
+     * Se crea la primera vez que hace falta y no vuelve a cambiar: si rotara en cada
+     * arranque, un conductor con la app abierta en dos aparatos dejaría al otro mudo sin
+     * que nadie se entere.
+     */
+    public function locationToken(): string
+    {
+        if (! $this->location_token) {
+            $this->forceFill(['location_token' => bin2hex(random_bytes(24))])->saveQuietly();
+        }
+
+        return $this->location_token;
+    }
 
     protected $casts = [
         'saldo'          => 'decimal:2',

@@ -80,7 +80,46 @@ class RideController extends Controller
             || \App\Models\PushSubscription::where('owner_type', 'driver')->where('owner_id', $driver->id)->exists();
     }
 
-    /** Reporta la ubicación del conductor (para el radio de despacho y el mapa del pasajero). */
+    /**
+     * Posición reportada por el SERVICIO EN SEGUNDO PLANO del celular.
+     *
+     * Va por fuera de la sesión a propósito (ver la migración de location_token): en segundo
+     * plano el envío lo hace el cliente HTTP nativo de Android y no se puede dar por sentado
+     * que la cookie de sesión viaje con él. Un 401 silencioso acá significaría que el
+     * pasajero ve al conductor congelado sin que nada quede registrado.
+     *
+     * Sólo acepta posiciones de un conductor CON UN VIAJE VIVO: terminado el viaje, el token
+     * deja de servir para nada hasta la próxima carrera. Si el servicio del celular quedara
+     * colgado, no puede seguir reportando indefinidamente.
+     */
+    public function backgroundLocation(Request $request)
+    {
+        $d = $request->validate([
+            'token' => ['required', 'string', 'size:48'],
+            'lat'   => ['required', 'numeric', 'between:-90,90'],
+            'lng'   => ['required', 'numeric', 'between:-180,180'],
+        ]);
+
+        $driver = Driver::where('location_token', $d['token'])->first();
+        if (! $driver) {
+            return response()->json(['message' => 'Token no válido.'], 401);
+        }
+
+        $enViaje = Ride::where('driver_id', $driver->id)
+            ->whereIn('status', ['aceptado', 'en_camino', 'llego', 'a_bordo'])
+            ->exists();
+        if (! $enViaje) {
+            // 409 y no 401: el token está bien, lo que ya no existe es el viaje. Así la app
+            // sabe que tiene que apagar el servicio en vez de reintentar para siempre.
+            return response()->json(['message' => 'Sin viaje activo.', 'stop' => true], 409);
+        }
+
+        $driver->forceFill(['lat' => $d['lat'], 'lng' => $d['lng'], 'last_active_at' => now()])->saveQuietly();
+
+        return response()->json(['ok' => true]);
+    }
+
+    /** Reporta la ubicación del conductor con la app EN PANTALLA (sesión normal). */
     public function location(Request $request)
     {
         $driver = $this->driver($request);

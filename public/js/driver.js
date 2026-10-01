@@ -433,13 +433,14 @@ async function start() {
   try {
     const m = await api('api/me');
     if (m.csrf) MG.csrf = m.csrf;
+    if (m.loc_token) MG.locToken = m.loc_token;   // credencial del servicio en segundo plano
     if (m.authenticated) { me = m.driver; $('#auth').classList.add('hidden'); await boot(); }
     else { $('#auth').classList.remove('hidden'); }
   } catch (e) { $('#auth').classList.remove('hidden'); }
 }
 
 async function boot() {
-  if (!me) { const m = await api('api/me'); me = m.driver; if (typeof m.push_ok === 'boolean') pushOk = m.push_ok; }
+  if (!me) { const m = await api('api/me'); me = m.driver; if (typeof m.push_ok === 'boolean') pushOk = m.push_ok; if (m.loc_token) MG.locToken = m.loc_token; }
   if (!map) initMap();
   startGeo();
   if (typeof me.commission_pct === 'number') commissionPct = me.commission_pct;
@@ -829,7 +830,8 @@ try {
 
 /* ================= HOME (conectar/desconectar) ================= */
 function renderHome() {
-  if (MG.pantalla) MG.pantalla(false);   // sin carrera, el celular vuelve a su comportamiento normal
+  if (MG.pantalla) MG.pantalla(false);
+  if (MG.rastreo) MG.rastreo(null);   // sin viaje no hay nada que seguir
   clearTrip();
   closeChat(); chatLastId = 0; chatSeenId = 0; rideLastMsgId = 0; arrivedFor = null;
   const lowSaldo = me.saldo < minSaldo;
@@ -1497,6 +1499,10 @@ async function rejectRequest(code, silent) {
 
 /* ================= VIAJE EN CURSO ================= */
 function renderRide(r) {
+  // El servicio en segundo plano sigue al estado del viaje: arranca al aceptar y se apaga
+  // al terminar. Acá corre en CADA sondeo a propósito — MG.rastreo es idempotente y así no
+  // hace falta acordarse de encenderlo en los seis sitios que cambian el viaje.
+  if (MG.rastreo) MG.rastreo(r.status);
   // Con un viaje en curso no hay lista que ofrecer. Ojo: esto corre en CADA sondeo, así que
   // no se toca el mapa aquí (clearPreview borraría la ruta que dibujamos abajo y parpadearía).
   reqList = []; reqSeen = new Set(); reqCode = null;
@@ -1628,6 +1634,7 @@ async function cancelRide() {
 
 function renderCompleted(r) {
   if (MG.pantalla) MG.pantalla(false);
+  if (MG.rastreo) MG.rastreo(null);
   const fp = r.final_price || rideTotal(r);
   const earn = fp - (r.commission != null ? r.commission : commissionFor(fp));
   $('#sheetBody').innerHTML = `

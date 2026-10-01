@@ -26,6 +26,9 @@ class AuthController extends Controller
             // ¿el servidor tiene con qué avisarle si la app está cerrada? (ver RideController::pushReady)
             'push_ok' => \App\Models\FcmToken::where('owner_type', 'driver')->where('owner_id', $d->id)->exists()
                 || \App\Models\PushSubscription::where('owner_type', 'driver')->where('owner_id', $d->id)->exists(),
+            // Credencial del servicio en segundo plano. Va sólo en la respuesta de 'me', que
+            // ya exige sesión: quien la recibe es el propio conductor dentro de su app.
+            'loc_token' => $d->locationToken(),
             'csrf' => csrf_token(),
         ]);
     }
