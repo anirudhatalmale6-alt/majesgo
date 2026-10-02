@@ -749,7 +749,7 @@ function renderNavAction() {
     const st = r.status;
     if (st === 'llego') await act('api/start', 'Viaje iniciado. Buen camino.');
     else if (st === 'a_bordo') await completeRide();
-    else await act('api/arrive', 'Marcado: llegaste al punto.');
+    else await act('api/arrive', 'Marcado: llegaste al punto.', posicionAhora());
     // el viaje pudo cambiar de estado o terminar
     if (navOpen && ride && ACTIVE.includes(ride.status)) { drawNavRoute(ride); renderNavAction(); if (myPos) navUpdateFromMyPos(); }
     else closeNav();
@@ -1581,7 +1581,7 @@ function renderRide(r) {
       ${goingToDest ? '' : '<button class="btn danger" id="btnCancel">Cancelar</button>'}
     </div>`;
 
-  const a = $('#btnArrive'); if (a) a.addEventListener('click', () => act('api/arrive', 'Marcado: llegaste al punto.'));
+  const a = $('#btnArrive'); if (a) a.addEventListener('click', () => act('api/arrive', 'Marcado: llegaste al punto.', posicionAhora()));
   const s = $('#btnStart'); if (s) s.addEventListener('click', () => act('api/start', 'Viaje iniciado. Buen camino.'));
   const c = $('#btnComplete'); if (c) c.addEventListener('click', completeRide);
   const cc = $('#btnCancel'); if (cc) cc.addEventListener('click', cancelRide);
@@ -1635,10 +1635,22 @@ function checkArrival() {
   }
 }
 
-async function act(path, msg) {
+async function act(path, msg, extra) {
   const btns = document.querySelectorAll('#sheetBody .btn'); btns.forEach((b) => b.disabled = true);
-  try { const r = await api(path, {}); ride = r.ride; toast(msg); renderRide(ride); }
+  try { const r = await api(path, extra || {}); ride = r.ride; toast(msg); renderRide(ride); }
   catch (e) { toast(e.message); btns.forEach((b) => b.disabled = false); }
+}
+
+/* La posición de AHORA para marcar la llegada.
+   El servidor es quien decide si está lo bastante cerca, y para decidir bien necesita la
+   lectura del momento: la última guardada puede ser de unos segundos antes, justo mientras
+   el conductor terminaba de estacionar. Si no hay lectura se manda vacío y el servidor
+   resuelve con la última que tenga. La regla vive en el servidor, acá sólo se le acerca el
+   dato. */
+function posicionAhora() {
+  return (myPos && typeof myPos.lat === 'number' && typeof myPos.lng === 'number')
+    ? { lat: myPos.lat, lng: myPos.lng }
+    : {};
 }
 
 async function completeRide() {

@@ -205,6 +205,16 @@
                 <div class="muted" style="font-size:12px;margin-top:5px">A qué distancia del pasajero se avisa a los conductores. Ej: 3</div>
             </div>
             <div class="field">
+                <label>Radio para marcar "Llegué al punto" (metros)</label>
+                <input class="input" type="number" step="10" min="0" name="arrive_radius_m" value="{{ old('arrive_radius_m',$settings['arrive_radius_m']) }}" required>
+                <div class="muted" style="font-size:12px;margin-top:5px">
+                    A qué distancia del pasajero se le permite al conductor marcar que ya llegó.
+                    Antes se podía marcar desde cualquier lado: el pasajero recibía "tu conductor ya llegó"
+                    y salía a esperar un auto que estaba a kilómetros. Conviene dejarlo ancho (250 m) para no
+                    castigar al que aparcó a media cuadra o tiene mala señal. Con 0 se desactiva la comprobación.
+                </div>
+            </div>
+            <div class="field">
                 <label>Radio máximo (km)</label>
                 <input class="input" type="number" step="0.5" min="0.5" name="dispatch_radius_max_km" value="{{ old('dispatch_radius_max_km',$settings['dispatch_radius_max_km']) }}" required>
                 <div class="muted" style="font-size:12px;margin-top:5px">

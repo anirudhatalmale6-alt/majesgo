@@ -32,6 +32,7 @@ class SettingController extends Controller
             'dispatch_radius_km' => Setting::get('dispatch_radius_km', '3.0'),
             'dispatch_radius_max_km' => Setting::get('dispatch_radius_max_km', '10.0'),
             'search_timeout_s' => Setting::get('search_timeout_s', '180'),
+            'arrive_radius_m'  => Setting::get('arrive_radius_m', '250'),
             'approach_enabled' => Setting::get('approach_enabled', '1'),
             'approach_free_km' => Setting::get('approach_free_km', '3'),
             'approach_per_km'  => Setting::get('approach_per_km', '1.00'),
@@ -69,6 +70,8 @@ class SettingController extends Controller
             'dispatch_radius_km' => ['required', 'numeric', 'min:0.5', 'max:50'],
             'dispatch_radius_max_km' => ['required', 'numeric', 'min:0.5', 'max:80'],
             'search_timeout_s' => ['required', 'integer', 'min:30', 'max:1800'],
+            // 0 = sin comprobación. El tope alto deja desactivarla de hecho sin tocar código.
+            'arrive_radius_m'  => ['required', 'integer', 'min:0', 'max:5000'],
             'approach_enabled' => ['nullable'],
             'approach_free_km' => ['required', 'numeric', 'min:0', 'max:50'],
             'approach_per_km'  => ['required', 'numeric', 'min:0', 'max:50'],

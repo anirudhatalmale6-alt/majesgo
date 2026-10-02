@@ -464,6 +464,61 @@ class RideController extends Controller
         return response()->json(['ride' => $this->payload($ride)]);
     }
 
+    /**
+     * ¿Está el conductor lo bastante cerca del recojo para marcar la llegada?
+     *
+     * Devuelve null si puede marcarla, o el texto del motivo si no.
+     *
+     * Acepta la posición que manda la app en ESTE pedido y, si no viene, la última guardada.
+     * Sin lo primero habría un agujero tonto al revés: el conductor que acaba de llegar y
+     * todavía no alcanzó a mandar su posición quedaría rechazado por una lectura de hace unos
+     * segundos, justo cuando más va a tocar el botón.
+     *
+     * Si no hay NINGUNA posición, o la guardada ya está vieja, se rechaza con un motivo
+     * distinto: ahí el problema es el GPS y no la distancia, y al conductor hay que decirle
+     * qué arreglar. Dejar pasar la llegada "porque no se puede medir" sería un permiso
+     * abierto para cualquiera que apague la ubicación.
+     */
+    private function lejosDelRecojo(Request $request, Ride $ride): ?string
+    {
+        $radio = (float) Setting::get('arrive_radius_m', 250);
+        if ($radio <= 0) {
+            return null;                      // 0 = comprobación desactivada desde el panel
+        }
+
+        $driver = $this->driver($request);
+        $lat = $request->input('lat');
+        $lng = $request->input('lng');
+        $frescaDelPedido = is_numeric($lat) && is_numeric($lng)
+            && abs((float) $lat) <= 90 && abs((float) $lng) <= 180;
+
+        if (! $frescaDelPedido) {
+            $vieja = (int) Setting::get('driver_stale_s', 300);
+            $sinPosicion = $driver->lat === null || $driver->lng === null;
+            $desactualizada = $driver->last_active_at === null
+                || abs($driver->last_active_at->diffInSeconds(now())) > $vieja;
+            if ($sinPosicion || $desactualizada) {
+                return 'No podemos ver tu ubicación. Activa el GPS y espera unos segundos antes de marcar la llegada.';
+            }
+            $lat = $driver->lat;
+            $lng = $driver->lng;
+        }
+
+        $metros = Routing::haversine((float) $lat, (float) $lng,
+            (float) $ride->origin_lat, (float) $ride->origin_lng);
+
+        if ($metros <= $radio) {
+            return null;
+        }
+
+        return sprintf(
+            'Todavía estás a %s del punto de recojo. Acércate y vuelve a marcar la llegada.',
+            $metros >= 1000
+                ? number_format($metros / 1000, 1, ',', '').' km'
+                : round($metros).' m'
+        );
+    }
+
     /** Confirmación de que el pasajero ya vio la pantalla final (para no repetirla). */
     public function ack(Request $request)
     {
@@ -551,13 +606,43 @@ class RideController extends Controller
         return response()->json(['ok' => true, 'msg' => ['id' => $m->id, 'body' => $m->body, 'mine' => true, 'time' => $m->created_at->format('H:i')]]);
     }
 
+    /**
+     * "Llegué al punto de recojo".
+     *
+     * ⚠ SE COMPRUEBA QUE DE VERDAD ESTÉ AHÍ. Antes se aceptaba desde cualquier lado: Joel
+     * marcó la llegada a 2 km del pasajero y el sistema la dio por buena. No es un detalle
+     * de pantalla — marcar la llegada le avisa al pasajero "tu conductor ya llegó" y lo saca
+     * a la vereda a esperar un auto que todavía está a dos kilómetros.
+     *
+     * La comprobación va en el SERVIDOR y no en el botón: el botón lo puede saltear
+     * cualquiera, y además la regla tiene que vivir en un solo lugar. La app no repite el
+     * cálculo, sólo muestra el mensaje que contesta el servidor.
+     *
+     * El radio es ancho a propósito (250 m por defecto, configurable). No busca precisión de
+     * GPS: busca que no se pueda marcar desde el otro lado del pueblo. Apretarlo más
+     * castigaría al conductor honesto que aparcó a media cuadra o al que tiene mala señal.
+     */
     public function arrive(Request $request)
     {
-        $ride = $this->requireActive($request, ['en_camino', 'aceptado']);
+        // 'llego' entra a propósito: con mala señal pasa que el pedido llega al servidor
+        // pero la respuesta se pierde, y la app reintenta. Sin esto el conductor veía un
+        // error rojo por algo que SÍ había funcionado. Se contesta que está bien y listo.
+        $ride = $this->requireActive($request, ['en_camino', 'aceptado', 'llego']);
         if (! $ride) {
             return response()->json(['message' => 'No hay un viaje para marcar como llegado.'], 422);
         }
+
         $primeraVez = $ride->arrived_at === null;
+
+        // Un reintento no se vuelve a medir: ya llegó una vez, y para cuando reintenta puede
+        // haberse corrido media cuadra a aparcar. Volver a medir lo dejaría encerrado.
+        if (! $primeraVez) {
+            return response()->json(['ok' => true, 'ride' => $this->payload($ride)]);
+        }
+
+        if ($error = $this->lejosDelRecojo($request, $ride)) {
+            return response()->json(['message' => $error], 422);
+        }
         $ride->forceFill(['status' => 'llego', 'arrived_at' => $ride->arrived_at ?? now()])->save();
 
         /*
