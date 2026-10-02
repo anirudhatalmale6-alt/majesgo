@@ -34,7 +34,24 @@ class DiagController extends Controller
             return response()->json(['message' => 'Token no válido.'], 401);
         }
 
-        Log::channel('single')->info('[rastreo] conductor '.$driver->id.': '.$d['evento']);
+        /*
+         * ⚠ ARCHIVO PROPIO Y NIVEL PROPIO, NO el log de la app.
+         *
+         * Primer intento: Log::info() al canal de siempre. La app corre con LOG_LEVEL=error,
+         * así que los avisos se tiraban a la basura sin decir nada. El endpoint contestaba
+         * 200, el celular creía haber informado y el archivo seguía intacto desde el 26 de
+         * septiembre. Si no lo hubiera comprobado, habría leído "no hay eventos" y le habría
+         * dicho a Joel que su teléfono nunca pidió apagar el servicio — una conclusión falsa
+         * sacada del silencio de mi propia sonda.
+         *
+         * Con Log::build() la sonda trae su propio archivo y su propio nivel: no depende de
+         * la configuración de la app ni ensucia el log de errores de verdad.
+         */
+        Log::build([
+            'driver' => 'single',
+            'path'   => storage_path('logs/rastreo.log'),
+            'level'  => 'debug',
+        ])->debug('conductor '.$driver->id.': '.$d['evento']);
 
         return response()->json(['ok' => true]);
     }
