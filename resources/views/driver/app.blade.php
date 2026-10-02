@@ -66,7 +66,11 @@
            Por eso el deslizador para CONECTARSE es rojo (todavía no recibe viajes) y al conectarse
            todo el bloque pasa a verde. El deslizador para desconectarse queda gris/neutro:
            mientras está en línea, el único color del panel debe ser el verde. */
-        .slide{position:relative;height:60px;border-radius:16px;background:linear-gradient(90deg,#3a1414,#2c1212);border:1px solid rgba(255,90,90,.42);overflow:hidden;display:flex;align-items:center;justify-content:center;user-select:none}
+        /* El relleno izquierdo reserva el ancho del tirador (4+52): sin él, en pantallas de
+           360px el texto queda centrado en TODA la pista y la primera letra cae debajo del
+           tirador — se leía "esliza para desconectarte". El tirador va posicionado absoluto,
+           así que el relleno corre el texto sin moverlo a él. */
+        .slide{position:relative;height:60px;border-radius:16px;background:linear-gradient(90deg,#3a1414,#2c1212);border:1px solid rgba(255,90,90,.42);overflow:hidden;display:flex;align-items:center;justify-content:center;padding:0 12px 0 64px;user-select:none}
         .slide .slidetext{color:#ff9d9d;font-weight:700;font-size:15px;pointer-events:none}
         .slide .knob{position:absolute;left:4px;top:4px;width:52px;height:52px;border-radius:13px;background:#ff4d4d;display:grid;place-items:center;cursor:grab;touch-action:none;box-shadow:0 3px 10px rgba(0,0,0,.4);z-index:2}
         .slide .knob svg{width:24px;height:24px}
