@@ -33,7 +33,33 @@
 
   var Cap = window.Capacitor;
   var nativo = !!(Cap && typeof Cap.isNativePlatform === 'function' && Cap.isNativePlatform());
-  var BG = nativo && Cap.Plugins ? Cap.Plugins.BackgroundGeolocation : null;
+
+  /* ⚠ POR QUÉ registerPlugin Y NO Capacitor.Plugins.
+
+     Este plugin dejó de exponerse por el objeto `Plugins` hace dos versiones mayores; lo
+     dice su propio registro de cambios: "BREAKING: el plugin se importa con registerPlugin,
+     no desde el objeto Plugins".
+
+     Tomándolo del objeto viejo, addWatcher IGUAL arranca el servicio y IGUAL llama al
+     callback con cada posición — por eso la ubicación llegaba perfecta y la notificación
+     aparecía, y por eso tardé tanto en verlo. Lo que NO hace es resolver la promesa con el
+     identificador del vigilante: el puente deja la llamada abierta para seguir entregando
+     posiciones, y ese `.then` no llega nunca.
+
+     Sin identificador, removeWatcher no se puede llamar. El servicio quedaba encendido para
+     siempre y la app no tenía forma de apagarlo. En el log del celular de Joel se ve exacto:
+     estado=ofrecido, en_camino, llego, a_bordo, y en todos "vigilante actual=null", sin una
+     sola línea de "vigilante creado". */
+  var BG = null;
+  if (nativo) {
+    try {
+      BG = typeof Cap.registerPlugin === 'function'
+        ? Cap.registerPlugin('BackgroundGeolocation')
+        : (Cap.Plugins && Cap.Plugins.BackgroundGeolocation) || null;
+    } catch (e) {
+      BG = (Cap.Plugins && Cap.Plugins.BackgroundGeolocation) || null;
+    }
+  }
   var Http = nativo && Cap.Plugins ? Cap.Plugins.CapacitorHttp : null;
 
   var watcherId = null;
@@ -107,7 +133,13 @@
   function arrancar() {
     if (!BG) return;
     queremos = true;
-    if (watcherId || arrancando) return;
+    // ⚠ Si addWatcher nunca contesta, `arrancando` se queda en true y TODAS las llamadas
+    // siguientes se iban por acá sin decir una palabra. Ese silencio fue lo que me hizo
+    // creer que arrancar() ni se llamaba.
+    if (watcherId || arrancando) {
+      diag('arrancar: ya hay uno (watcherId=' + watcherId + ', arrancando=' + arrancando + ')');
+      return;
+    }
     arrancando = true;
     try {
       BG.addWatcher({
@@ -134,6 +166,7 @@
     } catch (e) {
       // que el plugin falle no puede dejar a medias al que nos llamó
       arrancando = false;
+      diag('arrancar REVENTO al llamar al plugin: ' + (e && (e.message || e)));
     }
   }
 
