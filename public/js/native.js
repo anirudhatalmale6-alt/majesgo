@@ -61,6 +61,10 @@
   function registrado(token) {
     if (!token) return;
     MG.pushToken = token;
+    // Puede que la app ya supiera el estado y nos llamara antes de que este archivo
+    // existiera: entonces la llamada se perdió pero el dato quedó puesto. Se mira acá para
+    // no depender del orden en que se cargan los archivos.
+    if (sesionAbierta === null && typeof MG.sesionAbierta === 'boolean') sesionAbierta = MG.sesionAbierta;
     if (sesionAbierta === true) { postToken(token); return; }
     if (sesionAbierta === false) { soltar(token); return; }
 

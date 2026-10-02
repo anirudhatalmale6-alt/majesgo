@@ -192,7 +192,8 @@ async function start() {
     // Avisarle al celular si hay alguien dentro. Si NO lo hay, suelta los avisos: sin esto
     // seguía recibiendo los viajes de la última cuenta que entró acá, con la app cerrada y
     // sin sesión, y dentro del aviso van el nombre del conductor y la dirección del recojo.
-    if (MG.pushSesion) MG.pushSesion(!!me.authenticated);
+    MG.sesionAbierta = !!me.authenticated;
+    if (MG.pushSesion) MG.pushSesion(MG.sesionAbierta);
     if (me.authenticated) { $('#auth').classList.add('hidden'); await boot(); }
     else { $('#auth').classList.remove('hidden'); }
   } catch (e) { $('#auth').classList.remove('hidden'); }
@@ -1531,6 +1532,7 @@ $('#btnLogout').addEventListener('click', async () => {
   try { await api('api/logout', {}); } catch (e) {}
   // Soltar los avisos ANTES de recargar: si no, este celular seguiría recibiendo los viajes
   // de la cuenta que acaba de salir.
+  MG.sesionAbierta = false;
   if (MG.pushSesion) MG.pushSesion(false);
   location.reload();
 });
