@@ -28,6 +28,12 @@ return Application::configure(basePath: dirname(__DIR__))
             // No abre un agujero: backgroundLocation() exige el token propio del conductor y
             // además un viaje vivo.
             'conductor/api/location-bg',
+            // Soltar los avisos se pide JUSTO cuando la sesión ya no está: al cerrarla (la
+            // sesión se regenera y el token de la página queda viejo) o al abrir la app sin
+            // sesión. Exigir CSRF ahí daría 419 en silencio y el celular seguiría recibiendo
+            // los avisos de una cuenta ajena, que es exactamente lo que se quiere cortar.
+            'app/api/push/release',
+            'conductor/api/push/release',
         ]);
         // Invitados (no logueados) que entran a una URL del panel → a la pantalla de login
         // (evita el error "Route [login] not defined").

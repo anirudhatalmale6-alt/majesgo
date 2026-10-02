@@ -5,10 +5,15 @@
   var Cap = window.Capacitor;
   if (!Cap || typeof Cap.isNativePlatform !== 'function' || !Cap.isNativePlatform()) return;
 
+  var MG = (window.MG = window.MG || {});
   var P = Cap.Plugins || {};
   var isDriver = location.pathname.indexOf('/conductor') === 0;
   var base = isDriver ? '/conductor' : '/app';
-  var csrf = (window.MG && MG.csrf) || (document.querySelector('meta[name=csrf-token]') || {}).content || '';
+  var csrf = MG.csrf || (document.querySelector('meta[name=csrf-token]') || {}).content || '';
+
+  // null = la app todavía no averiguó si hay sesión. Importa porque el registro del token y
+  // la respuesta de api/me llegan en cualquier orden: lo que pase primero espera al otro.
+  var sesionAbierta = null;
 
   // Primera versión de CADA apk que trae su timbre propio en res/raw. Son dos números
   // distintos a propósito: las dos apps se versionan por separado y que hoy coincidan en 3
@@ -23,6 +28,9 @@
 
   function postToken(token) {
     if (!token) return;
+    // Se guarda para poder SOLTARLO después. Sin esto el celular no sabe qué pedirle al
+    // servidor que borre, y el token queda atado a la cuenta para siempre.
+    MG.pushToken = token;
     fetch(base + '/api/push/fcm-token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
@@ -31,6 +39,55 @@
       body: JSON.stringify({ token: token, build: appBuild }),
     }).catch(function () {});
   }
+
+  /**
+   * Dejar de recibir los avisos de la cuenta que estaba en este celular.
+   *
+   * Sin esto, el celular seguía recibiendo "encontré conductor" y "tu conductor ya llegó" de
+   * una cuenta que ya no está abierta ahí — con el nombre del conductor y la dirección del
+   * recojo adentro.
+   */
+  function soltar(token) {
+    if (!token) return;
+    MG.pushToken = null;
+    fetch(base + '/api/push/release', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({ token: token }),
+    }).catch(function () {});
+  }
+
+  /** Llega el token del celular. Qué hacer con él depende de si hay alguien dentro. */
+  function registrado(token) {
+    if (!token) return;
+    MG.pushToken = token;
+    if (sesionAbierta === true) { postToken(token); return; }
+    if (sesionAbierta === false) { soltar(token); return; }
+
+    // Todavía no se sabe. Lo resolverá MG.pushSesion… salvo que la página sea una versión
+    // vieja guardada en caché y no llame a MG.pushSesion nunca. En ese caso el token se
+    // quedaría sin registrar y el celular dejaría de recibir avisos SIN QUE NADIE SE ENTERE,
+    // que es peor que el problema que vine a arreglar. Pasado un rato se registra igual,
+    // como se hacía antes: si no hay sesión el servidor responde 401 y no ata nada.
+    setTimeout(function () {
+      if (sesionAbierta === null && MG.pushToken) postToken(MG.pushToken);
+    }, 8000);
+  }
+
+  /**
+   * La app avisa si hay sesión abierta en este celular. La llama al arrancar (después de
+   * api/me) y al cerrar sesión.
+   *
+   * ⚠ Tiene que funcionar en los dos órdenes posibles: el token puede llegar antes o después
+   * de saberse si hay sesión. Por eso la decisión vive acá y en registrado(), y las dos
+   * miran el mismo par de variables.
+   */
+  MG.pushSesion = function (abierta) {
+    sesionAbierta = !!abierta;
+    if (!MG.pushToken) return;
+    if (sesionAbierta) postToken(MG.pushToken);
+    else soltar(MG.pushToken);
+  };
 
   // 1) Permiso de ubicación: necesario para que navigator.geolocation funcione en la app nativa.
   try {
@@ -90,7 +147,7 @@
           importance: 2, visibility: 1, vibration: false, lights: false,
         }).catch(function () {});
       }
-      PN.addListener('registration', function (t) { postToken(t && t.value); });
+      PN.addListener('registration', function (t) { registrado(t && t.value); });
       PN.addListener('registrationError', function () {});
       // Al tocar la notificación, la app se abre (WebView ya está en la app correcta).
       PN.addListener('pushNotificationActionPerformed', function () {});

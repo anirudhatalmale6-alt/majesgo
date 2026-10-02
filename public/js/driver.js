@@ -434,6 +434,8 @@ async function start() {
     const m = await api('api/me');
     if (m.csrf) MG.csrf = m.csrf;
     if (m.loc_token) MG.locToken = m.loc_token;   // credencial del servicio en segundo plano
+    // Si no hay nadie dentro, el celular suelta los avisos de la última cuenta que entró.
+    if (MG.pushSesion) MG.pushSesion(!!m.authenticated);
     if (m.authenticated) { me = m.driver; $('#auth').classList.add('hidden'); await boot(); }
     else { $('#auth').classList.remove('hidden'); }
   } catch (e) { $('#auth').classList.remove('hidden'); }
@@ -2136,6 +2138,9 @@ $('#navRecenter').addEventListener('click', () => {
 $('#btnBack').addEventListener('click', () => $('#drawer').classList.remove('open'));
 $('#btnLogout').addEventListener('click', async () => {
   try { await api('api/logout', {}); } catch (e) {}
+  // Soltar los avisos ANTES de recargar: si no, este celular seguiría recibiendo los viajes
+  // de la cuenta que acaba de salir.
+  if (MG.pushSesion) MG.pushSesion(false);
   location.reload();
 });
 

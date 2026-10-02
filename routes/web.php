@@ -17,6 +17,7 @@ use App\Http\Controllers\Driver\AuthController as DriverAuth;
 use App\Http\Controllers\Driver\PageController as DriverPage;
 use App\Http\Controllers\Driver\RideController as DriverRide;
 use App\Http\Controllers\GeocodeController;
+use App\Http\Controllers\PushReleaseController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', fn () => redirect()->route('admin.login'));
@@ -26,6 +27,12 @@ Route::view('/privacidad', 'legal.privacy')->name('privacy');
 
 // Puntos de referencia del mapa: los piden la app del pasajero y la del conductor
 Route::get('api/map-pois', [GeocodeController::class, 'mapPois'])->name('map.pois');
+
+// Soltar los avisos de un celular sin sesión abierta. FUERA del middleware de sesión a
+// propósito: hace falta precisamente cuando ya no hay sesión que comprobar. Ver
+// PushReleaseController.
+Route::post('app/api/push/release', [PushReleaseController::class, 'release']);
+Route::post('conductor/api/push/release', [PushReleaseController::class, 'release']);
 
 /*
 | App del PASAJERO (PWA instalable) — Hito 2
