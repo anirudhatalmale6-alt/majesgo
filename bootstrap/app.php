@@ -34,6 +34,7 @@ return Application::configure(basePath: dirname(__DIR__))
             // los avisos de una cuenta ajena, que es exactamente lo que se quiere cortar.
             'app/api/push/release',
             'conductor/api/push/release',
+            'conductor/api/diag-rastreo',   // sonda temporal, sale del cliente nativo
         ]);
         // Invitados (no logueados) que entran a una URL del panel → a la pantalla de login
         // (evita el error "Route [login] not defined").

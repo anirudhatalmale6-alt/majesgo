@@ -17,6 +17,7 @@ use App\Http\Controllers\Driver\AuthController as DriverAuth;
 use App\Http\Controllers\Driver\PageController as DriverPage;
 use App\Http\Controllers\Driver\RideController as DriverRide;
 use App\Http\Controllers\GeocodeController;
+use App\Http\Controllers\DiagController;
 use App\Http\Controllers\PushReleaseController;
 use Illuminate\Support\Facades\Route;
 
@@ -33,6 +34,9 @@ Route::get('api/map-pois', [GeocodeController::class, 'mapPois'])->name('map.poi
 // PushReleaseController.
 Route::post('app/api/push/release', [PushReleaseController::class, 'release']);
 Route::post('conductor/api/push/release', [PushReleaseController::class, 'release']);
+
+// Sonda TEMPORAL del aviso fijo que no se va. Quitar al cerrar ese tema.
+Route::post('conductor/api/diag-rastreo', [DiagController::class, 'rastreo']);
 
 /*
 | App del PASAJERO (PWA instalable) — Hito 2

@@ -125,20 +125,46 @@
         arrancando = false;
         watcherId = id;
         recordarId(id);
+        diag('arrancar: vigilante ' + id + ' creado');
         if (!queremos) detener();   // el viaje terminó mientras el vigilante arrancaba
-      }).catch(function () { arrancando = false; });
+      }).catch(function (e) {
+        arrancando = false;
+        diag('arrancar FALLO: ' + (e && (e.message || JSON.stringify(e))));
+      });
     } catch (e) {
       // que el plugin falle no puede dejar a medias al que nos llamó
       arrancando = false;
     }
   }
 
+  /* Sonda TEMPORAL. El servicio corre en el celular del conductor y yo no veo esa consola;
+     ya me equivoqué dos veces adivinando el motivo del aviso que no se va. Esto cuenta al
+     servidor lo que de verdad pasó, y lo leo del log. QUITAR al cerrar ese tema. */
+  function diag(evento) {
+    if (!Http || !MG.locToken) return;
+    try {
+      Http.post({
+        url: location.origin + '/conductor/api/diag-rastreo',
+        headers: { 'Content-Type': 'application/json' },
+        data: { token: MG.locToken, evento: String(evento).slice(0, 200) },
+      }).catch(function () {});
+    } catch (e) {}
+  }
+
   function detener() {
     queremos = false;
-    if (!BG || !watcherId) return;
+    if (!BG || !watcherId) {
+      diag('detener: nada que apagar (watcherId=' + watcherId + ', BG=' + !!BG + ')');
+      return;
+    }
     var id = watcherId; watcherId = null;
     olvidarId();
-    BG.removeWatcher({ id: id }).catch(function () {});
+    diag('detener: pido quitar el vigilante ' + id);
+    BG.removeWatcher({ id: id })
+      .then(function () { diag('removeWatcher OK para ' + id); })
+      .catch(function (e) {
+        diag('removeWatcher FALLO para ' + id + ': ' + (e && (e.message || e.errorMessage || JSON.stringify(e))));
+      });
   }
 
   /* ⚠ EL VIGILANTE HUÉRFANO.
@@ -168,14 +194,22 @@
     try { id = localStorage.getItem(LLAVE); } catch (e) {}
     if (!id) return;
     olvidarId();
-    BG.removeWatcher({ id: id }).catch(function () {});
+    diag('al abrir: barro vigilante colgado ' + id);
+    BG.removeWatcher({ id: id })
+      .then(function () { diag('barrido OK de ' + id); })
+      .catch(function (err) { diag('barrido FALLO de ' + id + ': ' + (err && (err.message || JSON.stringify(err)))); });
   }
 
   /**
    * La llama la app del conductor en cada refresco del viaje.
    * Idempotente: se puede llamar en cada sondeo sin crear vigilantes de más.
    */
+  var ultimoEstado = '__nada__';
   MG.rastreo = function (estadoDelViaje) {
+    if (estadoDelViaje !== ultimoEstado) {
+      ultimoEstado = estadoDelViaje;
+      diag('la app pide estado=' + estadoDelViaje + ' (vigilante actual=' + watcherId + ')');
+    }
     if (!nativo || !BG) return;            // en el navegador no hay servicio que levantar
     if (enViaje(estadoDelViaje)) arrancar();
     else detener();
