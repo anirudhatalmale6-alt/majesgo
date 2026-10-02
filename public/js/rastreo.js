@@ -58,11 +58,35 @@
       url: location.origin + '/conductor/api/location-bg',
       headers: { 'Content-Type': 'application/json' },
       data: { token: MG.locToken, lat: pos.latitude, lng: pos.longitude },
-    }).then(function (r) {
-      // 409 = el viaje terminó mientras el servicio seguía vivo. El servidor es la verdad:
-      // se apaga acá en vez de reintentar para siempre contra un viaje que ya no existe.
-      if (r && r.status === 409) detener();
-    }).catch(function () {});
+    }).then(revisarRespuesta).catch(revisarRespuesta);
+  }
+
+  /**
+   * Leer el código de respuesta venga como venga.
+   *
+   * ⚠ ESTO ES LO QUE DEJÓ UN SERVICIO ANDANDO 50 MINUTOS DE MÁS. Antes acá había
+   * `.then(ver 409).catch(function () {})`: un catch vacío. CapacitorHttp, según versión y
+   * plataforma, puede CONTESTAR con el código o puede RECHAZAR la promesa cuando no es 2xx.
+   * Cuando rechazaba, el 409 caía en ese catch vacío y se perdía la ÚNICA señal que tenía el
+   * celular para apagarse. El 2026-10-02 el viaje 348 terminó 20:58:27 y el celular siguió
+   * mandando posiciones hasta las 21:48, con el aviso fijo en pantalla y el GPS encendido.
+   *
+   * Un catch vacío sobre la señal de apagado es lo peor de los dos mundos: no se ve el error
+   * y tampoco se actúa. Ahora las dos ramas pasan por acá y el código se busca en las formas
+   * en que lo puede traer cada una.
+   */
+  function revisarRespuesta(r) {
+    var code = 0;
+    if (r) {
+      code = r.status || (r.response && r.response.status)
+          || (r.error && r.error.status) || 0;
+      if (!code && typeof r.message === 'string' && r.message.indexOf('409') >= 0) {
+        code = 409;
+      }
+    }
+    // 409 = el viaje terminó mientras el servicio seguía vivo. El servidor es la verdad:
+    // se apaga acá en vez de reintentar para siempre contra un viaje que ya no existe.
+    if (code === 409) detener();
   }
 
   /* ⚠ EL HUECO ENTRE PEDIR EL VIGILANTE Y TENERLO.
@@ -100,6 +124,7 @@
       }).then(function (id) {
         arrancando = false;
         watcherId = id;
+        recordarId(id);
         if (!queremos) detener();   // el viaje terminó mientras el vigilante arrancaba
       }).catch(function () { arrancando = false; });
     } catch (e) {
@@ -112,6 +137,37 @@
     queremos = false;
     if (!BG || !watcherId) return;
     var id = watcherId; watcherId = null;
+    olvidarId();
+    BG.removeWatcher({ id: id }).catch(function () {});
+  }
+
+  /* ⚠ EL VIGILANTE HUÉRFANO.
+
+     El identificador vivía SÓLO en memoria de la página. Pero el servicio es NATIVO: no se
+     muere porque la página se recargue. Si Android recrea la app, o el conductor la cierra y
+     la vuelve a abrir, la página arranca con watcherId en null mientras el servicio anterior
+     sigue vivo del otro lado. A partir de ahí es imposible apagarlo: detener() no tiene qué
+     id pedirle al plugin, y ese servicio queda con el GPS encendido y el aviso fijo puesto
+     hasta que el conductor mate la app a mano.
+
+     Por eso el id se guarda en el celular. Al arrancar la app se limpia lo que haya quedado
+     de la sesión anterior; si hay carrera viva, MG.rastreo lo vuelve a levantar enseguida. */
+  var LLAVE = 'mg_watcher_id';
+
+  function recordarId(id) {
+    try { localStorage.setItem(LLAVE, String(id)); } catch (e) {}
+  }
+
+  function olvidarId() {
+    try { localStorage.removeItem(LLAVE); } catch (e) {}
+  }
+
+  function limpiarHuerfano() {
+    if (!BG) return;
+    var id = null;
+    try { id = localStorage.getItem(LLAVE); } catch (e) {}
+    if (!id) return;
+    olvidarId();
     BG.removeWatcher({ id: id }).catch(function () {});
   }
 
@@ -126,4 +182,9 @@
   };
 
   MG.rastreoActivo = function () { return !!watcherId; };
+
+  // Al cargar la página se barre lo que haya quedado colgado de la sesión anterior. Si hay
+  // carrera viva, el primer sondeo llama a MG.rastreo y el servicio vuelve a levantarse en
+  // segundos; si no la hay, el conductor deja de tener el GPS encendido al pedo.
+  limpiarHuerfano();
 })();
