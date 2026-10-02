@@ -828,10 +828,32 @@ try {
   }
 } catch (e) {}
 
+/**
+ * Llama a los servicios del celular (pantalla encendida, ubicación en segundo plano) sin
+ * dejar que puedan romper el dibujo de la pantalla.
+ *
+ * ⚠ POR QUÉ EXISTE ESTO. El 2026-10-02 un conductor quedó clavado en "Esperando
+ * confirmación" aunque el pasajero YA había confirmado: el servidor lo tenía en 'en_camino'
+ * y el celular seguía sondeando y recibiendo 200. La llamada a MG.rastreo era la PRIMERA
+ * línea de renderRide; si el plugin de Android tiraba una excepción ahí, todo lo que venía
+ * abajo —o sea, repintar la pantalla— no llegaba a correr, y quedaba pintado el estado
+ * anterior para siempre.
+ *
+ * Y justo se destapaba en esa transición: 'ofrecido' NO está en la lista de estados en
+ * viaje, así que el servicio se arranca por primera vez exactamente cuando el pasajero
+ * confirma. En el navegador nunca pasa (no hay plugin), sólo en la app instalada.
+ *
+ * Regla: la pantalla manda. Si un servicio del celular falla, se pierde ese servicio, no la
+ * carrera del conductor.
+ */
+function servicio(fn) {
+  try { if (typeof fn === 'function') fn(); } catch (e) { console.warn('servicio del celular falló:', e); }
+}
+
 /* ================= HOME (conectar/desconectar) ================= */
 function renderHome() {
-  if (MG.pantalla) MG.pantalla(false);
-  if (MG.rastreo) MG.rastreo(null);   // sin viaje no hay nada que seguir
+  servicio(() => MG.pantalla && MG.pantalla(false));
+  servicio(() => MG.rastreo && MG.rastreo(null));   // sin viaje no hay nada que seguir
   clearTrip();
   closeChat(); chatLastId = 0; chatSeenId = 0; rideLastMsgId = 0; arrivedFor = null;
   const lowSaldo = me.saldo < minSaldo;
@@ -1502,7 +1524,7 @@ function renderRide(r) {
   // El servicio en segundo plano sigue al estado del viaje: arranca al aceptar y se apaga
   // al terminar. Acá corre en CADA sondeo a propósito — MG.rastreo es idempotente y así no
   // hace falta acordarse de encenderlo en los seis sitios que cambian el viaje.
-  if (MG.rastreo) MG.rastreo(r.status);
+  servicio(() => MG.rastreo && MG.rastreo(r.status));
   // Con un viaje en curso no hay lista que ofrecer. Ojo: esto corre en CADA sondeo, así que
   // no se toca el mapa aquí (clearPreview borraría la ruta que dibujamos abajo y parpadearía).
   reqList = []; reqSeen = new Set(); reqCode = null;
@@ -1514,7 +1536,7 @@ function renderRide(r) {
   // Carrera en marcha (yendo a recoger o con el pasajero a bordo): el celular va en el
   // soporte y mirándose de reojo, así que la pantalla no debe dormirse. Se suelta al
   // terminar o cancelar, en renderHome/renderCompleted.
-  if (MG.pantalla) MG.pantalla(true);
+  servicio(() => MG.pantalla && MG.pantalla(true));
   // rutas (usa la ruta activa: recalculada si el conductor se desvió)
   syncActiveRoute(r);
   drawRoute(activeRoute.coords, activeRoute.toDest ? '#00C853' : '#FFC107');
@@ -1633,8 +1655,8 @@ async function cancelRide() {
 }
 
 function renderCompleted(r) {
-  if (MG.pantalla) MG.pantalla(false);
-  if (MG.rastreo) MG.rastreo(null);
+  servicio(() => MG.pantalla && MG.pantalla(false));
+  servicio(() => MG.rastreo && MG.rastreo(null));
   const fp = r.final_price || rideTotal(r);
   const earn = fp - (r.commission != null ? r.commission : commissionFor(fp));
   $('#sheetBody').innerHTML = `

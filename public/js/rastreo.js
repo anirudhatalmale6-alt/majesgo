@@ -37,6 +37,8 @@
   var Http = nativo && Cap.Plugins ? Cap.Plugins.CapacitorHttp : null;
 
   var watcherId = null;
+  var arrancando = false;   // se pidió addWatcher y todavía no contestó
+  var queremos = false;     // si el viaje pide seguir enviando ahora mismo
   var ultimoEnvio = 0;
 
   /** Mientras va a recoger o lleva al pasajero: ahí es cuando el pasajero lo está mirando. */
@@ -63,23 +65,51 @@
     }).catch(function () {});
   }
 
+  /* ⚠ EL HUECO ENTRE PEDIR EL VIGILANTE Y TENERLO.
+
+     addWatcher devuelve su identificador por promesa, así que entre que se pide y que
+     contesta pasan varios segundos con watcherId todavía en null. En ese hueco:
+
+       · otra llamada a arrancar() veía watcherId null y pedía un SEGUNDO vigilante;
+       · detener() veía watcherId null, se iba sin hacer nada, y el vigilante quedaba vivo
+         para siempre mandando posiciones de un viaje ya terminado.
+
+     Se vio en el log del 2026-10-02: después de cancelar la carrera, el celular siguió
+     mandando a /conductor/api/location-bg casi un minuto, cobrando 409 una y otra vez.
+     No rompía nada porque el servidor rechaza sin viaje vivo, pero gastaba batería y datos
+     del conductor y dejaba el aviso fijo en pantalla sin carrera detrás.
+
+     Por eso ahora manda `queremos` (lo que el viaje pide) y no la existencia del id. */
   function arrancar() {
-    if (!BG || watcherId) return;
-    BG.addWatcher({
-      // Con backgroundMessage definido, el plugin levanta el servicio en primer plano.
-      // Sin esto sólo seguiría la posición con la app en pantalla, o sea nada nuevo.
-      backgroundMessage: 'Tu ubicación se comparte con el pasajero durante la carrera.',
-      backgroundTitle: 'Majes Drive · viaje en curso',
-      requestPermissions: true,
-      stale: false,
-      distanceFilter: 15,
-    }, function (pos, err) {
-      if (err) return;          // permiso denegado o GPS apagado: la app en pantalla sigue reportando
-      enviar(pos);
-    }).then(function (id) { watcherId = id; }).catch(function () {});
+    if (!BG) return;
+    queremos = true;
+    if (watcherId || arrancando) return;
+    arrancando = true;
+    try {
+      BG.addWatcher({
+        // Con backgroundMessage definido, el plugin levanta el servicio en primer plano.
+        // Sin esto sólo seguiría la posición con la app en pantalla, o sea nada nuevo.
+        backgroundMessage: 'Tu ubicación se comparte con el pasajero durante la carrera.',
+        backgroundTitle: 'Majes Drive · viaje en curso',
+        requestPermissions: true,
+        stale: false,
+        distanceFilter: 15,
+      }, function (pos, err) {
+        if (err) return;        // permiso denegado o GPS apagado: la app en pantalla sigue reportando
+        enviar(pos);
+      }).then(function (id) {
+        arrancando = false;
+        watcherId = id;
+        if (!queremos) detener();   // el viaje terminó mientras el vigilante arrancaba
+      }).catch(function () { arrancando = false; });
+    } catch (e) {
+      // que el plugin falle no puede dejar a medias al que nos llamó
+      arrancando = false;
+    }
   }
 
   function detener() {
+    queremos = false;
     if (!BG || !watcherId) return;
     var id = watcherId; watcherId = null;
     BG.removeWatcher({ id: id }).catch(function () {});
