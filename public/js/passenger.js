@@ -1051,11 +1051,27 @@ function renderRide(r) {
  *                          contra reloj y lo que tiene que ver es el precio y los botones.
  *                          La foto grande sirve para reconocer el auto, y eso es después de aceptar.
  */
+/* ⚠ "NO HAY FOTO" Y "LA FOTO NO CARGÓ" SON DOS COSAS DISTINTAS.
+
+   Acá sólo se miraba si el servidor mandó una ruta. Eso cubre al conductor que todavía no
+   subió nada, pero NO cubre que la ruta exista y el archivo no esté: ahí el navegador dibuja
+   el ícono de imagen rota con el texto alternativo al lado ("Vehículo de Tester Majes"), que
+   es justo lo que parece una app descompuesta.
+
+   No es teórico: pasó con las capturas de la ficha de Play. La base tenía
+   drivers/demo-car.jpg y el archivo no estaba, y dos de las cuatro imágenes que subimos a la
+   tienda salieron con el ícono roto. Nadie lo vio porque la prueba comprobaba TEXTOS, y el
+   texto estaba perfecto — el que faltaba era el píxel.
+
+   En producción el disparador sería perder un archivo (una migración de storage, un borrado,
+   un enlace simbólico caído). Con onerror la pantalla se cae al estado que ya estaba
+   diseñado — sin recuadro de foto, con la inicial — en vez de mostrar el ícono roto. */
 function vehiclePhoto(d, small) {
   if (!d || !d.vehicle_photo) return '';
   return `
     <div class="vehshot${small ? ' sm' : ''}" id="vehShot">
-      <img src="${d.vehicle_photo}" alt="Vehículo de ${esc(d.name || 'tu conductor')}" loading="lazy">
+      <img src="${d.vehicle_photo}" alt="Vehículo de ${esc(d.name || 'tu conductor')}" loading="lazy"
+           onerror="this.closest('.vehshot')?.remove()">
       ${d.plate ? `<span class="vplate">${esc(d.plate)}</span>` : ''}
     </div>`;
 }
@@ -1063,7 +1079,13 @@ function vehiclePhoto(d, small) {
 /** Rostro del conductor (solo si la central lo aprobó); si no, la inicial de siempre. */
 function driverAvatar(d) {
   if (d && d.photo) {
-    return `<div class="av"><img src="${d.photo}" alt="Foto de ${esc(d.name || 'tu conductor')}" loading="lazy"></div>`;
+    // Si el archivo no está, se vuelve a la inicial: el mismo círculo de siempre, sin foto rota.
+    // ⚠ La inicial va en un data-, NO interpolada dentro del JS del onerror: esc() escapa las
+    // comillas dobles pero NO las simples, así que una inicial con apóstrofo cerraría la
+    // cadena y rompería el manejador. En el atributo data- esc() sí alcanza.
+    return `<div class="av" data-ini="${esc(String(d.initial || '🚗'))}">
+      <img src="${d.photo}" alt="Foto de ${esc(d.name || 'tu conductor')}" loading="lazy"
+           onerror="var a=this.closest('.av'); if(a){a.textContent=a.dataset.ini||'🚗';}"></div>`;
   }
   return `<div class="av">${(d && d.initial) || '🚗'}</div>`;
 }
