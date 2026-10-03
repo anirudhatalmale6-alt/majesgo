@@ -34,22 +34,21 @@
   var Cap = window.Capacitor;
   var nativo = !!(Cap && typeof Cap.isNativePlatform === 'function' && Cap.isNativePlatform());
 
-  /* ⚠ POR QUÉ registerPlugin Y NO Capacitor.Plugins.
+  /* ⚠ registerPlugin, NO Capacitor.Plugins: el propio registro de cambios del plugin dice
+     "BREAKING: el plugin se importa con registerPlugin, no desde el objeto Plugins".
 
-     Este plugin dejó de exponerse por el objeto `Plugins` hace dos versiones mayores; lo
-     dice su propio registro de cambios: "BREAKING: el plugin se importa con registerPlugin,
-     no desde el objeto Plugins".
+     Pero OJO, que esto me costó dos vueltas: cambiar de dónde se toma el plugin NO fue el
+     arreglo. El problema de fondo era qué DEVUELVE addWatcher, y las dos vías devuelven
+     cosas distintas. Lo que se midió en el celular de Joel:
 
-     Tomándolo del objeto viejo, addWatcher IGUAL arranca el servicio y IGUAL llama al
-     callback con cada posición — por eso la ubicación llegaba perfecta y la notificación
-     aparecía, y por eso tardé tanto en verlo. Lo que NO hace es resolver la promesa con el
-     identificador del vigilante: el puente deja la llamada abierta para seguir entregando
-     posiciones, y ese `.then` no llega nunca.
+       · por Capacitor.Plugins → algo con .then que no se resuelve nunca;
+       · por registerPlugin    → algo SIN .then ("addWatcher(...).then is not a function").
 
-     Sin identificador, removeWatcher no se puede llamar. El servicio quedaba encendido para
-     siempre y la app no tenía forma de apagarlo. En el log del celular de Joel se ve exacto:
-     estado=ofrecido, en_camino, llego, a_bordo, y en todos "vigilante actual=null", sin una
-     sola línea de "vigilante creado". */
+     En los dos casos el servicio arranca y el callback entrega posiciones — por eso la
+     ubicación llegaba perfecta y la notificación aparecía — pero nos quedábamos sin el
+     identificador, y sin identificador no se puede apagar. De ahí el aviso que no se iba.
+
+     Por eso abajo se aceptan las TRES formas posibles de respuesta en vez de apostar a una. */
   var BG = null;
   if (nativo) {
     try {
@@ -63,6 +62,7 @@
   var Http = nativo && Cap.Plugins ? Cap.Plugins.CapacitorHttp : null;
 
   var watcherId = null;
+  var manija = null;        // algunas versiones devuelven un objeto con remove() en vez de un id
   var arrancando = false;   // se pidió addWatcher y todavía no contestó
   var queremos = false;     // si el viaje pide seguir enviando ahora mismo
   var ultimoEnvio = 0;
@@ -142,7 +142,7 @@
     }
     arrancando = true;
     try {
-      BG.addWatcher({
+      var devuelto = BG.addWatcher({
         // Con backgroundMessage definido, el plugin levanta el servicio en primer plano.
         // Sin esto sólo seguiría la posición con la app en pantalla, o sea nada nuevo.
         backgroundMessage: 'Tu ubicación se comparte con el pasajero durante la carrera.',
@@ -153,16 +153,35 @@
       }, function (pos, err) {
         if (err) return;        // permiso denegado o GPS apagado: la app en pantalla sigue reportando
         enviar(pos);
-      }).then(function (id) {
-        arrancando = false;
-        watcherId = id;
-        recordarId(id);
-        diag('arrancar: vigilante ' + id + ' creado');
-        if (!queremos) detener();   // el viaje terminó mientras el vigilante arrancaba
-      }).catch(function (e) {
-        arrancando = false;
-        diag('arrancar FALLO: ' + (e && (e.message || JSON.stringify(e))));
       });
+
+      /* ⚠ addWatcher NO SIEMPRE DEVUELVE UNA PROMESA.
+
+         Yo daba por hecho que sí y encadenaba .then() directo. En el celular de Joel eso
+         explotaba con "BG.addWatcher(...).then is not a function", el error se comía el
+         catch de abajo y nos quedábamos sin id — o sea, sin poder apagar nunca el servicio.
+
+         Según cómo se tome el plugin y qué versión del puente haya, esto puede volver como
+         promesa, como el id directo (string), o como un objeto con remove(). Las tres son
+         formas legítimas y no se puede elegir desde acá: hay que aceptar las tres. */
+      if (devuelto && typeof devuelto.then === 'function') {
+        diag('addWatcher devolvió una promesa');
+        devuelto.then(anotarVigilante).catch(function (e) {
+          arrancando = false;
+          diag('arrancar FALLO: ' + (e && (e.message || JSON.stringify(e))));
+        });
+      } else if (typeof devuelto === 'string' || typeof devuelto === 'number') {
+        diag('addWatcher devolvió el id directo (' + typeof devuelto + ')');
+        anotarVigilante(devuelto);
+      } else if (devuelto && typeof devuelto.remove === 'function') {
+        diag('addWatcher devolvió un objeto con remove()');
+        manija = devuelto;
+        arrancando = false;
+        if (!queremos) detener();
+      } else {
+        arrancando = false;
+        diag('addWatcher devolvió algo que no sé usar: ' + typeof devuelto);
+      }
     } catch (e) {
       // que el plugin falle no puede dejar a medias al que nos llamó
       arrancando = false;
@@ -184,8 +203,25 @@
     } catch (e) {}
   }
 
+  /** Guardar el vigilante recién creado, venga su id como venga. */
+  function anotarVigilante(id) {
+    arrancando = false;
+    watcherId = id;
+    recordarId(id);
+    diag('arrancar: vigilante ' + id + ' creado');
+    if (!queremos) detener();     // el viaje terminó mientras el vigilante arrancaba
+  }
+
   function detener() {
     queremos = false;
+    // Si el plugin nos dio un objeto con remove(), ESA es la forma de apagarlo.
+    if (manija) {
+      var m = manija; manija = null;
+      olvidarId();
+      diag('detener: apago con remove() del objeto');
+      try { m.remove(); } catch (e) { diag('remove() FALLO: ' + (e && e.message)); }
+      return;
+    }
     if (!BG || !watcherId) {
       diag('detener: nada que apagar (watcherId=' + watcherId + ', BG=' + !!BG + ')');
       return;
