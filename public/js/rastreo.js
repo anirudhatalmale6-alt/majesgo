@@ -136,10 +136,7 @@
     // ⚠ Si addWatcher nunca contesta, `arrancando` se queda en true y TODAS las llamadas
     // siguientes se iban por acá sin decir una palabra. Ese silencio fue lo que me hizo
     // creer que arrancar() ni se llamaba.
-    if (watcherId || arrancando) {
-      diag('arrancar: ya hay uno (watcherId=' + watcherId + ', arrancando=' + arrancando + ')');
-      return;
-    }
+    if (watcherId || arrancando) return;
     arrancando = true;
     try {
       var devuelto = BG.addWatcher({
@@ -165,42 +162,22 @@
          promesa, como el id directo (string), o como un objeto con remove(). Las tres son
          formas legítimas y no se puede elegir desde acá: hay que aceptar las tres. */
       if (devuelto && typeof devuelto.then === 'function') {
-        diag('addWatcher devolvió una promesa');
         devuelto.then(anotarVigilante).catch(function (e) {
           arrancando = false;
-          diag('arrancar FALLO: ' + (e && (e.message || JSON.stringify(e))));
-        });
+          });
       } else if (typeof devuelto === 'string' || typeof devuelto === 'number') {
-        diag('addWatcher devolvió el id directo (' + typeof devuelto + ')');
         anotarVigilante(devuelto);
       } else if (devuelto && typeof devuelto.remove === 'function') {
-        diag('addWatcher devolvió un objeto con remove()');
         manija = devuelto;
         arrancando = false;
         if (!queremos) detener();
       } else {
         arrancando = false;
-        diag('addWatcher devolvió algo que no sé usar: ' + typeof devuelto);
       }
     } catch (e) {
       // que el plugin falle no puede dejar a medias al que nos llamó
       arrancando = false;
-      diag('arrancar REVENTO al llamar al plugin: ' + (e && (e.message || e)));
     }
-  }
-
-  /* Sonda TEMPORAL. El servicio corre en el celular del conductor y yo no veo esa consola;
-     ya me equivoqué dos veces adivinando el motivo del aviso que no se va. Esto cuenta al
-     servidor lo que de verdad pasó, y lo leo del log. QUITAR al cerrar ese tema. */
-  function diag(evento) {
-    if (!Http || !MG.locToken) return;
-    try {
-      Http.post({
-        url: location.origin + '/conductor/api/diag-rastreo',
-        headers: { 'Content-Type': 'application/json' },
-        data: { token: MG.locToken, evento: String(evento).slice(0, 200) },
-      }).catch(function () {});
-    } catch (e) {}
   }
 
   /** Guardar el vigilante recién creado, venga su id como venga. */
@@ -208,7 +185,6 @@
     arrancando = false;
     watcherId = id;
     recordarId(id);
-    diag('arrancar: vigilante ' + id + ' creado');
     if (!queremos) detener();     // el viaje terminó mientras el vigilante arrancaba
   }
 
@@ -218,22 +194,15 @@
     if (manija) {
       var m = manija; manija = null;
       olvidarId();
-      diag('detener: apago con remove() del objeto');
-      try { m.remove(); } catch (e) { diag('remove() FALLO: ' + (e && e.message)); }
+      try { m.remove(); } catch (e) {}
       return;
     }
     if (!BG || !watcherId) {
-      diag('detener: nada que apagar (watcherId=' + watcherId + ', BG=' + !!BG + ')');
       return;
     }
     var id = watcherId; watcherId = null;
     olvidarId();
-    diag('detener: pido quitar el vigilante ' + id);
-    BG.removeWatcher({ id: id })
-      .then(function () { diag('removeWatcher OK para ' + id); })
-      .catch(function (e) {
-        diag('removeWatcher FALLO para ' + id + ': ' + (e && (e.message || e.errorMessage || JSON.stringify(e))));
-      });
+    BG.removeWatcher({ id: id }).catch(function () {});
   }
 
   /* ⚠ EL VIGILANTE HUÉRFANO.
@@ -263,10 +232,7 @@
     try { id = localStorage.getItem(LLAVE); } catch (e) {}
     if (!id) return;
     olvidarId();
-    diag('al abrir: barro vigilante colgado ' + id);
-    BG.removeWatcher({ id: id })
-      .then(function () { diag('barrido OK de ' + id); })
-      .catch(function (err) { diag('barrido FALLO de ' + id + ': ' + (err && (err.message || JSON.stringify(err)))); });
+    BG.removeWatcher({ id: id }).catch(function () {});
   }
 
   /**
@@ -277,7 +243,6 @@
   MG.rastreo = function (estadoDelViaje) {
     if (estadoDelViaje !== ultimoEstado) {
       ultimoEstado = estadoDelViaje;
-      diag('la app pide estado=' + estadoDelViaje + ' (vigilante actual=' + watcherId + ')');
     }
     if (!nativo || !BG) return;            // en el navegador no hay servicio que levantar
     if (enViaje(estadoDelViaje)) arrancar();
