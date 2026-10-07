@@ -15,6 +15,9 @@ class PageController extends Controller
             'centerLat' => (float) Setting::get('map_center_lat', -16.3627),
             'centerLng' => (float) Setting::get('map_center_lng', -72.1908),
             'alertSound' => self::alertSoundUrl(),
+            // ¿Se puede postular alguien desde la app? La central lo abre y lo cierra
+            // sin tocar código; mientras esté cerrado, la pantalla de alta ni aparece.
+            'signupOpen' => (string) Setting::get('driver_signup_open', '0') === '1',
         ]);
     }
 

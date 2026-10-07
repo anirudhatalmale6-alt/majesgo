@@ -3,6 +3,8 @@
 use App\Http\Controllers\Admin\AuthController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\DriverController;
+use App\Http\Controllers\Admin\DocumentTypeController;
+use App\Http\Controllers\Admin\DriverDocumentController;
 use App\Http\Controllers\Admin\DriverPhotoController;
 use App\Http\Controllers\Admin\RechargeController;
 use App\Http\Controllers\Admin\MapPoiController;
@@ -14,6 +16,7 @@ use App\Http\Controllers\Passenger\AuthController as PassengerAuth;
 use App\Http\Controllers\Passenger\PageController as PassengerPage;
 use App\Http\Controllers\Passenger\RideController as PassengerRide;
 use App\Http\Controllers\Driver\AuthController as DriverAuth;
+use App\Http\Controllers\Driver\OnboardingController as DriverOnboarding;
 use App\Http\Controllers\Driver\PageController as DriverPage;
 use App\Http\Controllers\Driver\RideController as DriverRide;
 use App\Http\Controllers\GeocodeController;
@@ -84,6 +87,9 @@ Route::prefix('conductor')->name('driver.')->group(function () {
     Route::get('api/me', [DriverAuth::class, 'me']);
     Route::post('api/login', [DriverAuth::class, 'login']);
     Route::post('api/logout', [DriverAuth::class, 'logout']);
+    // Alta desde la app. Nace SIN poder trabajar: el candado de canReceiveRides() lo
+    // mantiene fuera del despacho hasta que la central apruebe sus documentos.
+    Route::post('api/register', [DriverOnboarding::class, 'register'])->middleware('throttle:registro-conductor');
 
     Route::middleware('driver')->group(function () {
         // Conexión y ubicación
@@ -115,6 +121,10 @@ Route::prefix('conductor')->name('driver.')->group(function () {
         Route::post('api/report', [DriverRide::class, 'reportPassenger']);
 
         // Fotos del conductor (rostro y vehículo). Quedan pendientes hasta que la central apruebe.
+        // Documentos de la postulación (DNI, licencia, SOAT…)
+        Route::get('api/documents', [DriverOnboarding::class, 'checklist']);
+        Route::post('api/documents/{key}', [DriverOnboarding::class, 'upload']);
+
         Route::post('api/photo/{type}', [DriverRide::class, 'uploadPhoto']);
         Route::delete('api/photo/{type}', [DriverRide::class, 'deletePhoto']);
 
@@ -165,6 +175,21 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('fotos/{photo}/rechazar', [DriverPhotoController::class, 'reject'])->name('photos.reject');
 
         // Denuncias entre usuarios (pasajero ↔ conductor)
+        // Catálogo de documentos exigidos, editable por la central
+        Route::get('tipos-documento', [DocumentTypeController::class, 'index'])->name('doctypes.index');
+        Route::post('tipos-documento', [DocumentTypeController::class, 'store'])->name('doctypes.store');
+        Route::post('tipos-documento/{tipo}', [DocumentTypeController::class, 'update'])->name('doctypes.update');
+        Route::post('tipos-documento/{tipo}/activar', [DocumentTypeController::class, 'toggle'])->name('doctypes.toggle');
+
+        // Postulaciones de conductores y sus documentos
+        Route::get('postulaciones', [DriverDocumentController::class, 'index'])->name('onboarding.index');
+        Route::get('postulaciones/{driver}', [DriverDocumentController::class, 'show'])->name('onboarding.show');
+        Route::post('postulaciones/{driver}/habilitar', [DriverDocumentController::class, 'approveDriver'])->name('onboarding.approve');
+        // El archivo se sirve por acá, con sesión: nunca desde una carpeta pública.
+        Route::get('documentos/{document}/archivo', [DriverDocumentController::class, 'file'])->name('documents.file');
+        Route::post('documentos/{document}/aprobar', [DriverDocumentController::class, 'approve'])->name('documents.approve');
+        Route::post('documentos/{document}/rechazar', [DriverDocumentController::class, 'reject'])->name('documents.reject');
+
         Route::get('denuncias', [UserReportController::class, 'index'])->name('reports.index');
         Route::post('denuncias/{report}/revisar', [UserReportController::class, 'review'])->name('reports.review');
         Route::post('denuncias/{report}/reabrir', [UserReportController::class, 'reopen'])->name('reports.reopen');

@@ -178,6 +178,18 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-4.35-7-11a7 7 0 0 1 14 0c0 6.65-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
                 Zonas locales
             </a>
+            @php($pendPostul = \App\Models\Driver::whereIn('onboarding_status', ['enviado','observado'])->count())
+            <a href="{{ route('admin.onboarding.index') }}" class="{{ request()->routeIs('admin.onboarding.*')||request()->routeIs('admin.documents.*')?'on':'' }}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h4"/></svg>
+                Postulaciones
+                @if($pendPostul)
+                    <span style="margin-left:auto;background:#e08a1e;color:#fff;font-size:11px;font-weight:800;border-radius:999px;padding:2px 8px">{{ $pendPostul }}</span>
+                @endif
+            </a>
+            <a href="{{ route('admin.doctypes.index') }}" class="{{ request()->routeIs('admin.doctypes.*')?'on':'' }}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                Documentos exigidos
+            </a>
             @php($pendingReports = \App\Models\UserReport::pending()->count())
             <a href="{{ route('admin.reports.index') }}" class="{{ request()->routeIs('admin.reports.*')?'on':'' }}">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l9 16H3l9-16z"/><path d="M12 9v4.5"/><circle cx="12" cy="16.4" r=".9" fill="currentColor" stroke="none"/></svg>

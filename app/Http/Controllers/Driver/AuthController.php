@@ -29,6 +29,10 @@ class AuthController extends Controller
             // Credencial del servicio en segundo plano. Va sólo en la respuesta de 'me', que
             // ya exige sesión: quien la recibe es el propio conductor dentro de su app.
             'loc_token' => $d->locationToken(),
+            // Estado de la postulación, para que la app lleve al conductor a la pantalla de
+            // documentos en vez de dejarlo mirando un mapa donde nunca le va a entrar un viaje.
+            'onboarding'   => $d->onboarding_status,
+            'docs_blocked' => \App\Services\DriverDocuments::blocking($d),
             'csrf' => csrf_token(),
         ]);
     }
