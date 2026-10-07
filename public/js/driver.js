@@ -489,7 +489,28 @@ async function pintarDocumentos() {
   const lista = d.documents || [];
   const listos = lista.filter((x) => x.status === 'aprobado').length;
   $('#docBar').style.width = lista.length ? Math.round((listos / lista.length) * 100) + '%' : '0%';
-  $('#docsLead').textContent = d.message || 'Ya está todo en orden. Puedes conectarte.';
+
+  /* ⚠ ACÁ DECÍA `d.message || 'Ya está todo en orden. Puedes conectarte.'`.
+
+     El servidor manda `message` SÓLO cuando algo bloquea (blockMessage devuelve null si no
+     bloquea nada). Con la exigencia de documentos apagada no bloquea, así que el postulante
+     que acababa de crear su cuenta, con los 8 papeles sin subir y cada fila diciendo FALTA,
+     leía arriba "Ya está todo en orden. Puedes conectarte."
+
+     El error de fondo: "no tengo nada que decirte" se tradujo como "está todo bien". Cuando
+     no se puede afirmar que algo está en orden, no se afirma — se mira la lista y se cuenta.
+     Lo vi en la captura, no en el código: el texto y las etiquetas se contradecían a la vista. */
+  const pendientes = lista.filter((x) => x.required &&
+    (x.status === 'falta' || x.status === 'rechazado' || x.status === 'vencido')).length;
+  const enRevision = lista.filter((x) => x.status === 'pendiente').length;
+
+  $('#docsLead').textContent = d.message
+    ? d.message
+    : pendientes
+      ? (pendientes === 1 ? 'Te falta 1 documento por enviar.' : `Te faltan ${pendientes} documentos por enviar.`)
+      : enRevision
+        ? 'Tus documentos están en revisión. Te avisamos apenas la central los apruebe.'
+        : 'Ya está todo en orden. Puedes conectarte.';
 
   const etiqueta = {
     falta: 'Falta', pendiente: 'En revisión', aprobado: 'Aprobado',
