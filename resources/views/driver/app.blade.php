@@ -497,7 +497,7 @@
             <input id="inPass" type="password" placeholder="Tu clave" autocomplete="current-password">
             <button class="btn amber" id="btnAuth">Ingresar</button>
 @if($signupOpen)
-            <button class="btn ghost" id="btnGoSignup" style="margin-top:10px">Quiero ser conductor de MajesGo</button>
+            <button class="btn ghost" id="btnGoSignup" style="margin-top:10px">Quiero ser conductor de Majes Drive</button>
             <div class="hint">Regístrate, envía tus documentos y la central revisa tu solicitud.</div>
 @else
             <div class="hint">Tu cuenta de conductor la crea la central. Si no tienes acceso, comunícate con el administrador.</div>

@@ -30,7 +30,7 @@ class OnboardingController extends Controller
     {
         if (! $this->abierto()) {
             return response()->json([
-                'message' => 'Por ahora las cuentas de conductor las crea la central. Comunícate con MajesGo.',
+                'message' => 'Por ahora las cuentas de conductor las crea la central. Comunícate con Majes Drive.',
             ], 403);
         }
 
