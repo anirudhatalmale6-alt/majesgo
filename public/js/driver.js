@@ -1940,6 +1940,36 @@ function updateSaldo(saldo, canReceive) {
   const st = $('#stSaldo'); if (st) st.textContent = money(saldo); // el saldo vive en el panel inferior
 }
 
+/**
+ * Una línea que diga en qué anda con sus papeles, sin tener que abrir la pantalla.
+ * Se cuentan SOLO los obligatorios para lo que falta: los opcionales no son una deuda.
+ */
+function resumenDocumentos(docs) {
+  const lista = (docs && docs.documents) || [];
+  if (!lista.length) {
+    return '<p class="sub" style="color:var(--muted)">Toca el botón para ver tus documentos.</p>';
+  }
+  const faltan   = lista.filter((x) => x.required && x.status === 'falta').length;
+  const malos    = lista.filter((x) => x.status === 'rechazado' || x.status === 'vencido').length;
+  const revision = lista.filter((x) => x.status === 'pendiente').length;
+  const listos   = lista.filter((x) => x.status === 'aprobado').length;
+
+  // El rechazado/vencido va PRIMERO: es lo único que exige una acción concreta y puntual.
+  if (malos) {
+    return `<div class="photoblock">⚠ Tienes ${malos} documento${malos > 1 ? 's' : ''} rechazado`
+         + `${malos > 1 ? 's' : ''} o vencido${malos > 1 ? 's' : ''}. Entra y súbelo de nuevo.</div>`;
+  }
+  if (faltan) {
+    return `<div class="photoblock">Te falta${faltan > 1 ? 'n' : ''} ${faltan} documento`
+         + `${faltan > 1 ? 's' : ''} por enviar.</div>`;
+  }
+  if (revision) {
+    return `<p class="sub" style="color:var(--muted)">Tienes ${revision} documento`
+         + `${revision > 1 ? 's' : ''} esperando que la central los revise.</p>`;
+  }
+  return `<p class="sub" style="color:#5ce08b">✓ Tus ${listos} documentos están aprobados.</p>`;
+}
+
 let rTier = null, saldoData = null;
 async function openDrawer() {
   $('#drawer').classList.add('open');
@@ -1947,6 +1977,15 @@ async function openDrawer() {
   let d, h;
   try { d = await api('api/saldo'); h = await api('api/history'); }
   catch (e) { $('#drawerBody').innerHTML = '<p class="sub" style="text-align:center">No se pudo cargar.</p>'; return; }
+
+  /* ⚠ LA PANTALLA DE DOCUMENTOS EXISTÍA Y NO SE LLEGABA A ELLA.
+     Sólo se abría durante el alta: el conductor que ya había entrado al mapa no tenía por
+     dónde volver a subir lo que le faltaba, ni reemplazar uno rechazado o vencido. La función
+     estaba escrita, probada y desplegada — y era inalcanzable desde adentro de la app.
+     Si falla la consulta NO se rompe el cajón entero: se muestra igual el botón, que es lo
+     que de verdad hace falta. */
+  let docs = null;
+  try { docs = await api('api/documents', null, 'GET'); } catch (e) { docs = null; }
   updateSaldo(d.saldo, d.can_receive);
   const tiers = (d.tiers && d.tiers.length) ? d.tiers : ['20', '50', '100'];
   rTier = null; saldoData = d;
@@ -1968,6 +2007,10 @@ async function openDrawer() {
       <div class="chip"><div class="v">${h.today.trips}</div><div class="l">Viajes hoy</div></div>
       <div class="chip"><div class="v">${d.commission_pct}%</div><div class="l">Comisión</div></div>
     </div>
+
+    <div class="seg">MIS DOCUMENTOS</div>
+    ${resumenDocumentos(docs)}
+    <button class="btn ghost" id="btnMisDocumentos">Ver y subir mis documentos</button>
 
     <div class="seg">MIS FOTOS</div>
     ${d.photo_block ? `<div class="photoblock">🔒 ${esc(d.photo_block)}</div>` : ''}
@@ -2004,6 +2047,20 @@ async function openDrawer() {
   }));
   $('#rAmount').addEventListener('input', () => { rTier = null; tierBtns.forEach((x) => x.classList.remove('on')); });
   $('#btnDoRecharge').addEventListener('click', goToPayment);
+
+  /* La pantalla de documentos es la MISMA del alta: subir, reemplazar un rechazado, ver el
+     estado de cada uno. No se duplica nada. Su botón "Volver" ya distingue si hay sesión, así
+     que al cerrarla el conductor vuelve a la app y no a la pantalla de acceso.
+
+     ⚠ HAY QUE CERRAR EL CAJÓN ANTES. `.overlay` es z-index 40 y `.drawer` es 45: abriendo los
+     documentos desde adentro de Mi cuenta, la pantalla se dibuja DETRÁS del cajón. El
+     conductor tocaba el botón y no pasaba nada visible, aunque por dentro estuviera abierta.
+     Lo cazó la prueba al intentar tocar "Volver" y encontrarse encima la foto de perfil del
+     cajón; mirar sólo la clase `hidden` daba verde igual. */
+  $('#btnMisDocumentos').addEventListener('click', () => {
+    $('#drawer').classList.remove('open');
+    abrirDocumentos();
+  });
 
   ['perfil', 'vehiculo'].forEach(bindPhotoBox);
 }
