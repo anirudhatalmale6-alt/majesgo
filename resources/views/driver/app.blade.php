@@ -66,6 +66,11 @@
         .docchip.aprobado{background:rgba(0,200,83,.2);color:#5ce08b}
         .docchip.rechazado,.docchip.vencido{background:rgba(255,82,82,.2);color:#ff8a8a}
         .docup{margin-top:8px;display:grid;gap:6px}
+        /* Dos botones por documento: la cámara primero, que es lo que usa el conductor
+           con el papel en la mano, y "elegir archivo" para el SOAT que ya tiene en PDF. */
+        .docbtns{display:flex;gap:8px;margin-top:4px}
+        .docbtns .btn{flex:1;margin:0}
+        .docbtns .btn.sm{padding:11px 10px;font-size:13.5px}
         .docup input{margin:0}
         /* Zonas locales en el mapa del conductor (mismo criterio que el pasajero) */
         .zonemk{pointer-events:none}
@@ -626,7 +631,7 @@ window.MG = {
 <script src="/js/majesgo-car.js?v=2"></script>
 <script src="/js/despierto.js?v=1"></script>
 <script src="/js/rastreo.js?v=7"></script>
-<script src="/js/driver.js?v=51"></script>
+<script src="/js/driver.js?v=52"></script>
 <script src="/js/native.js?v=9"></script>
 </body>
 </html>

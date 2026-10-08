@@ -535,8 +535,20 @@ async function pintarDocumentos() {
             <!-- ⚠ Antes decía image/*: el selector de Android ofrecía CUALQUIER imagen,
                  incluidas las que el servidor rechaza, y el conductor se enteraba recién
                  después de subirla. Se listan los formatos de verdad aceptados, igual que
-                 en las fotos de perfil y vehículo, que ya lo hacían bien. -->
-            <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" data-file="${x.key}">
+                 en las fotos de perfil y vehículo, que ya lo hacían bien.
+
+                 Son DOS entradas y las dos están ocultas: el conductor ve dos botones.
+                 "Tomar foto" lleva capture y abre la cámara de una, que es lo que pidió Joel
+                 — es lo normal, el papel lo tiene en la mano. "Elegir archivo" queda para el
+                 SOAT que ya tiene guardado como PDF o la foto que sacó antes. -->
+            <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment"
+                   data-file="${x.key}" data-cam="1" hidden>
+            <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf"
+                   data-file="${x.key}" hidden>
+            <div class="docbtns">
+              <button type="button" class="btn amber sm" data-cam-for="${x.key}">📷 Tomar foto</button>
+              <button type="button" class="btn ghost sm" data-pick-for="${x.key}">Elegir archivo</button>
+            </div>
           </div>`}
       </div>
       <span class="docchip ${x.status}">${etiqueta[x.status] || x.status}</span>
@@ -545,13 +557,38 @@ async function pintarDocumentos() {
   $('#docList').querySelectorAll('input[data-file]').forEach((inp) => {
     inp.addEventListener('change', () => enviarDocumento(inp.dataset.file, inp));
   });
+  // Los dos botones visibles disparan la entrada que corresponde (cámara o archivo).
+  $('#docList').querySelectorAll('[data-cam-for]').forEach((b) => {
+    b.addEventListener('click', () =>
+      $(`#docList input[data-file="${b.dataset.camFor}"][data-cam]`).click());
+  });
+  $('#docList').querySelectorAll('[data-pick-for]').forEach((b) => {
+    b.addEventListener('click', () =>
+      $(`#docList input[data-file="${b.dataset.pickFor}"]:not([data-cam])`).click());
+  });
 }
 
 async function enviarDocumento(key, inp) {
   if (!inp.files || !inp.files[0]) return;
 
+  /* 🔴 ESTO ERA EL "Failed to fetch".
+     Se mandaba el archivo TAL CUAL salía de la cámara: en un celular de hoy son 8-12 MB. Con
+     la señal de la calle esa subida se corta a mitad de camino y fetch lanza un TypeError, que
+     es el "Failed to fetch" que se veía en pantalla — no es un rechazo del servidor, es que la
+     petición nunca llegó a completarse.
+     `shrinkPhoto()` ya existía y es justo por eso que las fotos de perfil y de vehículo SÍ
+     funcionaban: pasan por acá y suben ~300 KB. Los documentos eran los únicos que no la
+     usaban. Se reutiliza, no se inventa nada.
+     ⚠ Los PDF se mandan intactos: encogerlos con un canvas los destruiría. */
+  const original = inp.files[0];
+  const archivo = original.type && original.type.startsWith('image/')
+    ? await shrinkPhoto(original, 1600, 0.82)
+    : original;
+
   const fd = new FormData();
-  fd.append('file', inp.files[0]);
+  // Si shrinkPhoto devolvió un Blob hay que ponerle nombre: sin él, algunos servidores
+  // reciben el campo sin nombre de archivo y la validación de tipo se vuelve impredecible.
+  fd.append('file', archivo, archivo instanceof File ? archivo.name : 'documento.jpg');
   const num = $(`input[data-num="${key}"]`);
   const exp = $(`input[data-exp="${key}"]`);
   if (num && num.value.trim()) fd.append('number', num.value.trim());
@@ -572,7 +609,14 @@ async function enviarDocumento(key, inp) {
     // El motivo va pegado a la fila del documento, no en una alerta suelta: así el
     // conductor ve QUÉ archivo falló sin tener que adivinar cuál de los siete era.
     const fila = inp.closest('.docrow');
-    const msg = e && e.errors ? Object.values(e.errors)[0][0] : (e && e.message) || 'No se pudo enviar.';
+    /* ⚠ "Failed to fetch" lo escribe el navegador, en inglés, y no le dice nada al conductor.
+       Un TypeError de fetch NO es un rechazo del servidor: es que la petición no llegó a
+       completarse (se cortó la señal a mitad de la subida). Se traduce a algo accionable. */
+    let msg;
+    if (e && e.errors) msg = Object.values(e.errors)[0][0];
+    else if (e instanceof TypeError || /failed to fetch|network/i.test((e && e.message) || '')) {
+      msg = 'Se cortó la conexión al subir la foto. Revisa tu señal y vuelve a intentarlo.';
+    } else msg = (e && e.message) || 'No se pudo enviar.';
     if (fila) {
       let aviso = fila.querySelector('.docerr');
       if (!aviso) {
