@@ -123,8 +123,11 @@ class OnboardingController extends Controller
             $reglas['expires_at'] = ['required', 'date', 'after:'.now()->addDays(7)->toDateString()];
         }
 
-        $d = $request->validate($reglas, [
-            'expires_at.after' => 'La fecha de vencimiento debe tener al menos una semana por delante.',
+        $d = $request->validate($reglas, DriverDocuments::messages() + [
+            'expires_at.required' => 'Pon la fecha de vencimiento del documento.',
+            'expires_at.date'     => 'La fecha de vencimiento no es válida.',
+            'expires_at.after'    => 'La fecha de vencimiento debe tener al menos una semana por delante.',
+            'number.required'     => 'Escribe el número del documento.',
         ], ['file' => 'el archivo', 'number' => 'el número', 'expires_at' => 'el vencimiento']);
 
         DriverDocuments::submit($driver, $type, $request->file('file'),

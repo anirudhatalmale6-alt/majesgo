@@ -30,7 +30,38 @@ class DriverDocuments
 
     private const DIR = 'documentos';
 
-    public const RULES = ['required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:8192'];
+    /* ⚠ WEBP FALTABA Y ES LO QUE MANDA UN ANDROID.
+       El <input> ofrece `image/*`, o sea CUALQUIER imagen, y el servidor sólo admitía cuatro
+       formatos: el formulario invitaba a elegir algo que después rechazaba. Un conductor que
+       comparte la foto desde WhatsApp o la elige de ciertas galerías manda **webp**, y recibía
+       "The el archivo field must be a file of type: jpg, jpeg, png, pdf." Reproducido subiendo
+       un .webp real al endpoint: 422 con ese texto exacto.
+       GD en este servidor SÍ lee webp (gd_info: WebP Support = si), así que no hay nada que
+       impida aceptarlo.
+       HEIC/HEIF queda fuera a propósito: no hay imagick ni soporte en GD, no se puede ni
+       mostrar en el panel. Se avisa en español cómo resolverlo en vez de dar un error seco. */
+    public const RULES = ['required', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:12288'];
+
+    /**
+     * Mensajes en español. Sin esto Laravel contesta en inglés y mezcla el nombre traducido
+     * del campo: "The el archivo field must be a file of type: jpg, jpeg, png, pdf."
+     * El conductor que lo lee no entiende qué hacer.
+     */
+    public static function messages(): array
+    {
+        return [
+            'file.required' => 'Elige el archivo o la foto del documento.',
+            'file.file'     => 'No pudimos leer el archivo. Vuelve a elegirlo.',
+            'file.mimes'    => 'El archivo debe ser una foto JPG, PNG o WEBP, o un PDF. '
+                              .'Si tu celular guarda las fotos en HEIC, cámbialo a JPG en los '
+                              .'ajustes de la cámara, o manda la foto por WhatsApp a ti mismo y '
+                              .'sube esa.',
+            'file.max'      => 'La foto pesa más de 12 MB. Sácala con menos resolución o recórtala.',
+            // ⚠ 'uploaded' salta cuando PHP corta la subida ANTES de Laravel (upload_max_filesize).
+            // Sin este mensaje el conductor ve un error genérico que no dice nada.
+            'file.uploaded' => 'La foto pesa más de lo que admite el servidor. Usa una más liviana.',
+        ];
+    }
 
     /** ¿Está encendida la exigencia de documentos? */
     public static function required(): bool

@@ -532,7 +532,11 @@ async function pintarDocumentos() {
           <div class="docup">
             ${x.number ? `<input type="text" placeholder="Número" data-num="${x.key}">` : ''}
             ${x.expiry ? `<input type="date" placeholder="Vencimiento" data-exp="${x.key}">` : ''}
-            <input type="file" accept="image/*,application/pdf" data-file="${x.key}">
+            <!-- ⚠ Antes decía image/*: el selector de Android ofrecía CUALQUIER imagen,
+                 incluidas las que el servidor rechaza, y el conductor se enteraba recién
+                 después de subirla. Se listan los formatos de verdad aceptados, igual que
+                 en las fotos de perfil y vehículo, que ya lo hacían bien. -->
+            <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" data-file="${x.key}">
           </div>`}
       </div>
       <span class="docchip ${x.status}">${etiqueta[x.status] || x.status}</span>
