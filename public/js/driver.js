@@ -541,7 +541,18 @@ async function pintarDocumentos() {
                  "Tomar foto" lleva capture y abre la cámara de una, que es lo que pidió Joel
                  — es lo normal, el papel lo tiene en la mano. "Elegir archivo" queda para el
                  SOAT que ya tiene guardado como PDF o la foto que sacó antes. -->
-            <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment"
+            <!-- 🔴 ACÁ DICE image/* A PROPÓSITO Y NO SE PUEDE CAMBIAR POR LA LISTA EXPLÍCITA.
+                 Capacitor decide si abre la cámara o la galería con esta línea exacta
+                 (BridgeWebChromeClient.onShowFileChooser):
+
+                   capturePhoto = captureEnabled && acceptTypes.contains("image/*")
+
+                 Compara la cadena TAL CUAL. Con accept="image/jpeg,image/png,image/webp" la
+                 lista no contiene "image/*", capturePhoto queda en false y se va por
+                 showFilePicker: se abre la GALERÍA aunque el input lleve capture.
+                 Fue justo lo que rompí al listar los formatos para evitar el HEIC.
+                 El otro input, el de "Elegir archivo", sí lleva la lista explícita. -->
+            <input type="file" accept="image/*" capture="environment"
                    data-file="${x.key}" data-cam="1" hidden>
             <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf"
                    data-file="${x.key}" hidden>
