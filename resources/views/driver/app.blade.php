@@ -71,6 +71,12 @@
         .docbtns{display:flex;gap:8px;margin-top:4px}
         .docbtns .btn{flex:1;margin:0}
         .docbtns .btn.sm{padding:11px 10px;font-size:13.5px}
+        /* Barra de avance de la subida. Va dentro de la fila del documento o de la caja
+           de la foto, no suelta en la pantalla: con ocho documentos hay que saber CUÁL. */
+        .upbox{display:flex;align-items:center;gap:9px;margin-top:8px}
+        .upbar{flex:1;height:7px;border-radius:99px;background:rgba(255,255,255,.14);overflow:hidden}
+        .upbar i{display:block;height:100%;width:0;background:var(--verde);transition:width .2s ease}
+        .uptxt{font-size:12px;font-weight:700;color:#9aa4b0;min-width:76px;text-align:right}
         .docup input{margin:0}
         /* Zonas locales en el mapa del conductor (mismo criterio que el pasajero) */
         .zonemk{pointer-events:none}
@@ -631,7 +637,7 @@ window.MG = {
 <script src="/js/majesgo-car.js?v=2"></script>
 <script src="/js/despierto.js?v=1"></script>
 <script src="/js/rastreo.js?v=7"></script>
-<script src="/js/driver.js?v=53"></script>
+<script src="/js/driver.js?v=54"></script>
 <script src="/js/native.js?v=9"></script>
 </body>
 </html>

@@ -579,6 +579,72 @@ async function pintarDocumentos() {
   });
 }
 
+/**
+ * Barra de avance dentro de la fila del documento que se está subiendo.
+ * Va PEGADA a su fila y no suelta en la pantalla: con ocho documentos, un indicador
+ * genérico no dice cuál se está mandando.
+ */
+function mostrarProgreso(fila) {
+  const destino = fila.querySelector('.di') || fila;
+  let caja = destino.querySelector('.upbox');
+  if (!caja) {
+    caja = document.createElement('div');
+    caja.className = 'upbox';
+    caja.innerHTML = '<div class="upbar"><i></i></div><span class="uptxt">0%</span>';
+    destino.appendChild(caja);
+  }
+  const barra = caja.querySelector('i');
+  const txt = caja.querySelector('.uptxt');
+  return {
+    set(pct, procesando) {
+      barra.style.width = pct + '%';
+      // ⚠ Llegar al 100% de la SUBIDA no es haber terminado: falta que el servidor guarde
+      // y conteste. Decir "listo" ahí sería mentirle al conductor.
+      txt.textContent = procesando ? 'Procesando…' : pct + '%';
+    },
+    quitar() { caja.remove(); },
+  };
+}
+
+/**
+ * Sube un archivo informando el avance real.
+ *
+ * ⚠ Se usa XMLHttpRequest y NO fetch a propósito: fetch NO expone el progreso de SUBIDA.
+ * Hay quien simula una barra con un temporizador, pero eso miente — con mala señal la barra
+ * llegaría al 100% mientras el archivo sigue viajando. `xhr.upload.onprogress` da los bytes
+ * que de verdad salieron.
+ *
+ * El 100% de la subida NO es el final: después el servidor todavía tiene que guardar y
+ * responder (y si es HEIC, convertirlo). Por eso al llegar a 100 se avisa "procesando".
+ */
+function subirConProgreso(url, fd, onProgreso) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', url, true);
+    xhr.setRequestHeader('X-CSRF-TOKEN', MG.csrf);
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    xhr.withCredentials = true;
+
+    xhr.upload.onprogress = (e) => {
+      if (!e.lengthComputable || !onProgreso) return;
+      onProgreso(Math.min(99, Math.round((e.loaded / e.total) * 100)), false);
+    };
+    xhr.upload.onload = () => { if (onProgreso) onProgreso(100, true); };
+
+    xhr.onload = () => {
+      let data = {};
+      try { data = JSON.parse(xhr.responseText || '{}'); } catch (e) { data = {}; }
+      if (xhr.status >= 200 && xhr.status < 300) resolve(data);
+      else reject(Object.assign(data, { status: xhr.status }));
+    };
+    // ⚠ Un corte de red acá NO es un rechazo del servidor: se marca para poder avisarlo
+    // en español en vez de mostrar el texto crudo del navegador.
+    xhr.onerror = () => reject({ red: true });
+    xhr.ontimeout = () => reject({ red: true });
+    xhr.send(fd);
+  });
+}
+
 async function enviarDocumento(key, inp) {
   if (!inp.files || !inp.files[0]) return;
 
@@ -606,26 +672,22 @@ async function enviarDocumento(key, inp) {
   if (exp && exp.value) fd.append('expires_at', exp.value);
 
   inp.disabled = true;
+  const fila = inp.closest('.docrow');
+  const barra = fila ? mostrarProgreso(fila) : null;
   try {
-    const r = await fetch('/conductor/api/documents/' + key, {
-      method: 'POST',
-      headers: { 'X-CSRF-TOKEN': MG.csrf, 'X-Requested-With': 'XMLHttpRequest' },
-      body: fd,
-      credentials: 'same-origin',
+    await subirConProgreso('/conductor/api/documents/' + key, fd, (pct, procesando) => {
+      if (barra) barra.set(pct, procesando);
     });
-    const data = await r.json().catch(() => ({}));
-    if (!r.ok) throw data;
     await pintarDocumentos();
   } catch (e) {
+    if (barra) barra.quitar();
     // El motivo va pegado a la fila del documento, no en una alerta suelta: así el
     // conductor ve QUÉ archivo falló sin tener que adivinar cuál de los siete era.
-    const fila = inp.closest('.docrow');
-    /* ⚠ "Failed to fetch" lo escribe el navegador, en inglés, y no le dice nada al conductor.
-       Un TypeError de fetch NO es un rechazo del servidor: es que la petición no llegó a
-       completarse (se cortó la señal a mitad de la subida). Se traduce a algo accionable. */
+    /* ⚠ Un corte de red NO es un rechazo del servidor. Antes esto mostraba el texto crudo
+       del navegador ("Failed to fetch"), en inglés y sin decir qué hacer. */
     let msg;
     if (e && e.errors) msg = Object.values(e.errors)[0][0];
-    else if (e instanceof TypeError || /failed to fetch|network/i.test((e && e.message) || '')) {
+    else if (e && e.red) {
       msg = 'Se cortó la conexión al subir la foto. Revisa tu señal y vuelve a intentarlo.';
     } else msg = (e && e.message) || 'No se pudo enviar.';
     if (fila) {
@@ -2162,11 +2224,17 @@ function photoBox(type, photos) {
       ${p.status === 'pendiente' && p.pending_url ? '<div class="vehnote">Esta es la foto que enviaste. Se publicará cuando la central la apruebe.</div>' : ''}
       ${reason}
       <div class="vehnote">${m.note}</div>
-      <input type="file" class="pfile" accept="image/jpeg,image/png,image/webp" capture="${m.capture}" hidden>
+      <!-- 🔴 El accept de la entrada de CÁMARA tiene que ser "image/*" literal. Capacitor
+           decide cámara vs galería con acceptTypes.contains("image/*"): con la lista
+           explícita de formatos abría la GALERÍA aunque llevara capture. Era el mismo
+           problema que tenían los documentos. -->
+      <input type="file" class="pcam" accept="image/*" capture="${m.capture}" hidden>
+      <input type="file" class="pfile" accept="image/jpeg,image/png,image/webp" hidden>
       <div class="vehacts">
-        <button class="btn ghost pPick">${shown ? 'Cambiar foto' : 'Subir foto'}</button>
-        ${shown ? '<button class="btn ghost danger pDel">Quitar</button>' : ''}
+        <button class="btn amber pCam">📷 Tomar foto</button>
+        <button class="btn ghost pPick">${shown ? 'Elegir otra' : 'Elegir de galería'}</button>
       </div>
+      ${shown ? '<div class="vehacts"><button class="btn ghost danger pDel">Quitar</button></div>' : ''}
     </div>`;
 }
 
@@ -2174,8 +2242,12 @@ function bindPhotoBox(type) {
   const box = $(`.vehbox[data-ptype="${type}"]`);
   if (!box) return;
   const file = box.querySelector('.pfile');
+  const cam = box.querySelector('.pcam');
   box.querySelector('.pPick').addEventListener('click', () => file.click());
-  file.addEventListener('change', (e) => { if (e.target.files[0]) uploadDriverPhoto(type, e.target.files[0], box); });
+  box.querySelector('.pCam').addEventListener('click', () => cam.click());
+  const alElegir = (e) => { if (e.target.files[0]) uploadDriverPhoto(type, e.target.files[0], box); };
+  file.addEventListener('change', alElegir);
+  cam.addEventListener('change', alElegir);
   const del = box.querySelector('.pDel');
   if (del) del.addEventListener('click', () => deleteDriverPhoto(type, box));
 }
@@ -2211,25 +2283,27 @@ function shrinkPhoto(file, maxSide = 1280, quality = 0.85) {
 
 async function uploadDriverPhoto(type, file, box) {
   const btn = box.querySelector('.pPick');
+  const cam = box.querySelector('.pCam');
   const old = btn.textContent;
-  btn.disabled = true; btn.innerHTML = '<span class="spin"></span>';
+  btn.disabled = true; cam.disabled = true;
+  // Misma barra que en los documentos: el conductor ve avanzar su foto en vez de un
+  // girador que no dice si va por la mitad o está trabada.
+  const barra = mostrarProgreso(box);
   try {
     const small = await shrinkPhoto(file);
     const fd = new FormData();
     fd.append('photo', small, type + '.jpg');
     // FormData va sin Content-Type: el navegador pone el boundary correcto
-    const res = await fetch('/conductor/api/photo/' + type, {
-      method: 'POST',
-      headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': MG.csrf },
-      body: fd,
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.message || 'No se pudo subir la foto.');
+    const data = await subirConProgreso('/conductor/api/photo/' + type, fd,
+      (pct, procesando) => barra.set(pct, procesando));
     toast(data.message || 'Foto enviada a revisión.');
-    openDrawer();
+    openDrawer();   // vuelve a dibujar el cajón, y con él la caja de la foto
   } catch (e) {
-    toast(e.message);
-    btn.disabled = false; btn.textContent = old;
+    barra.quitar();
+    toast(e && e.red
+      ? 'Se cortó la conexión al subir la foto. Revisa tu señal y vuelve a intentarlo.'
+      : (e && e.message) || 'No se pudo subir la foto.');
+    btn.disabled = false; cam.disabled = false; btn.textContent = old;
   }
 }
 
