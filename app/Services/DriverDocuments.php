@@ -38,9 +38,12 @@ class DriverDocuments
        un .webp real al endpoint: 422 con ese texto exacto.
        GD en este servidor SÍ lee webp (gd_info: WebP Support = si), así que no hay nada que
        impida aceptarlo.
-       HEIC/HEIF queda fuera a propósito: no hay imagick ni soporte en GD, no se puede ni
-       mostrar en el panel. Se avisa en español cómo resolverlo en vez de dar un error seco. */
-    public const RULES = ['required', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:12288'];
+
+       HEIC/HEIF TAMBIÉN se aceptan desde el 8-10-2026. Antes se rechazaban y se le pedía al
+       conductor que cambiara los ajustes de su cámara — una tarea ajena al problema que la
+       mayoría no sabe hacer. Ahora se convierten a JPG en el servidor al guardarlos
+       (ver contenidoNormalizado). */
+    public const RULES = ['required', 'file', 'mimes:jpg,jpeg,png,webp,heic,heif,pdf', 'max:12288'];
 
     /**
      * Mensajes en español. Sin esto Laravel contesta en inglés y mezcla el nombre traducido
@@ -52,10 +55,9 @@ class DriverDocuments
         return [
             'file.required' => 'Elige el archivo o la foto del documento.',
             'file.file'     => 'No pudimos leer el archivo. Vuelve a elegirlo.',
-            'file.mimes'    => 'El archivo debe ser una foto JPG, PNG o WEBP, o un PDF. '
-                              .'Si tu celular guarda las fotos en HEIC, cámbialo a JPG en los '
-                              .'ajustes de la cámara, o manda la foto por WhatsApp a ti mismo y '
-                              .'sube esa.',
+            // Ya no se le pide al conductor que cambie los ajustes de su cámara: el HEIC se
+            // convierte en el servidor (ver contenidoNormalizado).
+            'file.mimes'    => 'El archivo debe ser una foto (JPG, PNG, WEBP o HEIC) o un PDF.',
             'file.max'      => 'La foto pesa más de 12 MB. Sácala con menos resolución o recórtala.',
             // ⚠ 'uploaded' salta cuando PHP corta la subida ANTES de Laravel (upload_max_filesize).
             // Sin este mensaje el conductor ve un error genérico que no dice nada.
@@ -73,6 +75,51 @@ class DriverDocuments
      * El conductor envía un documento. Queda pendiente de revisión.
      * Si ya había uno pendiente del mismo tipo, se reemplaza (no se acumulan borradores).
      */
+    /**
+     * Deja el archivo en un formato que el panel pueda MOSTRAR.
+     *
+     * El celular guarda las fotos en HEIC y ni el navegador del panel ni GD lo leen. Antes se
+     * rechazaba y se le pedía al conductor que cambiara los ajustes de su cámara: una tarea
+     * ajena al problema, que además muchos no saben hacer. Se convierte acá y listo.
+     *
+     * ⚠ Se usa `heif-convert` (paquete libheif-examples) y NO GD/Imagick: GD no sabe de HEIC y
+     * no hay imagick instalado. Hace falta además libheif-plugin-libde265, porque las fotos de
+     * los celulares son HEVC y el servidor sólo traía los plugins de AV1 — con esos, convertir
+     * una foto real falla aunque heif-convert exista. Medido: 0.12 s por foto.
+     *
+     * Si la conversión falla por lo que sea, se guarda el archivo original: perder el documento
+     * sería peor que guardarlo en un formato incómodo.
+     *
+     * @return array{0:string,1:string} contenido y extensión con la que guardarlo
+     */
+    private static function contenidoNormalizado(UploadedFile $file): array
+    {
+        $ext = strtolower($file->getClientOriginalExtension() ?: 'jpg');
+        $esHeic = in_array($ext, ['heic', 'heif'], true)
+            || in_array(strtolower((string) $file->getMimeType()), ['image/heic', 'image/heif'], true);
+
+        if (! $esHeic) {
+            return [$file->get(), $ext];
+        }
+
+        $entrada = $file->getRealPath();
+        $salida = tempnam(sys_get_temp_dir(), 'heic').'.jpg';
+        $cmd = sprintf('heif-convert -q 82 %s %s 2>&1', escapeshellarg($entrada), escapeshellarg($salida));
+        @exec($cmd, $out, $rc);
+
+        if ($rc === 0 && is_file($salida) && filesize($salida) > 0 && @getimagesize($salida)) {
+            $jpg = file_get_contents($salida);
+            @unlink($salida);
+
+            return [$jpg, 'jpg'];
+        }
+
+        @unlink($salida);
+        \Log::warning('No se pudo convertir un HEIC', ['rc' => $rc, 'salida' => implode(' ', (array) $out)]);
+
+        return [$file->get(), $ext];
+    }
+
     public static function submit(Driver $driver, DocumentType $type, UploadedFile $file,
                                   ?string $number = null, ?string $expires = null): DriverDocument
     {
@@ -86,8 +133,10 @@ class DriverDocuments
             $anterior->delete();
         }
 
-        $nombre = self::DIR.'/'.$driver->id.'/'.$type->key.'-'.Str::random(10).'.'.$file->getClientOriginalExtension();
-        Storage::disk(self::DISK)->put($nombre, $file->get());
+        [$contenido, $ext] = self::contenidoNormalizado($file);
+
+        $nombre = self::DIR.'/'.$driver->id.'/'.$type->key.'-'.Str::random(10).'.'.$ext;
+        Storage::disk(self::DISK)->put($nombre, $contenido);
 
         return DriverDocument::create([
             'driver_id'        => $driver->id,
