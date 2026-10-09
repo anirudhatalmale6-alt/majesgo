@@ -14,6 +14,7 @@ use App\Services\Reports;
 use App\Services\Routing;
 use App\Services\WebPushSender;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class RideController extends Controller
 {
@@ -513,6 +514,18 @@ class RideController extends Controller
         }
         $d = $request->validate(['body' => ['required', 'string', 'max:500']]);
         $m = $ride->messages()->create(['sender' => 'pasajero', 'body' => trim($d['body'])]);
+
+        /* El mismo aviso que faltaba del otro lado. Joel reportó sólo conductor→pasajero,
+           pero pasajero→conductor estaba igual de mudo: el conductor va manejando y no mira
+           la pantalla, así que es incluso más importante que suene.
+           Tag por viaje: un mensaje nuevo reemplaza al anterior en vez de apilar avisos. */
+        $quien = trim((string) optional($ride->passenger)->name) ?: 'Tu pasajero';
+        defer(fn () => WebPushSender::toOwner('driver', (int) $ride->driver_id, [
+            'title' => $quien.' te escribió',
+            'body'  => Str::limit($m->body, 120),
+            'url'   => '/conductor',
+            'tag'   => 'chat-'.$ride->id,
+        ]));
 
         return response()->json(['ok' => true, 'msg' => ['id' => $m->id, 'body' => $m->body, 'mine' => true, 'time' => $m->created_at->format('H:i')]]);
     }

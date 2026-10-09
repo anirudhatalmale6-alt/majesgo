@@ -16,6 +16,7 @@ use App\Services\ReviewerSim;
 use App\Services\Routing;
 use App\Services\WebPushSender;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 
 class RideController extends Controller
@@ -606,6 +607,21 @@ class RideController extends Controller
         }
         $d = $request->validate(['body' => ['required', 'string', 'max:500']]);
         $m = $ride->messages()->create(['sender' => 'conductor', 'body' => trim($d['body'])]);
+
+        /* ⚠ ESTE AVISO NO EXISTÍA. El mensaje se guardaba y el pasajero sólo lo veía si tenía
+           el chat abierto en ese momento. Con la app cerrada o en el bolsillo, el conductor
+           escribía "estoy en la esquina" y del otro lado no pasaba nada — justo cuando el
+           chat más sirve, que es con el conductor esperando en la calle.
+
+           El tag es POR VIAJE: así un segundo mensaje REEMPLAZA al anterior en vez de apilar
+           una notificación por cada línea que escriba el conductor. */
+        $quien = trim((string) optional($ride->driver)->full_name) ?: 'Tu conductor';
+        defer(fn () => WebPushSender::toOwner('passenger', (int) $ride->passenger_id, [
+            'title' => $quien.' te escribió',
+            'body'  => Str::limit($m->body, 120),
+            'url'   => '/app',
+            'tag'   => 'chat-'.$ride->id,
+        ]));
 
         return response()->json(['ok' => true, 'msg' => ['id' => $m->id, 'body' => $m->body, 'mine' => true, 'time' => $m->created_at->format('H:i')]]);
     }
