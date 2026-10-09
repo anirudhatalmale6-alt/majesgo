@@ -88,9 +88,13 @@ function showKickNotice() {
 
 /* ---------- Toast ---------- */
 let toastT;
-function toast(msg) {
+/**
+ * @param {number} [ms] cuánto queda en pantalla. Un aviso de dos renglones no se lee en los
+ *                      2,8 s de siempre: si da instrucciones, hay que darle tiempo.
+ */
+function toast(msg, ms) {
   const t = $('#toast'); t.textContent = msg; t.classList.add('show');
-  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2800);
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), ms || 2800);
 }
 function esc(s) { return (s || '').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
 
@@ -1193,24 +1197,50 @@ async function fixPush() {
   const b = $('#btnFixPush');
   if (b) { b.disabled = true; b.textContent = 'Activando…'; }
 
-  // App nativa: volver a pedir permiso y re-registrar en Firebase.
+  /* ⚠ ANTES ACÁ HABÍA DOS `catch (e) {}` VACÍOS Y UNA ESPERA FIJA DE 2,5 s.
+     Eso juntaba en un mismo mensaje dos problemas que se resuelven distinto:
+
+       · el conductor DENEGÓ el permiso  → hay que ir a los ajustes del celular;
+       · el permiso está dado y el token de Firebase tardó más de 2,5 s → no hay nada que
+         arreglar, sólo esperar, y el aviso "no se pudo" era FALSO.
+
+     Un conductor que ve "revisa los permisos" cuando sus permisos están bien se va a los
+     ajustes, encuentra todo en orden y concluye que la app está rota. */
+  let permiso = null;
   try {
     const PN = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.PushNotifications;
     if (PN) {
-      const p = await PN.checkPermissions();
-      if (!p || p.receive !== 'granted') await PN.requestPermissions();
-      await PN.register();
+      let p = await PN.checkPermissions();
+      if (!p || p.receive !== 'granted') p = await PN.requestPermissions();
+      permiso = (p && p.receive) || null;
+      // Sin permiso, registrar no sirve de nada y encima tarda.
+      if (permiso === 'granted') await PN.register();
     }
-  } catch (e) {}
+  } catch (e) {
+    permiso = permiso || 'error';
+  }
   // Web: suscripción del navegador (la app nativa también la acepta como respaldo).
   try { await enablePush(); } catch (e) {}
 
-  // Darle un momento a Firebase para devolver el token y guardarlo.
-  await new Promise((r) => setTimeout(r, 2500));
-  await refreshPushState();
+  /* El token de Firebase no llega al instante y el tiempo depende de la señal. En vez de
+     esperar un número fijo y declarar el fracaso, se pregunta al servidor varias veces:
+     en cuanto aparece el token se corta. Así el que tiene mala señal no recibe un "no se
+     pudo" que era mentira. */
+  for (let i = 0; i < 7 && !pushOk; i++) {
+    await new Promise((r) => setTimeout(r, i === 0 ? 1500 : 1800));
+    await refreshPushState();
+  }
 
-  if (pushOk) toast('Listo, ya te avisaremos aunque tengas la app cerrada.');
-  else toast('No se pudo activar. Revisa los permisos de notificaciones de Majes Drive en los ajustes del celular.');
+  if (pushOk) {
+    toast('Listo, ya te avisaremos aunque tengas la app cerrada.');
+  } else if (permiso === 'denied') {
+    // Mensaje distinto porque la solución es distinta, y con el camino exacto: decirle
+    // "revisa los permisos" sin decirle DÓNDE no le sirve a nadie.
+    toast('Tu celular tiene bloqueados los avisos de Majes Drive. Entra a Ajustes del '
+        + 'celular → Aplicaciones → Majes Drive → Notificaciones y actívalas.', 9000);
+  } else {
+    toast('No pudimos activarlos ahora. Revisa tu señal y vuelve a intentarlo en un momento.', 7000);
+  }
   renderHome();
 }
 
