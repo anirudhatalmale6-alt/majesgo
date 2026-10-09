@@ -199,17 +199,27 @@ function playAlertFile() {
 }
 
 /* Aviso de VIAJE NUEVO: suena y vibra en repeticiones mientras la tarjeta está en
-   pantalla, no una sola vez — el conductor casi nunca está mirando el teléfono. */
-const NEW_RIDE_REPEATS = 6, NEW_RIDE_GAP_MS = 3000;
+   pantalla, no una sola vez — el conductor casi nunca está mirando el teléfono.
+
+   Antes eran 6 repeticiones cada 3 s y se callaba sola a los 18 s aunque el conductor no
+   hubiera contestado. Joel: en la calle ese silencio le cuesta la carrera. Ahora insiste
+   cada 2 s HASTA que acepte, rechace o abra la tarjeta.
+
+   ⚠ IGUAL LLEVA UN TOPE DE TIEMPO, y no es un detalle menor: si alguna de las vías que la
+   apagan fallara, un timbre "hasta que conteste" sonaría PARA SIEMPRE con el celular en el
+   bolsillo. El tope es la red de seguridad; lo normal es que la apague el conductor.
+   Se mide por TIEMPO y no por cantidad de repeticiones, así sigue siendo correcto si mañana
+   se cambia el intervalo. */
+const NEW_RIDE_GAP_MS = 2000, NEW_RIDE_MAX_MS = 40000;
 let newRideTimer = null;
 const rideAlert = {
   start() {
     this.stop();
-    let n = 0;
+    const desde = Date.now();
     const ring = () => {
       if (!playAlertFile()) playTones([660, 880, 1175], 0.5);
       if (navigator.vibrate) { try { navigator.vibrate([400, 150, 400]); } catch (e) {} }
-      if (++n >= NEW_RIDE_REPEATS) this.stop();
+      if (Date.now() - desde >= NEW_RIDE_MAX_MS) this.stop();
     };
     ring();
     newRideTimer = setInterval(ring, NEW_RIDE_GAP_MS);
@@ -1488,6 +1498,13 @@ function renderRequests(reqs) {
   const nuevos = codes.filter((c) => !reqSeen.has(c));
   reqSeen = new Set(codes); // olvidar los que ya no están: si vuelven, vuelven a avisar
   if (nuevos.length && !reqCode) rideAlert.start();
+
+  /* ⚠ Y SE CALLA CUANDO YA NO HAY NADA QUE OFRECER.
+     Antes el timbre se agotaba solo a las 6 repeticiones, así que esto no hacía falta. Ahora
+     insiste hasta que el conductor conteste, y si la carrera se cae sola (se venció, la tomó
+     otro, el pasajero canceló) nadie la iba a contestar nunca: seguiría sonando hasta el tope
+     de seguridad con el celular en el bolsillo. */
+  if (!codes.length) rideAlert.stop();
 
   // Ficha abierta: si ese viaje ya no está (lo tomó otro o el pasajero canceló), avisar y
   // devolverlo a la lista en vez de dejarlo mirando una tarjeta muerta.
