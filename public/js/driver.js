@@ -757,8 +757,16 @@ async function start() {
          documentos. Arrancarla igual importa: así el botón "Volver" lo deja en una app que
          funciona y no en una pantalla vacía. */
       await boot();
-      const postulando = m.onboarding && m.onboarding !== 'aprobado';
-      if (m.docs_blocked || postulando) await abrirDocumentos();
+      /* ⚠ SÓLO SE LO LLEVA A SUS PAPELES SI NO MANDÓ NADA TODAVÍA.
+         Antes bastaba con no estar 'aprobado', y eso terminó molestando a quien ya había
+         subido todo: esta mañana se separaron el DNI y el brevete en dos caras, así que
+         conductores que estaban completos pasaron a tener dos papeles nuevos pendientes y la
+         app los mandaba a documentos CADA VEZ que abrían, aunque la central ya los había
+         dejado trabajar mientras regularizan.
+         El que no mandó NADA no sabe por dónde empezar y hay que llevarlo. El que está a
+         mitad de camino ya sabe dónde están: los tiene en Mi cuenta, con su estado. */
+      const sinEmpezar = m.onboarding && m.onboarding !== 'aprobado' && !m.docs_enviados;
+      if (m.docs_blocked || sinEmpezar) await abrirDocumentos();
     }
     else { $('#auth').classList.remove('hidden'); }
   } catch (e) { $('#auth').classList.remove('hidden'); }

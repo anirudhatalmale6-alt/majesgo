@@ -33,6 +33,10 @@ class AuthController extends Controller
             // documentos en vez de dejarlo mirando un mapa donde nunca le va a entrar un viaje.
             'onboarding'   => $d->onboarding_status,
             'docs_blocked' => \App\Services\DriverDocuments::blocking($d),
+            // ¿YA MANDÓ ALGO? No es lo mismo el que no sabe por dónde empezar que el que está
+            // a mitad de camino y la central dejó trabajar mientras regulariza. Al primero hay
+            // que llevarlo a sus papeles; al segundo, dejarlo trabajar.
+            'docs_enviados' => \App\Models\DriverDocument::where('driver_id', $d->id)->exists(),
             'csrf' => csrf_token(),
         ]);
     }
