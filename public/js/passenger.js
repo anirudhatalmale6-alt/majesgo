@@ -175,6 +175,8 @@ async function doAuth() {
     if (r && r.csrf) MG.csrf = r.csrf;   // el token rota al regenerar la sesión
     $('#auth').classList.add('hidden');
     await boot();
+    // Sólo al CREAR la cuenta, no al volver a entrar: a quien ya usó la app no se le repite.
+    if (authMode === 'register') darLaBienvenida(r && r.passenger && r.passenger.id);
   } catch (e) {
     const msg = e.errors ? Object.values(e.errors)[0][0] : e.message;
     err.textContent = msg; err.style.display = 'block';
@@ -1388,6 +1390,41 @@ function openCancelModal() {
   renderCancelStep1();
   $('#cancelModal').classList.remove('hidden');
 }
+/**
+ * Bienvenida al pasajero NUEVO, una sola vez.
+ *
+ * Joel: hay cuentas nuevas que piden carreras falsas "para probar". Esto es un aviso, no un
+ * castigo — él pidió expresamente que por ahora no haya bloqueos automáticos.
+ *
+ * ⚠ Se marca por ID DE PASAJERO y no con una bandera suelta: en un celular prestado o
+ * compartido, una bandera genérica haría que el segundo usuario nunca vea el mensaje.
+ * Si reinstala la app lo verá otra vez, y está bien: es un recordatorio, no un trámite.
+ */
+function darLaBienvenida(idPasajero) {
+  if (!idPasajero) return;
+  const llave = 'mg_bienvenida_' + idPasajero;
+  try { if (localStorage.getItem(llave)) return; } catch (e) { /* sin storage: se muestra igual */ }
+
+  const m = $('#welcomeModal');
+  if (!m) return;
+  m.innerHTML = `
+    <div class="modalcard">
+      <div class="micon">🚕</div>
+      <h2>¡Bienvenido a Majes Drive!</h2>
+      <p class="msub">Para brindar un mejor servicio a todos, solicita un viaje solo cuando realmente necesites un taxi.</p>
+      <p class="msub">Recuerda que las solicitudes falsas o repetidas pueden generar restricciones en tu cuenta.</p>
+      <p class="msub">¡Gracias por ayudarnos a mejorar el servicio!</p>
+      <button class="btn" id="wcOk">Entendido</button>
+    </div>`;
+  m.classList.remove('hidden');
+  $('#wcOk').addEventListener('click', () => {
+    // Se marca al CERRARLO, no al abrirlo: si la app se cierra antes de leerlo, se lo
+    // volvemos a mostrar en vez de darlo por leído.
+    try { localStorage.setItem(llave, '1'); } catch (e) {}
+    m.classList.add('hidden'); m.innerHTML = '';
+  });
+}
+
 function closeCancelModal() {
   const m = $('#cancelModal'); m.classList.add('hidden'); m.innerHTML = '';
 }

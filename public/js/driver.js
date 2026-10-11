@@ -739,10 +739,26 @@ async function start() {
     if (m.authenticated) {
       me = m.driver;
       $('#auth').classList.add('hidden');
-      // Un postulante sin aprobar no tiene nada que hacer en el mapa: no le va a entrar
-      // ningún viaje. Se lo lleva directo a su lista de papeles.
-      if (m.docs_blocked) { await abrirDocumentos(); return; }
+
+      /* ⚠ SE MIRABA SÓLO `docs_blocked` Y ESO MANDABA AL MAPA A QUIEN ESTABA A MEDIO
+         REGISTRARSE.
+
+         `docs_blocked` responde "¿puede trabajar?" y lo gobierna el interruptor de exigir
+         documentos, que hoy está APAGADO. Con el interruptor apagado nadie queda bloqueado,
+         ni siquiera el que acaba de registrarse y no subió nada, así que al reabrir la app
+         aterrizaba en la pantalla de carreras en vez de en sus papeles. Varios conductores lo
+         reportaron como "me saca del registro".
+
+         Son dos preguntas distintas y no hay que mezclarlas:
+           · ¿puede trabajar?            -> docs_blocked (depende del interruptor)
+           · ¿terminó de postularse?     -> onboarding_status (no depende de nada más)
+
+         Ahora se arranca SIEMPRE la app y después, si sigue postulándose, se lo lleva a sus
+         documentos. Arrancarla igual importa: así el botón "Volver" lo deja en una app que
+         funciona y no en una pantalla vacía. */
       await boot();
+      const postulando = m.onboarding && m.onboarding !== 'aprobado';
+      if (m.docs_blocked || postulando) await abrirDocumentos();
     }
     else { $('#auth').classList.remove('hidden'); }
   } catch (e) { $('#auth').classList.remove('hidden'); }

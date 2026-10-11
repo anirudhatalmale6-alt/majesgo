@@ -408,6 +408,8 @@
     </div>
 
     <!-- Modal de cancelación del pasajero (lo llena passenger.js) -->
+    <!-- Bienvenida al pasajero nuevo (la llena passenger.js, una sola vez por cuenta) -->
+    <div class="modal hidden" id="welcomeModal"></div>
     <div class="modal hidden" id="cancelModal"></div>
 
     <!-- Modal de denuncia al conductor (lo llena passenger.js) -->
@@ -432,7 +434,7 @@ window.MG = {
 </script>
 <script src="/js/pois.js?v=5"></script>
 <script src="/js/majesgo-car.js?v=2"></script>
-<script src="/js/passenger.js?v=49"></script>
+<script src="/js/passenger.js?v=50"></script>
 <script src="/js/native.js?v=9"></script>
 </body>
 </html>
