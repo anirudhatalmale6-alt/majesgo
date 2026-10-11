@@ -65,7 +65,21 @@ return [
     |
     */
 
-    'timezone' => 'UTC',
+    /*
+     * ⚠ ESTABA FIJO EN 'UTC' E IGNORABA APP_TIMEZONE del .env.
+     *
+     * Con la app en UTC, a un conductor de Majes un viaje de las 12:21 le figuraba como 17:21
+     * y "Ganancias del día" se le ponía en cero a las 19:00, en plena jornada de la tarde.
+     *
+     * Se lee del entorno para que el servidor mande (Perú es UTC-5 todo el año, sin horario
+     * de verano). El valor por defecto queda en UTC por si algún día se despliega en otro
+     * lado sin la variable puesta.
+     *
+     * ⚠ Cambiar esto SIN mover los datos ya guardados corre todo el historial 5 horas: los
+     * valores en la base se escribieron con la zona anterior. El 2026-10-11 se movieron las
+     * 59 columnas de fecha (2.193 valores) antes de tocar esta línea.
+     */
+    'timezone' => env('APP_TIMEZONE', 'UTC'),
 
     /*
     |--------------------------------------------------------------------------
