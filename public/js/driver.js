@@ -1241,6 +1241,11 @@ async function fixPush() {
       permiso = (p && p.receive) || null;
       // Sin permiso, registrar no sirve de nada y encima tarda.
       if (permiso === 'granted') await PN.register();
+      /* ⚠ register() NO vuelve a emitir el evento de registro si el token no cambió, así que
+         para un celular que ya tenía token este botón no hacía absolutamente nada. Se reenvía
+         el que ya conocemos: ese es justamente el caso del conductor al que le falló el envío
+         la primera vez (por ejemplo con el CSRF vencido tras iniciar sesión). */
+      if (permiso === 'granted' && MG.reenviarToken) { try { await MG.reenviarToken(); } catch (e) {} }
     }
   } catch (e) {
     permiso = permiso || 'error';

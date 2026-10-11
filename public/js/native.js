@@ -26,19 +26,59 @@
   var SONIDO_PROPIO = isDriver ? 'nuevo_viaje' : 'viaje_confirmado';
   var appBuild = 0;
 
-  function postToken(token) {
-    if (!token) return;
+  /** El token CSRF de AHORA, no el que había al cargar el archivo. Ver postToken. */
+  function csrfActual() {
+    return MG.csrf || (document.querySelector('meta[name=csrf-token]') || {}).content || csrf || '';
+  }
+
+  /**
+   * Registrar en el servidor el token de avisos de este celular.
+   *
+   * 🔴 ACÁ HABÍA DOS FALLAS QUE DEJABAN AL CONDUCTOR SIN AVISOS Y EN SILENCIO:
+   *
+   * 1. Se mandaba `csrf`, capturado UNA VEZ al cargar el archivo. Al iniciar sesión Laravel
+   *    REGENERA la sesión y ese token queda viejo, así que el envío volvía 419. Y como el
+   *    token de Firebase suele llegar DESPUÉS del login, ese era el caso normal, no el raro.
+   * 2. El `.catch(function(){})` vacío se tragaba el fallo. Nadie se enteraba: ni el
+   *    conductor, ni el servidor, ni yo. El celular quedaba sin avisos para siempre.
+   *
+   * Ahora se lee el CSRF del momento, se mira si el servidor aceptó, y si no, se reintenta
+   * una vez con el token recién leído de la página.
+   */
+  function postToken(token, esReintento) {
+    if (!token) return Promise.resolve(false);
     // Se guarda para poder SOLTARLO después. Sin esto el celular no sabe qué pedirle al
     // servidor que borre, y el token queda atado a la cuenta para siempre.
     MG.pushToken = token;
-    fetch(base + '/api/push/fcm-token', {
+    return fetch(base + '/api/push/fcm-token', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrfActual() },
       // El servidor necesita la versión para saber si este celular ya tiene el mp3 del
       // timbre. Un canal que apunta a un sonido que no está en el apk sale MUDO.
       body: JSON.stringify({ token: token, build: appBuild }),
-    }).catch(function () {});
+    }).then(function (res) {
+      if (res.ok) return true;
+      // 419 = el token CSRF cambió bajo nuestros pies (login). Una sola reintentada: si
+      // vuelve a fallar, algo más pasa y no tiene sentido insistir en un bucle.
+      if (!esReintento && (res.status === 419 || res.status === 401)) {
+        return postToken(token, true);
+      }
+      return false;
+    }).catch(function () {
+      return esReintento ? false : postToken(token, true);
+    });
   }
+
+  /**
+   * Volver a mandar el token que este celular YA tiene.
+   *
+   * Hace falta porque Android NO vuelve a emitir el evento de registro si el token no cambió:
+   * el conductor tocaba "Activar avisos", se llamaba a register(), no pasaba nada, y la app
+   * concluía que no se pudo. Con esto, el botón sirve de verdad.
+   */
+  MG.reenviarToken = function () {
+    return MG.pushToken ? postToken(MG.pushToken) : Promise.resolve(false);
+  };
 
   /**
    * Dejar de recibir los avisos de la cuenta que estaba en este celular.

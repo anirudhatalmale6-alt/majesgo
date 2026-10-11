@@ -435,6 +435,6 @@ window.MG = {
 <script src="/js/pois.js?v=5"></script>
 <script src="/js/majesgo-car.js?v=2"></script>
 <script src="/js/passenger.js?v=50"></script>
-<script src="/js/native.js?v=9"></script>
+<script src="/js/native.js?v=10"></script>
 </body>
 </html>
