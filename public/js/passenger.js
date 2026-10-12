@@ -788,9 +788,14 @@ function nuevaSesionBusqueda() {
   return sesionBusqueda;
 }
 
+// Una sección de la irrigación ("D3", "E8") son DOS caracteres y es de lo más buscado en el
+// campo. El mínimo de 3 letras la dejaba afuera: el pasajero escribía su sección y no pasaba
+// nada. El servidor hace la misma excepción.
+const RE_SECCION = /^[A-Ea-e]\s*-?\s*\d{1,2}$/;
+
 async function searchPlaces(q, box) {
   clearTimeout(searchT);
-  if (q.length < 3) { box.innerHTML = ''; return; }
+  if (q.length < 3 && !RE_SECCION.test(q.trim())) { box.innerHTML = ''; return; }
   const seq = ++searchSeq;
   searchT = setTimeout(async () => {
     box.innerHTML = '<div class="nohit">Buscando “' + esc(q) + '”…</div>';

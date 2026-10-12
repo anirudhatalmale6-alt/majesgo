@@ -76,7 +76,11 @@ class GeocodeController extends Controller
     public function search(Request $request)
     {
         $q = trim((string) $request->query('q', ''));
-        if (mb_strlen($q) < 3) {
+        // El mínimo de 3 letras evita consultar con cada tecla… pero dejaba fuera el nombre
+        // más corto y más usado del campo: la sección, que son DOS caracteres ("D3", "E8").
+        // Quien escribía su sección a secas veía la pantalla vacía.
+        $esSeccion = (bool) preg_match('/^[A-Ea-e]\s*-?\s*\d{1,2}$/u', $q);
+        if (mb_strlen($q) < 3 && ! $esSeccion) {
             return response()->json(['results' => null]);
         }
 

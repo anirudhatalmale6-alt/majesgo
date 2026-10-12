@@ -439,7 +439,7 @@ window.MG = {
 </script>
 <script src="/js/pois.js?v=6"></script>
 <script src="/js/majesgo-car.js?v=2"></script>
-<script src="/js/passenger.js?v=52"></script>
+<script src="/js/passenger.js?v=53"></script>
 <script src="/js/native.js?v=10"></script>
 </body>
 </html>
