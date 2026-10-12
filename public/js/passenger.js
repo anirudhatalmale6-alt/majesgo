@@ -71,9 +71,11 @@ function kickToLogin(msg) {
 
 /* ---------- Toast ---------- */
 let toastT;
-function toast(msg) {
+// ms: un aviso que pide hacer algo (reintentar, revisar la señal) necesita más tiempo en
+// pantalla que un "listo". 2,6 s sigue siendo el valor por defecto.
+function toast(msg, ms) {
   const t = $('#toast'); t.textContent = msg; t.classList.add('show');
-  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2600);
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), ms || 2600);
 }
 
 /* ---------- Estado ---------- */
@@ -102,6 +104,10 @@ function pinBtn(color) {
 
 let curRide = null; // último viaje recibido (para decidir el tipo de cancelación)
 const PAX_CANCEL_REASONS = ['El conductor tarda mucho', 'Ingresé mal la dirección', 'Cambié de planes / Ya no necesito el viaje', 'Otro motivo'];
+// Motivos para cuando TODAVÍA no hay conductor asignado. Son otros a propósito: ahí no hay
+// conductor de quien quejarse, y lo que la central necesita saber es si el pasajero se cansó
+// de esperar, si consiguió taxi por otro lado o si el pedido fue un error.
+const PAX_CANCEL_REASONS_BUSCANDO = ['Está tardando mucho', 'Ya conseguí taxi de otra forma', 'Me equivoqué al pedir', 'Cambié de planes', 'Otro motivo'];
 let paxCancelReason = null;
 let nearbyMarkers = {}, nearbyTimer = null; // carritos de taxis disponibles en el mapa
 let zoneLayer = null; // etiquetas de las zonas locales en el mapa
@@ -1374,14 +1380,40 @@ function cancelRide() {
   const st = curRide && curRide.status;
   // conductor ya asignado / en camino → modal de advertencia con motivo
   if (['aceptado', 'en_camino', 'llego'].includes(st)) { openCancelModal(); return; }
-  // aún buscando (sin conductor asignado) → cancelación simple, sin penalización
-  if (!confirm('¿Cancelar la búsqueda de taxi?')) return;
-  doCancel(null);
+  // Aún buscando (sin conductor asignado): sigue sin penalización, pero AHORA se pregunta
+  // el motivo. Acá estaba el agujero: este camino usaba un confirm() del navegador y
+  // mandaba doCancel(null), así que la central no tenía forma de saber por qué se caen
+  // los pedidos — y es justo el caso más frecuente, el que pasa cuando nadie acepta.
+  openCancelBuscandoModal();
 }
 
+/**
+ * Cancelar el viaje en el servidor.
+ *
+ * 🔴 ACÁ HABÍA UN CATCH VACÍO QUE MENTÍA. Pasara lo que pasara se mostraba "Viaje cancelado"
+ * y se limpiaba la pantalla. Si la llamada no llegaba —sin señal, servidor ocupado— el
+ * pedido seguía VIVO del lado del servidor: el pasajero se iba convencido de haber
+ * cancelado y un conductor lo aceptaba y manejaba hasta un punto de recojo donde ya no
+ * había nadie. Eso es una de las "carreras falsas" de las que se quejan los conductores, y
+ * no la provocaba un pasajero de mala fe sino nuestra propia pantalla.
+ *
+ * Devuelve true si el viaje quedó efectivamente cancelado.
+ */
 async function doCancel(reason) {
-  try { await api('api/rides/cancel', { reason }); } catch (e) {}
+  try {
+    await api('api/rides/cancel', { reason });
+  } catch (e) {
+    // 401/403: api() ya devolvió al pasajero a la pantalla de acceso; no hay nada que decir acá.
+    if (e && (e.status === 401 || e.status === 403)) return false;
+    // 422 = el servidor dice que ya no hay viaje activo (se canceló solo por tiempo, o el
+    // toque se contó dos veces). El pedido NO está vivo, así que limpiar es lo correcto.
+    if (!e || e.status !== 422) {
+      toast('No pudimos cancelar tu viaje. Revisa tu conexión y vuelve a intentarlo — tu pedido sigue activo.', 5000);
+      return false;
+    }
+  }
   stopPolling(); toast('Viaje cancelado'); resetAfterRide();
+  return true;
 }
 
 /* ====== Modal de cancelación del pasajero (2 pasos: advertencia → motivo) ====== */
@@ -1428,6 +1460,50 @@ function darLaBienvenida(idPasajero) {
 function closeCancelModal() {
   const m = $('#cancelModal'); m.classList.add('hidden'); m.innerHTML = '';
 }
+/**
+ * Cancelar mientras TODAVÍA se busca taxi (nadie aceptó aún).
+ *
+ * Es un solo paso a propósito: acá no hay nada que advertir — no hay conductor en camino ni
+ * penalización — y meterle dos pantallas a alguien que ya decidió irse sólo lo molesta.
+ *
+ * El motivo es OPCIONAL y se puede cancelar sin tocarlo. Preferimos un motivo en blanco
+ * antes que un pasajero atrapado en una pantalla de la que no sabe salir.
+ *
+ * El botón de "seguir esperando" se llama cxBack porque el botón ATRÁS del celular busca
+ * exactamente ese id para cerrar lo que esté abierto encima (ver native.js). Si se llamara
+ * de otra forma, el atrás minimizaría la app con el modal abierto.
+ */
+function openCancelBuscandoModal() {
+  paxCancelReason = null;
+  const m = $('#cancelModal');
+  m.innerHTML = `
+    <div class="modalcard">
+      <h2>¿Cancelar la búsqueda?</h2>
+      <p class="msub">Todavía ningún conductor tomó tu viaje, así que no hay ninguna penalidad. Si nos cuentas por qué, nos ayudas a mejorar el servicio.</p>
+      <div class="reasons" id="cxReasons">
+        ${PAX_CANCEL_REASONS_BUSCANDO.map((t, i) => `<button class="reason" data-i="${i}">${esc(t)}</button>`).join('')}
+      </div>
+      <button class="btn softred" id="cxConfirm">Sí, cancelar búsqueda</button>
+      <button class="btn ghost" id="cxBack">Seguir esperando</button>
+    </div>`;
+  m.classList.remove('hidden');
+
+  const btns = [...document.querySelectorAll('#cxReasons .reason')];
+  btns.forEach((b) => b.addEventListener('click', () => {
+    const i = +b.dataset.i;
+    if (paxCancelReason === PAX_CANCEL_REASONS_BUSCANDO[i]) { paxCancelReason = null; b.classList.remove('on'); }
+    else { paxCancelReason = PAX_CANCEL_REASONS_BUSCANDO[i]; btns.forEach((x) => x.classList.remove('on')); b.classList.add('on'); }
+  }));
+  $('#cxConfirm').addEventListener('click', async () => {
+    const b = $('#cxConfirm'); if (b) { b.disabled = true; b.innerHTML = '<span class="spin"></span>'; }
+    // Si no se pudo cancelar, el modal SE QUEDA y el botón vuelve: cerrarlo dejaría al
+    // pasajero mirando un viaje que él cree cancelado y que en el servidor sigue vivo.
+    if (await doCancel(paxCancelReason)) { closeCancelModal(); return; }
+    if (b) { b.disabled = false; b.textContent = 'Sí, cancelar búsqueda'; }
+  });
+  $('#cxBack').addEventListener('click', closeCancelModal);
+}
+
 function renderCancelStep1() {
   $('#cancelModal').innerHTML = `
     <div class="modalcard">
@@ -1459,8 +1535,8 @@ function renderCancelStep2() {
   }));
   $('#cxConfirm').addEventListener('click', async () => {
     const b = $('#cxConfirm'); if (b) { b.disabled = true; b.innerHTML = '<span class="spin"></span>'; }
-    await doCancel(paxCancelReason);
-    closeCancelModal();
+    if (await doCancel(paxCancelReason)) { closeCancelModal(); return; }
+    if (b) { b.disabled = false; b.textContent = 'Confirmar cancelación'; }
   });
   $('#cxBack').addEventListener('click', renderCancelStep1);
 }
