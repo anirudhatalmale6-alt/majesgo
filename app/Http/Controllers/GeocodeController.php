@@ -221,6 +221,29 @@ class GeocodeController extends Controller
         }
 
         $codigo = mb_strtoupper($m[1]) . (int) $m[2];
+
+        // 1) LA PARCELA EXACTA, si esa sección ya está cargada desde el plano municipal.
+        // El número es el primero que aparezca después de la sección: "parcela 15",
+        // "lote 15", "15", "- 15".
+        $numero = preg_match('/(\d{1,4})/u', $resto, $n) ? (int) $n[1] : null;
+        if ($numero !== null) {
+            $parcela = \Illuminate\Support\Facades\DB::table('parcels')
+                ->where('section', $codigo)
+                ->where('number', $numero)
+                ->first();
+            if ($parcela) {
+                return [[
+                    'label' => 'Parcela ' . $numero . ' · ' . $codigo,
+                    'full'  => 'Sección ' . $codigo . ' · según plano municipal',
+                    'lat'   => (float) $parcela->lat,
+                    'lng'   => (float) $parcela->lng,
+                ]];
+            }
+        }
+
+        // 2) Si no, la SECCIÓN — diciendo claramente que no es la parcela. Si la sección
+        // está cargada pero ESE número no existe, se dice: así el pasajero revisa lo que
+        // escribió en vez de creer que lo dejamos en su puerta.
         $p = \App\Models\MapPoi::query()
             ->where('active', true)
             ->where('category', 'sector')
@@ -229,10 +252,14 @@ class GeocodeController extends Controller
         if (! $p) {
             return [];
         }
+        $seccionCargada = \Illuminate\Support\Facades\DB::table('parcels')->where('section', $codigo)->exists();
+        $sub = ($numero !== null && $seccionCargada)
+            ? 'No encontramos la parcela ' . $numero . ' en ' . $codigo . ' · revisa el número'
+            : 'Te dejamos en ' . $codigo . ' · escribe la parcela en la referencia';
 
         return [[
             'label' => 'Sección ' . $codigo,
-            'full'  => 'Te dejamos en ' . $codigo . ' · escribe la parcela en la referencia',
+            'full'  => $sub,
             'lat'   => (float) $p->lat,
             'lng'   => (float) $p->lng,
         ]];
