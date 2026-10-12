@@ -132,6 +132,8 @@ let counterOptions = [];
 let reqBump = 0; // ajuste elegido en la tarjeta que está en pantalla
 
 let offerLabels = []; // etiquetas resaltadas (recojo + destino) durante la oferta
+let approachLine = null; // ruta amarilla conductor → pasajero, ANTES de aceptar
+let routeChips = [];     // etiquetas "2.1 km · 5 min" sobre cada tramo del mapa
 
 // ---- modo navegación (pantalla completa tipo GPS) ----
 let navOpen = false, navMap = null, navCar = null, navLine = null, navPin = null;
@@ -1641,16 +1643,22 @@ function showRequest(req) {
         <span style="color:var(--muted);font-size:12px">a ${km(req.to_pickup_m)} de ti</span>
       </div>
       <div class="bar"><i id="reqBar"></i></div>
-      <div class="rqtop">
-        <div class="rqprice"><span class="cur">${CUR}</span> <span id="reqTotal">0.00</span></div>
-        <div class="rqpay">
-          ${req.payment_method === 'yape' ? '💜 Yape' : '💵 Efectivo'}
-          <small id="reqEarn"></small>
+      <div class="rqmoney">
+        <div class="rqm">
+          <span class="rql1">Precio del viaje</span>
+          <div class="rqprice"><span class="cur">${CUR}</span> <span id="reqTotal">0.00</span></div>
+          <span class="rqpay">${req.payment_method === 'yape' ? '💜 Yape' : '💵 Efectivo'}</span>
+        </div>
+        <div class="rqm earn">
+          <span class="rql1">Recibes</span>
+          <div class="rqearn" id="reqEarn"></div>
+          <span class="rqcom" id="reqCom"></span>
         </div>
       </div>
       <div class="rqroute">
-        <div class="rql"><span class="dot o"></span><span class="tx">${esc(oZona)}<small>Recojo · a ${km(req.to_pickup_m)}</small></span></div>
-        <div class="rql"><span class="dot d"></span><span class="tx">${esc(dZona)}<small>${km(req.trip_distance_m)} · ${mins(req.trip_duration_s)}</small></span></div>
+        <div class="rql"><span class="dot o"></span><span class="tx"><span class="lbl o">Recoger en</span> ${esc(oZona)}<small id="reqApproach">a ${km(req.to_pickup_m)} · ≈${estMinAcerc(req.to_pickup_m)} min de ti</small></span></div>
+        ${req.reference ? `<div class="rqref"><span class="ic">💬</span><span class="tx"><small>Referencia del pasajero</small><span class="rt">${esc(req.reference)}</span></span></div>` : ''}
+        <div class="rql"><span class="dot d"></span><span class="tx"><span class="lbl d">Destino</span> ${esc(dZona)}<small>${km(req.trip_distance_m)} · ${mins(req.trip_duration_s)}</small></span></div>
       </div>
       ${counterOptions.length
         ? `<div class="bumps" id="reqBumps">
@@ -1681,7 +1689,13 @@ function showRequest(req) {
   // vista previa en el mapa: recojo + destino + RUTA (para que el conductor mire el mapa, no la dirección escrita)
   setPin('o', [req.origin.lat, req.origin.lng]);
   setPin('d', [req.dest.lat, req.dest.lng]);
+  // lo de la ficha anterior primero: si no, su ruta amarilla y sus etiquetas quedarían
+  // dibujadas sobre esta (y limpiar DESPUÉS borraría la etiqueta del viaje recién puesta)
+  if (approachLine) { approachLine.remove(); approachLine = null; }
+  routeChips.forEach((m) => m.remove()); routeChips = [];
   drawRoute(req.route_trip, '#00C853');
+  chipRuta(req.route_trip, km(req.trip_distance_m) + ' · ' + mins(req.trip_duration_s), 'viaje');
+  cargarRutaAcercamiento(req);
   // durante la oferta: mapa limpio → ocultar las demás zonas y resaltar recojo + destino
   document.getElementById('app').classList.add('offering');
   offerLabels.forEach((m) => m.remove()); offerLabels = [];
@@ -1738,12 +1752,19 @@ function encuadrarViaje(req) {
   if (mapaTocado) return;
   const alto = reqPeekHeight() || 300;
   encuadrando = true;
+  // Zoom FRACCIONAL sólo para este encuadre: con niveles enteros, Leaflet elegía el nivel de
+  // más afuera y el viaje entero quedaba apretado en un rincón, con las etiquetas encimadas.
+  const snapAntes = map.options.zoomSnap;
+  map.options.zoomSnap = 0.25;
   map.fitBounds(
-    L.latLngBounds([[req.origin.lat, req.origin.lng], [req.dest.lat, req.dest.lng]]).pad(0.15),
-    { paddingTopLeft: [30, 66], paddingBottomRight: [30, Math.round(alto) + 24] }
+    L.latLngBounds([[req.origin.lat, req.origin.lng], [req.dest.lat, req.dest.lng]]
+      .concat(myPos ? [[myPos.lat, myPos.lng]] : [])).pad(0.15),
+    // arriba: barra superior (~60 px) + el nombre del lugar, que va ~54 px POR ENCIMA de su pin
+    { paddingTopLeft: [30, 118], paddingBottomRight: [30, Math.round(alto) + 30] }
   );
+  map.options.zoomSnap = snapAntes;
   // el encuadre va animado: se baja la bandera cuando termina, no en la línea siguiente
-  setTimeout(() => { encuadrando = false; }, 400);
+  setTimeout(() => { encuadrando = false; ocultarChipsEncimados(); }, 400);
 }
 /**
  * Repinta las cifras de la tarjeta según el ajuste elegido (reqBump).
@@ -1771,10 +1792,12 @@ function paintReq(req) {
       `<div class="tot"><span>Recibes</span><b>${money(total - com)}</b></div>`;
   }
 
-  // Va en la esquina de la ficha compacta: corto. El desglose completo (comisión incluida)
-  // está unos centímetros más abajo, al deslizar.
+  // "Recibes" va en su propia columna de la ficha compacta, al lado del precio, con la
+  // comisión debajo (pedido de la central). El desglose completo sigue al deslizar.
   const e = $('#reqEarn');
-  if (e) e.textContent = `recibes ${money(total - com)}`;
+  if (e) e.textContent = money(total - com);
+  const c = $('#reqCom');
+  if (c) c.textContent = `Comisión ${money(com)}`;
 
   // Con ajuste el precio NO está cerrado todavía: el pasajero puede irse con otro conductor.
   // Decírselo aquí evita que crea que ya ganó la carrera por tocar «+5».
@@ -1794,6 +1817,68 @@ function paintReq(req) {
   if (yes && !yes.disabled) yes.textContent = reqBump > 0 ? `Pedir ${money(total)}` : 'Aceptar';
 }
 
+/**
+ * Minutos ESTIMADOS hasta el pasajero a partir de la distancia en línea recta, mientras
+ * llega la ruta real. Mismo modelo que la estimación del servidor (Routing::fallback):
+ * calles ≈ 1,35 × la recta, a 24 km/h. Se muestra con "≈" para no venderlo como exacto.
+ */
+function estMinAcerc(rectaM) {
+  return Math.max(1, Math.round((Number(rectaM) || 0) * 1.35 / 1000 / 24 * 60));
+}
+
+/** Etiqueta "km · min" en la mitad de un tramo del mapa. tipo: 'acerc' (amarilla) | 'viaje' (verde). */
+function chipRuta(coords, texto, tipo) {
+  if (!map || !coords || coords.length < 2) return;
+  const mid = coords[Math.floor(coords.length / 2)];
+  const m = L.marker(mid, {
+    icon: L.divIcon({ className: 'rchipwrap', html: '<span class="rchip ' + tipo + '">' + esc(texto) + '</span>', iconSize: [0, 0], iconAnchor: [0, 0] }),
+    interactive: false, zIndexOffset: 1200,
+  }).addTo(map);
+  routeChips.push(m);
+  if (!chipsEscuchando) { map.on('zoomend moveend', ocultarChipsEncimados); chipsEscuchando = true; }
+  ocultarChipsEncimados();
+}
+
+/**
+ * Una etiqueta "km · min" NUNCA tapa el nombre del recojo o del destino, ni a otra
+ * etiqueta: si se encima, se esconde. No se pierde nada — los mismos km y minutos están en
+ * la ficha. Se revisa en cada zoom o paneo, porque al acercar dejan de encimarse.
+ */
+function ocultarChipsEncimados() {
+  const toca = (a, b) => !(a.right < b.left || a.left > b.right || a.bottom < b.top || a.top > b.bottom);
+  const nombres = [...document.querySelectorAll('.ozlabel')].map((e) => e.getBoundingClientRect());
+  const vistos = [];
+  routeChips.forEach((m) => {
+    const el = m.getElement() && m.getElement().querySelector('.rchip');
+    if (!el) return;
+    el.style.visibility = 'visible';
+    const r = el.getBoundingClientRect();
+    const choca = nombres.some((n) => toca(r, n)) || vistos.some((v) => toca(r, v));
+    el.style.visibility = choca ? 'hidden' : 'visible';
+    if (!choca) vistos.push(r);
+  });
+}
+let chipsEscuchando = false;
+
+/**
+ * Pide la ruta REAL por calles hasta el pasajero (una vez, al abrir la ficha) y la dibuja
+ * en amarillo. Si el servidor sólo pudo estimar (servidor de rutas caído), NO se dibuja una
+ * recta: una línea recta en el mapa parece una calle y no lo es. Queda el texto con "≈".
+ */
+async function cargarRutaAcercamiento(req) {
+  const code = req.code;
+  let r;
+  try { r = await api('api/approach-route?code=' + encodeURIComponent(code)); } catch (e) { return; }
+  // El conductor pudo cerrar esta ficha o abrir otra mientras llegaba la respuesta.
+  if (reqCode !== code || !r || r.estimada || !Array.isArray(r.geometry) || r.geometry.length < 2) return;
+  if (approachLine) approachLine.remove();
+  approachLine = L.polyline(r.geometry, { color: '#FFC107', weight: 5, opacity: .95 }).addTo(map);
+  chipRuta(r.geometry, km(r.distance_m) + ' · ' + mins(r.duration_s), 'acerc');
+  const t = $('#reqApproach');
+  if (t) t.textContent = 'a ' + km(r.distance_m) + ' · ' + mins(r.duration_s) + ' de ti';
+  encuadrarViaje(req);
+}
+
 function addOfferLabel(latlng, text, variant) {
   const m = L.marker(latlng, {
     icon: L.divIcon({ className: 'offerzone', html: '<span class="ozlabel ' + variant + '">📍 ' + esc(text) + '</span>', iconSize: [0, 0], iconAnchor: [0, 0] }),
@@ -1807,6 +1892,8 @@ function clearPreview() {
   if (oMarker) { oMarker.remove(); oMarker = null; }
   if (dMarker) { dMarker.remove(); dMarker = null; }
   offerLabels.forEach((m) => m.remove()); offerLabels = [];
+  if (approachLine) { approachLine.remove(); approachLine = null; }
+  routeChips.forEach((m) => m.remove()); routeChips = [];
   document.getElementById('app').classList.remove('offering');
 }
 

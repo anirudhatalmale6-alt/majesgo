@@ -400,6 +400,62 @@ class RideController extends Controller
      * 2026-08-27 eso hizo creer que mirar un viaje lo reservaba, cuando lo que
      * pasaba era que el pasajero cancelaba mientras lo miraba.
      */
+    /**
+     * Ruta REAL por calles desde el conductor hasta el pasajero, ANTES de aceptar.
+     *
+     * Para la ficha de la solicitud (pedido de la central, 12 oct): la línea amarilla y los
+     * minutos hasta el recojo. Hasta ahora esa ruta sólo se calculaba al aceptar, y la ficha
+     * mostraba kilómetros en línea recta.
+     *
+     * - Mismas reglas que la lista (pending): sólo un viaje que sigue buscando, sin conductor,
+     *   del que este conductor no fue excluido y que le queda dentro del radio. Si no, 404:
+     *   esto no puede servir para consultar rutas de cualquier viaje.
+     * - Parte de la posición GUARDADA del conductor, no de la que mande el celular: así nadie
+     *   lo usa como calculador de rutas gratis contra el servidor público de OSRM.
+     * - Se calcula al ABRIR la ficha, no en cada sondeo de 3 s, y se cachea 2 minutos por viaje
+     *   y por posición redondeada (~100 m). El servidor de rutas es público, máx. 1 consulta
+     *   por segundo: esto lo mantiene muy por debajo.
+     * - Si OSRM no contesta, Routing::route() cae a una estimación en línea recta; se avisa
+     *   con 'estimada' para que la app no dibuje una recta como si fuera la calle.
+     */
+    public function approachRoute(Request $request)
+    {
+        $driver = $this->driver($request);
+        $code = (string) $request->query('code', '');
+        if ($code === '' || $driver->lat === null || $driver->lng === null) {
+            return response()->json(['message' => 'Sin ubicación.'], 422);
+        }
+
+        $ride = Ride::where('code', $code)
+            ->where('status', 'solicitando')
+            ->whereNull('driver_id')
+            ->first();
+        if (! $ride || in_array($driver->id, (array) $ride->excluded_driver_ids, true)) {
+            return response()->json(['message' => 'Ese viaje ya no está disponible.'], 404);
+        }
+
+        $dLat = (float) $driver->lat;
+        $dLng = (float) $driver->lng;
+        $oLat = (float) $ride->origin_lat;
+        $oLng = (float) $ride->origin_lng;
+        $maxM = (float) Setting::get('dispatch_radius_max_km', 10.0) * 1000;
+        if (Routing::haversine($dLat, $dLng, $oLat, $oLng) > $maxM + 1000) {
+            return response()->json(['message' => 'Ese viaje ya no está disponible.'], 404);
+        }
+
+        $ck = 'approach:' . $ride->id . ':' . round($dLat, 3) . ',' . round($dLng, 3);
+        $r = \Illuminate\Support\Facades\Cache::remember($ck, now()->addMinutes(2),
+            fn () => Routing::route($dLat, $dLng, $oLat, $oLng));
+
+        return response()->json([
+            'distance_m' => (int) $r['distance_m'],
+            'duration_s' => (int) $r['duration_s'],
+            'geometry'   => $r['geometry'],
+            // la estimación de respaldo devuelve sólo los dos extremos
+            'estimada'   => count($r['geometry']) <= 2,
+        ]);
+    }
+
     public function requestState(Request $request)
     {
         $data = $request->validate(['code' => ['required', 'string', 'max:40']]);

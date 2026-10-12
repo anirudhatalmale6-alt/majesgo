@@ -248,6 +248,29 @@
         .rql .dot.o{background:var(--verde)} .rql .dot.d{background:#ff5252}
         .rql .tx{flex:1;min-width:0;font-size:13.5px;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         .rql .tx small{display:block;color:var(--muted);font-size:11px;font-weight:500}
+        /* Ficha de solicitud, rediseño pedido por la central (12 oct): precio y lo que recibe
+           lado a lado, la referencia ARRIBA (antes había que deslizar para verla) y "km · min"
+           sobre cada tramo del mapa. La barra de tiempo y Aceptar no se tocan. */
+        .rqmoney{display:grid;grid-template-columns:1fr 1fr;margin:2px 0 10px;background:#12151a;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+        .rqm{padding:8px 12px;display:flex;flex-direction:column;gap:2px;min-width:0}
+        .rqm.earn{border-left:1px solid var(--line);background:rgba(0,200,83,.07);align-items:flex-end;text-align:right}
+        .rqm .rql1{font-size:11px;color:var(--muted)}
+        .rqm.earn .rql1{color:#7DE9AC}
+        .rqm .rqprice{font-size:28px}
+        .rqm .rqpay{text-align:left;font-size:11.5px}
+        .rqearn{font-size:24px;font-weight:800;color:var(--verde);line-height:1.1}
+        .rqcom{font-size:11px;color:var(--muted)}
+        .rql .lbl{font-size:11px;font-weight:800;margin-right:2px}
+        .rql .lbl.o{color:var(--verde)} .rql .lbl.d{color:#ff6b6b}
+        .rqref{display:flex;gap:8px;align-items:flex-start;margin:0 0 0 19px;padding:6px 10px;border:1px solid rgba(255,193,7,.5);background:rgba(255,193,7,.08);border-radius:10px}
+        .rqref .ic{flex:none;font-size:13px;line-height:1.35}
+        .rqref .tx{flex:1;min-width:0;font-size:13px;line-height:1.3;color:#F5F7FA}
+        .rqref .tx small{display:block;color:#FFD97A;font-size:10.5px;font-weight:700}
+        .rqref .rt{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+        .rchipwrap{pointer-events:none}
+        .rchip{position:absolute;left:0;top:0;transform:translate(-50%,-50%);white-space:nowrap;font-size:11.5px;font-weight:800;padding:3px 8px;border-radius:9px;background:rgba(13,13,13,.88);border:1.5px solid;box-shadow:0 2px 8px rgba(0,0,0,.5)}
+        .rchip.acerc{color:#FFD54F;border-color:#FFC107}
+        .rchip.viaje{color:#7DE9AC;border-color:#00C853}
         .rqmore{text-align:center;color:var(--muted);font-size:11px;padding:9px 0 2px;letter-spacing:.2px}
         @keyframes slideup{from{transform:translateY(40px);opacity:.4}to{transform:none;opacity:1}}
         .reqhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
@@ -637,7 +660,7 @@ window.MG = {
 <script src="/js/majesgo-car.js?v=2"></script>
 <script src="/js/despierto.js?v=1"></script>
 <script src="/js/rastreo.js?v=7"></script>
-<script src="/js/driver.js?v=59"></script>
+<script src="/js/driver.js?v=60"></script>
 <script src="/js/native.js?v=10"></script>
 </body>
 </html>

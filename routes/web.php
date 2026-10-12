@@ -107,6 +107,8 @@ Route::prefix('conductor')->name('driver.')->group(function () {
         Route::get('api/pending', [DriverRide::class, 'pending']);
         // Solo lectura: por qué un viaje se cayó de la lista (no lo reserva ni lo descarta)
         Route::get('api/request-state', [DriverRide::class, 'requestState']);
+        // Ruta por calles hasta el pasajero, para la ficha ANTES de aceptar (solo lectura)
+        Route::get('api/approach-route', [DriverRide::class, 'approachRoute']);
         Route::post('api/accept', [DriverRide::class, 'accept']);
         Route::post('api/reject', [DriverRide::class, 'reject']);
 
