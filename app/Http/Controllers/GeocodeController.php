@@ -256,10 +256,13 @@ class GeocodeController extends Controller
         // 113 de sus 114): decirle "revisa el número" a quien vive en esa parcela sería
         // acusarlo de equivocarse. Sólo un número MAYOR que la última parcela de la sección
         // está realmente fuera de rango.
-        $ultima = \Illuminate\Support\Facades\DB::table('parcels')->where('section', $codigo)->max('number');
+        // El total que dio la central manda; si no lo tenemos, el último rótulo del plano.
+        $ultima = \Illuminate\Support\Facades\DB::table('parcel_sections')->where('section', $codigo)->value('total')
+            ?? \Illuminate\Support\Facades\DB::table('parcels')->where('section', $codigo)->max('number');
         if ($numero !== null && $ultima !== null && $numero > $ultima) {
             $sub = $codigo . ' llega hasta la parcela ' . $ultima . ' · revisa el número';
-        } elseif ($numero !== null && $ultima !== null) {
+        } elseif ($numero !== null && \Illuminate\Support\Facades\DB::table('parcels')->where('section', $codigo)->exists()) {
+            // sólo tiene sentido "no figura en el plano" si el plano de esa sección está cargado
             $sub = 'La parcela ' . $numero . ' no figura en el plano · te dejamos en ' . $codigo . ', escríbela en la referencia';
         } else {
             $sub = 'Te dejamos en ' . $codigo . ' · escribe la parcela en la referencia';
