@@ -432,7 +432,7 @@ window.MG = {
     reportReasons: @json(\App\Models\UserReport::REASONS_ON_DRIVER),
 };
 </script>
-<script src="/js/pois.js?v=5"></script>
+<script src="/js/pois.js?v=6"></script>
 <script src="/js/majesgo-car.js?v=2"></script>
 <script src="/js/passenger.js?v=51"></script>
 <script src="/js/native.js?v=10"></script>

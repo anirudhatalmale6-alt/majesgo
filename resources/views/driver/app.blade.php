@@ -633,7 +633,7 @@ window.MG = {
     signupOpen: @json($signupOpen),
 };
 </script>
-<script src="/js/pois.js?v=5"></script>
+<script src="/js/pois.js?v=6"></script>
 <script src="/js/majesgo-car.js?v=2"></script>
 <script src="/js/despierto.js?v=1"></script>
 <script src="/js/rastreo.js?v=7"></script>

@@ -29,6 +29,7 @@
     iglesia:       '<path d="M12 2v7M9.5 4.5h5M5 21V11l7-4 7 4v10M5 21h14M10 21v-5h4v5"/>',
     colegio:       '<path d="M3 9l9-4 9 4-9 4-9-4z"/><path d="M7 11v4c0 1.5 2.2 3 5 3s5-1.5 5-3v-4"/>',
     taller:        '<path d="M15.5 3.5a5 5 0 0 0-6.6 6.6L3 16v5h5l5.9-5.9a5 5 0 0 0 6.6-6.6l-3.2 3.2-2.8-2.8 3-3z"/>',
+    plaza:         '<path d="M12 14v7"/><path d="M12 14c-3 0-5-2.2-5-5s2-6 5-6 5 2.8 5 6-2 5-5 5z"/><path d="M8 21h8"/>',
     otro:          '<circle cx="12" cy="10" r="3"/><path d="M12 21s-6.5-6-6.5-10.5a6.5 6.5 0 0 1 13 0C18.5 15 12 21 12 21z"/>'
   };
 
@@ -36,7 +37,7 @@
     grifo: '#e0492f', mercado: '#e07b1f', hotel: '#2f6fe0', banco: '#1f8a4c',
     farmacia: '#d1315e', salud: '#d1315e', terminal: '#6a4fd8', municipalidad: '#4a5568',
     policia: '#2f4f8a', comida: '#c2761b', iglesia: '#7a6a55', colegio: '#3f7d8a',
-    taller: '#6b7280', otro: '#6b7280'
+    taller: '#6b7280', plaza: '#2e9e5b', otro: '#6b7280'
   };
 
   function svg(cat) {

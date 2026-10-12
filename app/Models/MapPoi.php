@@ -35,6 +35,10 @@ class MapPoi extends Model
         'iglesia'       => 'Iglesia',
         'colegio'       => 'Colegio / instituto',
         'taller'        => 'Taller / ferretería',
+        // En El Pedregal la gente se cita en la plaza o el parque del barrio, no en una
+        // dirección con calle y número. "Plaza" era el 2º término más escrito en el buscador
+        // y no había ni un solo punto de esta clase cargado: 17 búsquedas que no devolvían nada.
+        'plaza'         => 'Plaza / parque',
         'otro'          => 'Otro',
     ];
 
@@ -42,6 +46,7 @@ class MapPoi extends Model
     public const DEFAULT_PRIORITY = [
         'grifo' => 1, 'mercado' => 1, 'hotel' => 1, 'banco' => 1, 'farmacia' => 1,
         'salud' => 1, 'terminal' => 1, 'municipalidad' => 1, 'policia' => 1,
+        'plaza' => 1,
         'comida' => 2, 'iglesia' => 2, 'colegio' => 2,
         'taller' => 3, 'otro' => 3,
     ];
