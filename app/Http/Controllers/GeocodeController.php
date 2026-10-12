@@ -269,7 +269,18 @@ class GeocodeController extends Controller
                 $types = $res['types'] ?? [];
                 $isBroad = $types && ! array_diff($types, $broad); // todos sus tipos son genéricos
                 $fa = $res['formatted_address'] ?? '';
-                $isPlusCode = (bool) preg_match('/^[A-Z0-9]{4,}\+[A-Z0-9]/', $fa); // p. ej. "JRP5+529"
+                // Un "plus code" (p. ej. "MR64+R7V") es la cuadrícula de Google, no un nombre.
+                // ⚠ Antes solo se miraba el ARRANQUE de la dirección, y se colaban las que lo
+                // traen en el medio: buscando "mercado metropolitano" Google devolvía
+                // "E5, MR64+R7V, Majes" y al pasajero le aparecía "E5, MR64+R7V" como si
+                // fuera el nombre del sitio. Ahora se mira CADA parte.
+                $isPlusCode = false;
+                foreach (explode(',', $fa) as $parte) {
+                    if (preg_match('/^\s*[A-Z0-9]{4,}\+[A-Z0-9]+\s*$/', $parte)) {
+                        $isPlusCode = true;
+                        break;
+                    }
+                }
                 if (($res['partial_match'] ?? false) && $isBroad) {
                     continue; // coincidencia parcial que solo acertó el barrio → no sirve
                 }
