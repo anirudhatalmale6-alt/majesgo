@@ -148,7 +148,15 @@ class GeocodeController extends Controller
             ->where('active', true)
             ->where(function ($w) use ($palabras) {
                 foreach ($palabras as $p) {
-                    $w->where('name', 'like', '%' . $p . '%');
+                    // Cada palabra tiene que estar… pero "avenida" y "Av." son la misma
+                    // palabra para quien escribe. El plano catastral guarda "Av. Islay" y
+                    // quien teclea "Avenida Islay" no encontraba nada.
+                    $variantes = self::variantes($p);
+                    $w->where(function ($o) use ($variantes) {
+                        foreach ($variantes as $v) {
+                            $o->orWhere('name', 'like', '%' . $v . '%');
+                        }
+                    });
                 }
             })
             ->orderBy('priority')
@@ -161,6 +169,35 @@ class GeocodeController extends Controller
                 'lng'   => (float) $p->lng,
             ])
             ->all();
+    }
+
+    /**
+     * Las formas en que se escribe el MISMO tipo de vía.
+     *
+     * El plano catastral de la municipalidad usa las abreviaturas ("Av.", "Jr."); la gente
+     * escribe la palabra entera tan seguido como la abreviatura. Sin esto, "Avenida Islay"
+     * no encontraba "Av. Islay" — y el punto estaba cargado.
+     */
+    private const SINONIMOS = [
+        ['avenida', 'av'],
+        ['jiron', 'jirón', 'jr'],
+        ['pasaje', 'pje'],
+        ['calle', 'ca'],
+        ['prolongacion', 'prolongación', 'prol'],
+        ['carretera', 'ctra'],
+    ];
+
+    /** @return array<string> la palabra y sus equivalentes, para buscar por cualquiera. */
+    private static function variantes(string $palabra): array
+    {
+        $limpia = mb_strtolower(rtrim($palabra, '.'));
+        foreach (self::SINONIMOS as $grupo) {
+            if (in_array($limpia, $grupo, true)) {
+                return $grupo;
+            }
+        }
+
+        return [$palabra];
     }
 
     /**
