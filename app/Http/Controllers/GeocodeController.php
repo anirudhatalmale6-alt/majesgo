@@ -210,17 +210,24 @@ class GeocodeController extends Controller
      */
     private function seccionDeParcela(string $q): array
     {
-        if (! preg_match('/^\s*([A-Ea-e])\s*-?\s*(\d{1,2})\b\s*(.*)$/u', $q, $m)) {
-            return [];
+        // ZONA A: una sola sección, parcelas 1..590, SIN número de sección ("A parcela 250",
+        // "A 250", "A-250"). La central confirmó que A1, A2 y A3 NO existen.
+        // ⚠ Va ANTES de la regla general: si no, "A 25" se leería como una sección "A25".
+        if (preg_match('/^\s*A\s*[-.]?\s*(?:parcela|parc\.?|lote|lt\.?|p\.?)?\s*(\d{1,3})\s*$/iu', $q, $ma)) {
+            $codigo = 'A';
+            $resto = $ma[1];
+        } else {
+            if (! preg_match('/^\s*([B-Eb-e])\s*-?\s*(\d{1,2})\b\s*(.*)$/u', $q, $m)) {
+                return [];
+            }
+            $resto = trim($m[3]);
+            // "D3" solo ya lo encuentra la búsqueda normal por nombre. Acá interesa el caso en
+            // que viene acompañado — "parcela 13", "lote 4", "- 13" — que es el que no encaja.
+            if ($resto === '' || ! preg_match('/parcel|lote|mz|manzana|\d/iu', $resto)) {
+                return [];
+            }
+            $codigo = mb_strtoupper($m[1]) . (int) $m[2];
         }
-        $resto = trim($m[3]);
-        // "D3" solo ya lo encuentra la búsqueda normal por nombre. Acá interesa el caso en
-        // que viene acompañado — "parcela 13", "lote 4", "- 13" — que es el que no encaja.
-        if ($resto === '' || ! preg_match('/parcel|lote|mz|manzana|\d/iu', $resto)) {
-            return [];
-        }
-
-        $codigo = mb_strtoupper($m[1]) . (int) $m[2];
 
         // 1) LA PARCELA EXACTA, si esa sección ya está cargada desde el plano municipal.
         // El número es el primero que aparezca después de la sección: "parcela 15",
