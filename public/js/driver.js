@@ -112,7 +112,7 @@ let reqSort = 'cerca';          // 'cerca' | 'paga'
 // La ficha de un viaje abre COMPACTA (~35 % de pantalla) para no tapar el mapa: el
 // conductor necesita ver por dónde recoge y hacia dónde va antes de decidir. Deslizando
 // el asa hacia arriba se ve el resto (pasajero, direcciones completas, desglose).
-let reqSheetState = 'peek', reqSheetDragging = false;
+let reqSheetState = 'peek';
 let reqLeftS = 0, reqTotalS = 0; // barra = tiempo REAL que le queda a la búsqueda
 // ¿el servidor tiene con qué avisarle si la app está cerrada? null = todavía no lo sabemos
 let pushOk = null;
@@ -848,6 +848,8 @@ function setupZoomButtons() {
   map.on('dragstart', () => { mapaTocado = true; });
   map.on('zoomstart', () => { if (!encuadrando) mapaTocado = true; });
   map.on('zoomend', pintar);
+  // si el conductor acerca o aleja a mano, los nombres se vuelven a acomodar
+  map.on('zoomend', () => { if (!encuadrando) acomodarEtiquetas(); });
   pintar();
 }
 
@@ -1336,75 +1338,26 @@ function setupDSheetDrag() {
   grab.addEventListener('pointercancel', end);
 }
 
-/* ====== Ficha de un viaje: compacta por defecto, deslizable para ver el detalle ======
- * Mismo mecanismo que el panel del home, pero con su propio estado: el conductor decide
- * si quiere mapa (compacta) o letra chica (abierta), y la decisión no se le pisa sola.
+/* ====== Ficha de un viaje ======
+ * Desde el 12 oct la ficha termina en Rechazar / Aceptar: el desglose de comisión, el
+ * pasajero y las direcciones largas que asomaban debajo se quitaron (pedido de la central,
+ * "nos quita espacio"). Ya no hay nada que deslizar, así que la ficha se ve ENTERA y el
+ * mapa se queda con todo lo que sobra encima.
  */
 function reqPeekHeight() {
   const card = $('#reqcard');
   if (!card || $('#reqwrap').classList.contains('hidden')) return null;
-  const grab = card.querySelector('.grab');
-  const ess = document.getElementById('reqEssential');
-  if (!ess) return null; // la LISTA no se colapsa: ya es corta
-  // +22: el aviso "desliza para ver el detalle" es el último renglón de los esenciales y
-  // sin este margen queda cortado justo por el borde de la pantalla.
-  const minimo = (grab ? grab.offsetHeight : 0) + ess.offsetHeight + 22;
-  // Mapa en formato 16:9 (pedido de la central, 12 oct): debajo de la barra superior queda
-  // una ventana de ANCHO × 9/16 y la ficha se apoya justo debajo, mostrando lo que entre.
-  // Nunca menos que lo esencial: en un celular chico Aceptar tiene que verse sin deslizar,
-  // aunque eso deje el mapa un poco más bajo que 16:9.
-  const tb = document.querySelector('.topbar');
-  const tope = tb ? tb.getBoundingClientRect().bottom : 60;
-  const disponible = window.innerHeight - Math.round(tope + window.innerWidth * 9 / 16);
-  return Math.max(minimo, Math.min(disponible, card.offsetHeight));
+  if (!document.getElementById('reqEssential')) return null; // la LISTA tiene su propio alto
+  return card.offsetHeight;
 }
-function applyReqSnap(animate) {
+function applyReqSnap() {
   const card = $('#reqcard');
   if (!card) return;
-  card.style.transition = (animate === false) ? 'none' : '';
-  const peek = reqPeekHeight();
-  const off = (reqSheetState === 'peek' && peek) ? Math.max(0, card.offsetHeight - peek) : 0;
-  card.style.transform = 'translateY(' + off + 'px)';
-  const hint = document.getElementById('reqMoreHint');
-  if (hint) {
-    hint.textContent = reqSheetState === 'peek' ? 'Desliza para ver el detalle ▲' : 'Desliza para ver el mapa ▼';
-    // si la ficha ya se ve ENTERA no hay nada que deslizar: el aviso mentiría
-    hint.style.visibility = (peek && peek >= card.offsetHeight - 1) ? 'hidden' : 'visible';
-  }
-  // la leyenda va pegada al borde de arriba de la ficha, sólo con la ficha compacta
+  card.style.transition = 'none';
+  card.style.transform = 'none';
+  // la leyenda va pegada al borde de arriba de la ficha
   const ley = document.getElementById('rqleyenda');
-  if (ley && ley.classList.contains('on')) {
-    ley.style.bottom = (card.offsetHeight - off + 8) + 'px';
-    ley.style.visibility = reqSheetState === 'peek' ? 'visible' : 'hidden';
-  }
-}
-function setupReqDrag(req) {
-  const card = $('#reqcard');
-  const grab = card && card.querySelector('.grab');
-  if (!grab) return;
-  let startY = 0, startOff = 0, h = 0, moved = 0, peek = 0;
-  grab.addEventListener('pointerdown', (e) => {
-    peek = reqPeekHeight(); if (!peek) return;
-    reqSheetDragging = true; moved = 0; h = card.offsetHeight;
-    startY = e.clientY; startOff = reqSheetState === 'peek' ? Math.max(0, h - peek) : 0;
-    card.style.transition = 'none';
-    try { grab.setPointerCapture(e.pointerId); } catch (_) {}
-  });
-  grab.addEventListener('pointermove', (e) => {
-    if (!reqSheetDragging) return;
-    const dy = e.clientY - startY; moved = Math.max(moved, Math.abs(dy));
-    card.style.transform = 'translateY(' + Math.max(0, Math.min(startOff + dy, h - peek)) + 'px)';
-  });
-  const end = (e) => {
-    if (!reqSheetDragging) return; reqSheetDragging = false;
-    if (moved < 6) { reqSheetState = (reqSheetState === 'peek') ? 'open' : 'peek'; }
-    else { const off = startOff + (e.clientY - startY); reqSheetState = off > (h - peek) / 2 ? 'peek' : 'open'; }
-    applyReqSnap(true);
-    // al volver a compacta se reencuadra: el mapa recuperó espacio y hay que aprovecharlo
-    if (reqSheetState === 'peek') setTimeout(() => encuadrarViaje(req), 210);
-  };
-  grab.addEventListener('pointerup', end);
-  grab.addEventListener('pointercancel', end);
+  if (ley && ley.classList.contains('on')) ley.style.bottom = (card.offsetHeight + 8) + 'px';
 }
 
 async function refreshStats() {
@@ -1637,23 +1590,15 @@ function showRequest(req) {
   rideAlert.stop(); // ya la está mirando: no tiene sentido seguir sonando
   const wrap = $('#reqwrap'); wrap.classList.remove('hidden');
   mostrarPanelHome(false); // el mapa manda mientras mira un viaje
-  // El total incluye el acercamiento hasta el pasajero, calculado con la distancia de ESTE
-  // conductor: por eso la cifra grande puede ser mayor que lo que ofreció el pasajero.
-  const apFee = Number(req.approach_fee) || 0;
-  // Lo IMPRESCINDIBLE va primero y dentro de #reqEssential: es lo único que se ve con la
-  // ficha compacta. Todo lo que va después queda debajo del borde hasta que la deslice.
+  // La ficha es SÓLO lo imprescindible y termina en Rechazar / Aceptar (pedido de la
+  // central, 12 oct). La contraoferta va arriba de Aceptar porque es una decisión de segundos
+  // que se toma manejando.
   //
-  // La contraoferta vive AQUÍ ARRIBA, no al final, porque es una decisión de segundos que se
-  // toma manejando: tenerla al pie obligaba a deslizar el panel con el auto en movimiento.
-  // El desglose de comisión y la ficha del pasajero sí se quedan abajo: se miran cuando hay
-  // tiempo, no mientras corre el contador de la oferta.
-  //
-  // ⚠ reqPeekHeight() MIDE #reqEssential, no lleva número fijo: al agregarle una fila la
-  // parte visible crece sola y Aceptar/Rechazar se quedan donde estaban.
+  // ⚠ reqPeekHeight() MIDE la ficha, no lleva número fijo: al agregarle una fila el mapa
+  // se achica solo y Aceptar/Rechazar siguen a la vista.
   const oZona = req.origin_zone || (req.origin.address || 'Punto de recojo').split(',')[0];
   const dZona = req.dest_zone || (req.dest.address || 'Destino').split(',')[0];
   $('#reqcard').innerHTML = `
-    <div class="grab" id="reqGrab"></div>
     <div id="reqEssential">
       <div class="reqhead">
         <button type="button" class="backlist" id="reqBack">${reqList.length === 1 ? '‹ Volver a la lista' : '‹ Ver los ' + reqList.length + ' viajes'}</button>
@@ -1688,19 +1633,7 @@ function showRequest(req) {
         <button class="btn ghost" id="reqNo">Rechazar</button>
         <button class="btn" id="reqYes">Aceptar</button>
       </div>
-      <div class="rqmore" id="reqMoreHint">Desliza para ver el detalle ▲</div>
     </div>
-    <div class="breakdown hidden" id="reqBd"></div>
-    <div class="earnnote lock" id="reqLock"></div>
-    <div class="drv">
-      <div class="av">${req.passenger.initial || 'P'}</div>
-      <div><div class="nm">${esc(req.passenger.name)}</div><div class="car2">⭐ ${(req.passenger.rating || 5).toFixed(1)} · ${req.passenger.trips || 0} viajes</div></div>
-    </div>
-    ${req.origin_zone
-      ? `<div class="addr"><span class="dot o"></span><div class="tx">📍 ${esc(req.origin_zone)}<small>Recojo · ${esc(req.origin.address || '')} · a ${km(req.to_pickup_m)}</small></div></div>`
-      : `<div class="addr"><span class="dot o"></span><div class="tx">${esc(req.origin.address || 'Punto de recojo')}<small>Recojo · a ${km(req.to_pickup_m)}</small></div></div>`}
-    ${req.reference ? `<div class="addr"><span class="dot" style="background:var(--amarillo)"></span><div class="tx">${esc(req.reference)}<small>Referencia del pasajero</small></div></div>` : ''}
-    <div class="addr"><span class="dot d"></span><div class="tx">${esc(req.dest.address || 'Destino')}<small>Destino · ${km(req.trip_distance_m)} · ${mins(req.trip_duration_s)}</small></div></div>
 `;
   paintReq(req);
   // vista previa en el mapa: recojo + destino + RUTA (para que el conductor mire el mapa, no la dirección escrita)
@@ -1718,12 +1651,11 @@ function showRequest(req) {
   const destLabel = req.dest_zone || (req.dest.address ? req.dest.address.split(',')[0].trim() : '');
   if (destLabel) addOfferLabel([req.dest.lat, req.dest.lng], destLabel, 'dest');
 
-  // Arranca compacta: el mapa manda. El encuadre se hace DESPUÉS de aplicar el alto,
-  // si no se calcularía contra una tarjeta que todavía ocupa toda la pantalla.
+  // El encuadre se hace DESPUÉS de medir la ficha: si no, se calcularía contra una tarjeta
+  // que todavía no terminó de pintarse.
   reqSheetState = 'peek';
-  applyReqSnap(false);
-  setupReqDrag(req);
-  requestAnimationFrame(() => { applyReqSnap(false); encuadrarViaje(req); });
+  applyReqSnap();
+  requestAnimationFrame(() => { applyReqSnap(); encuadrarViaje(req); });
 
   $('#reqBack').addEventListener('click', () => closeDetail());
   $('#reqYes').addEventListener('click', () => acceptRequest(req));
@@ -1781,17 +1713,23 @@ function encuadrarViaje(req) {
   const tope = tb ? tb.getBoundingClientRect().bottom : 60;
   const ley = document.getElementById('rqleyenda');
   const altoLey = (ley && ley.classList.contains('on')) ? ley.offsetHeight + 8 : 0;
-  map.fitBounds(caja.pad(0.08), {
-    // arriba: la barra + el nombre del lugar, que va ~54 px POR ENCIMA de su pin
-    paddingTopLeft: [24, Math.round(tope) + 58],
-    // abajo: la ficha + la leyenda que va encima de ella + 34 px porque el auto del conductor
-    // se dibuja CENTRADO en su punto (mide 64 px): si el conductor es el punto de más abajo,
-    // medio auto quedaba debajo de la leyenda aunque su coordenada estuviera "dentro"
-    paddingBottomRight: [24, Math.round(alto) + altoLey + 34],
+  // a la izquierda están los botones de tema y zoom: un pin debajo de ellos no se ve
+  const zm = document.getElementById('mapZoom');
+  const izq = zm && zm.offsetWidth ? Math.round(zm.getBoundingClientRect().right) + 10 : 24;
+  // Márgenes JUSTOS, no generosos (foto real de la central, 12 oct: "se ve muy pegado"):
+  // cada píxel de margen es mapa que no se usa, y en un celular de 740 px sólo quedan ~230.
+  // Si aun así dos nombres chocan, acomodarEtiquetas() los pasa a otro lado de su pin.
+  map.fitBounds(caja.pad(0.04), {
+    // arriba: la barra + el nombre del lugar, que va ~62 px POR ENCIMA de su pin (con
+    // menos, el nombre del punto más alto no tenía dónde ir sin chocar con algo)
+    paddingTopLeft: [izq, Math.round(tope) + 64],
+    // abajo: la ficha + la leyenda + medio auto: el auto se dibuja CENTRADO en su punto
+    // (64 px al 80 %), así que si es el punto de más abajo asoma ~26 px por debajo
+    paddingBottomRight: [24, Math.round(alto) + altoLey + 28],
   });
   map.options.zoomSnap = snapAntes;
   // el encuadre va animado: se baja la bandera cuando termina, no en la línea siguiente
-  setTimeout(() => { encuadrando = false; }, 400);
+  setTimeout(() => { encuadrando = false; acomodarEtiquetas(); }, 400);
 }
 /**
  * Repinta las cifras de la tarjeta según el ajuste elegido (reqBump).
@@ -1805,36 +1743,12 @@ function paintReq(req) {
 
   const t = $('#reqTotal'); if (t) t.textContent = total.toFixed(2);
 
-  // desglose: solo aparece si hay algo que desglosar (acercamiento o ajuste)
-  // Siempre visible: vive en la parte que se ve al deslizar, así que no le quita mapa a
-  // nadie, y ahí es donde ahora vive el detalle de la comisión.
-  const bd = $('#reqBd');
-  if (bd) {
-    bd.classList.remove('hidden');
-    bd.innerHTML =
-      `<div><span>Viaje (recojo → destino)</span><b>${money(req.offered_price)}</b></div>` +
-      (apFee > 0 ? `<div><span>Tu acercamiento · ${km(req.approach_m != null ? req.approach_m : req.to_pickup_m)}</span><b>+ ${money(apFee)}</b></div>` : '') +
-      (reqBump > 0 ? `<div><span>Lo que pides de más</span><b>+ ${money(reqBump)}</b></div>` : '') +
-      `<div><span>Comisión (${commissionPct}%)</span><b>− ${money(com)}</b></div>` +
-      `<div class="tot"><span>Recibes</span><b>${money(total - com)}</b></div>`;
-  }
-
   // "Recibes" va en su propia columna de la ficha compacta, al lado del precio, con la
-  // comisión debajo (pedido de la central). El desglose completo sigue al deslizar.
+  // comisión debajo (pedido de la central).
   const e = $('#reqEarn');
   if (e) e.textContent = money(total - com);
   const c = $('#reqCom');
   if (c) c.textContent = `Comisión ${money(com)}`;
-
-  // Con ajuste el precio NO está cerrado todavía: el pasajero puede irse con otro conductor.
-  // Decírselo aquí evita que crea que ya ganó la carrera por tocar «+5».
-  const lock = $('#reqLock');
-  if (lock) {
-    lock.classList.toggle('warn', reqBump > 0);
-    lock.textContent = reqBump > 0
-      ? `El pasajero verá ${money(total)} y puede aceptarte o buscar otro conductor.`
-      : `🔒 Precio cerrado: cobras ${money(total)} aunque el viaje demore más.`;
-  }
 
   document.querySelectorAll('#reqBumps .bump').forEach((b) => {
     b.classList.toggle('on', Number(b.dataset.b) === reqBump && reqBump > 0);
@@ -1892,7 +1806,7 @@ function pintarTramos(req, acerc) {
   ley.querySelector('#lgA').textContent = a;
   ley.querySelector('#lgT').textContent = t;
   ley.classList.add('on');
-  applyReqSnap(false);
+  applyReqSnap();
 }
 
 /**
@@ -1910,6 +1824,65 @@ async function cargarRutaAcercamiento(req) {
   approachLine = L.polyline(r.geometry, { color: '#FFC107', weight: 5, opacity: .95 }).addTo(map);
   pintarTramos(req, r);
   encuadrarViaje(req);
+}
+
+/**
+ * Acomoda los nombres de recojo y destino para que no se encimen (foto real de la central,
+ * 12 oct: "se ve muy pegado"). Cada nombre puede ir arriba, abajo, a la derecha o a la
+ * izquierda de su pin; se prueban TODAS las combinaciones de los dos nombres y gana la que
+ * menos tape: al otro nombre, a los pines, al auto, o quedar cortado por la barra, la
+ * leyenda o el borde. Con empate gana "los dos arriba", que es lo que el ojo espera.
+ * Se mide en pantalla (no en coordenadas): lo que importa es lo que el conductor ve.
+ */
+const POS_ETIQUETA = ['', 'abajo', 'der', 'izq'];
+function acomodarEtiquetas() {
+  if (!offerLabels.length) return;
+  const R = (el) => el ? el.getBoundingClientRect() : null;
+  const tapa = (a, b) => Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)) *
+                         Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+  // pines, auto y los botones del mapa (tema y zoom, a la izquierda): nada de eso se tapa
+  const fijos = [R(document.querySelector('.pin.o')), R(document.querySelector('.pin.d')),
+                 R(document.querySelector('.medriver .car')), R(document.getElementById('btnMapMode')),
+                 R(document.getElementById('mapZoom'))].filter((r) => r && r.width > 0);
+  // el trozo de mapa que de verdad se ve: entre la barra de arriba y la leyenda (o la ficha)
+  const tb = R(document.querySelector('.topbar'));
+  const ley = document.getElementById('rqleyenda');
+  const piso = (ley && ley.classList.contains('on')) ? R(ley) : R(document.getElementById('reqcard'));
+  const vista = { left: 0, right: innerWidth, top: tb ? tb.bottom : 0, bottom: piso ? piso.top : innerHeight };
+  const els = offerLabels.map((m) => m.getElement() && m.getElement().querySelector('.ozlabel')).filter(Boolean);
+  const botones = fijos.slice(3); // tema y zoom
+  const poner = (el, pos) => {
+    POS_ETIQUETA.forEach((c) => c && el.classList.toggle(c, c === pos));
+    el.style.marginLeft = '0px'; el.style.maxWidth = '';
+  };
+  // cada nombre en cada lugar: su rectángulo y lo que tapa por sí solo. Arriba/abajo, si se
+  // sale por un costado, se corre hacia adentro; a los costados NO se corre (volvería encima
+  // de su propio pin): se acorta con "…" hasta el borde o hasta los botones del mapa.
+  const op = els.map((el) => POS_ETIQUETA.map((pos) => {
+    poner(el, pos);
+    let r = R(el), corre = 0, ancho = '';
+    if (pos === 'der' || pos === 'izq') {
+      const choca = (o) => o.top < r.bottom && o.bottom > r.top;
+      const pared = pos === 'der'
+        ? Math.min(innerWidth - 6, ...botones.filter((o) => choca(o) && o.left >= r.left).map((o) => o.left - 4))
+        : Math.max(6, ...botones.filter((o) => choca(o) && o.right <= r.right).map((o) => o.right + 4));
+      const cabe = pos === 'der' ? pared - r.left : r.right - pared;
+      if (cabe < r.width) { ancho = Math.max(70, Math.floor(cabe)) + 'px'; el.style.maxWidth = ancho; r = R(el); }
+    } else {
+      corre = r.left < 6 ? 6 - r.left : (r.right > innerWidth - 6 ? (innerWidth - 6) - r.right : 0);
+    }
+    const q = { left: r.left + corre, right: r.right + corre, top: r.top, bottom: r.bottom };
+    // quedar tapado por la barra o la leyenda cuenta doble: un nombre a medias no se lee
+    const fuera = (q.right - q.left) * (q.bottom - q.top) - tapa(q, vista);
+    return { pos, corre, ancho, q, costo: fijos.reduce((t, o) => t + tapa(q, o), 0) + 2 * fuera + (pos ? 1 : 0) };
+  }));
+  let mejor = null;
+  const combos = els.length === 2 ? op[0].flatMap((x) => op[1].map((y) => [x, y])) : op[0].map((x) => [x]);
+  combos.forEach((c) => {
+    const costo = c.reduce((t, o) => t + o.costo, 0) + (c.length === 2 ? 3 * tapa(c[0].q, c[1].q) : 0);
+    if (!mejor || costo < mejor.costo) mejor = { c, costo };
+  });
+  mejor.c.forEach((o, i) => { poner(els[i], o.pos); els[i].style.marginLeft = o.corre + 'px'; els[i].style.maxWidth = o.ancho; });
 }
 
 function addOfferLabel(latlng, text, variant) {

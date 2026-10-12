@@ -88,8 +88,12 @@
         /* durante la oferta: ocultar todas las zonas y resaltar solo la del recojo */
         #app.offering .zonemk{display:none!important}
         .offerzone{pointer-events:none}
-        .offerzone .ozlabel{position:absolute;left:0;top:-54px;transform:translateX(-50%);white-space:nowrap;max-width:170px;overflow:hidden;text-overflow:ellipsis;font-size:12.5px;font-weight:800;color:#fff;background:#009d4f;padding:4px 12px;border-radius:12px;box-shadow:0 3px 12px rgba(0,0,0,.55);border:1.5px solid rgba(255,255,255,.9)}
+        .offerzone .ozlabel{position:absolute;left:0;top:-62px;transform:translateX(-50%);white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis;font-size:12px;font-weight:800;color:#fff;background:#009d4f;padding:3px 10px;border-radius:12px;box-shadow:0 3px 12px rgba(0,0,0,.55);border:1.5px solid rgba(255,255,255,.9)}
         .offerzone .ozlabel.dest{background:#e23b3b}
+        /* el nombre se corre abajo / a un costado del pin cuando arriba se encimaba (ver acomodarEtiquetas) */
+        .offerzone .ozlabel.abajo{top:8px}
+        .offerzone .ozlabel.der{top:-31px;left:26px;transform:none}
+        .offerzone .ozlabel.izq{top:-31px;left:-26px;transform:translateX(-100%)}
         /* ---- Home rediseñado del conductor ---- */
         /* Aviso de "el pasajero ya está saliendo": verde y quieto, no un toast que se va.
            El conductor mira el celular de reojo y puede perderse cualquier cosa que parpadee. */
@@ -673,7 +677,7 @@ window.MG = {
 <script src="/js/majesgo-car.js?v=2"></script>
 <script src="/js/despierto.js?v=1"></script>
 <script src="/js/rastreo.js?v=7"></script>
-<script src="/js/driver.js?v=61"></script>
+<script src="/js/driver.js?v=62"></script>
 <script src="/js/native.js?v=10"></script>
 </body>
 </html>
