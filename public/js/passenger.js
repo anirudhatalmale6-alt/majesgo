@@ -725,7 +725,22 @@ function renderSearchResults(box, items) {
     box.innerHTML = '<div class="nohit">No encontramos ese lugar. Toca el punto en el mapa 👆 y lo marcamos exacto.</div>';
     return;
   }
-  box.innerHTML = items.map((x, i) => `<div data-i="${i}"><div class="t">${esc(x.title)}</div><div class="s">${esc(x.sub || '')}</div></div>`).join('');
+  // Muchos pasajeros escribían "B3 parcela 10", veían "Parcela 10 · B3" y se quedaban
+  // esperando: no sabían que había que TOCAR el resultado (pedido de la central, 12 oct).
+  // Sólo cambia cómo se ve; qué pasa al tocar sigue igual (ver elegir() abajo).
+  //   · aviso arriba ("Toca esta opción…") — es un <p>, no un <div>, para que no herede el
+  //     estilo de fila ni el clic de las sugerencias
+  //   · el PRIMER resultado (el mejor) con borde verde y botón "Seleccionar"
+  //   · los demás con una flechita, para que también se vean tocables
+  // El aviso desaparece solo al elegir: elegir() vacía la caja.
+  const PIN = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M12 2C8.1 2 5 5.1 5 9c0 5.2 7 13 7 13s7-7.8 7-13c0-3.9-3.1-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>';
+  const aviso = items.length === 1 ? 'Toca esta opción para confirmar tu destino' : 'Toca una opción para confirmar tu destino';
+  box.innerHTML = `<p class="sugghint" role="note"><span>💡 ${aviso}</span><span class="sgdown" aria-hidden="true">↓</span></p>`
+    + items.map((x, i) => `<div data-i="${i}" role="button" tabindex="0"${i === 0 ? ' class="sugtop"' : ''}>`
+      + `<span class="sgpin">${PIN}</span>`
+      + `<span class="sgtx"><span class="t">${esc(x.title)}</span><span class="s">${esc(x.sub || '')}</span></span>`
+      + (i === 0 ? '<span class="sgbtn">Seleccionar ›</span>' : '<span class="sgarrow" aria-hidden="true">›</span>')
+      + '</div>').join('');
 
   const elegir = async (el) => {
     const x = items[+el.dataset.i];
@@ -760,7 +775,13 @@ function renderSearchResults(box, items) {
     if (origin) map.fitBounds(L.latLngBounds([[origin.lat, origin.lng], [p.lat, p.lng]]).pad(0.3));
   };
 
-  box.querySelectorAll('div[data-i]').forEach((el) => el.addEventListener('click', () => elegir(el)));
+  box.querySelectorAll('div[data-i]').forEach((el) => {
+    el.addEventListener('click', () => elegir(el));
+    // Las filas se anuncian como botón: entonces también responden a Enter/Espacio.
+    el.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); elegir(el); }
+    });
+  });
 }
 
 // Un solo query a Nominatim (OSM). bias = usar el recuadro solo como preferencia (no recorta).

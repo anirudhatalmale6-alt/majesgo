@@ -173,6 +173,20 @@
         .suggbox:empty{display:none}
         .suggbox .t{font-weight:600}.suggbox .s{color:var(--muted);font-size:11.5px}
         .suggbox .nohit{color:var(--muted);font-size:12.5px;cursor:default;border-bottom:none;line-height:1.4}
+        /* Resultados que SE VEN tocables (pedido de la central, 12 oct): aviso arriba, el mejor
+           resultado con borde verde y botón "Seleccionar", los demás con flechita. */
+        .sugghint{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0;padding:8px 14px;font-size:12.5px;line-height:1.35;color:#9be8b8;background:rgba(0,200,83,.08);border-bottom:1px solid rgba(0,200,83,.35)}
+        .suggbox > div[data-i]{display:flex;align-items:center;gap:10px}
+        .suggbox .sgpin{flex:none;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;color:var(--muted);border:1px solid var(--line)}
+        .suggbox .sgtx{flex:1;min-width:0;display:flex;flex-direction:column}
+        .suggbox .sgtx .t{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+        .suggbox .sgtx .s{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .suggbox .sgarrow{flex:none;color:var(--muted);font-size:20px;line-height:1;padding-left:4px}
+        .suggbox > div.sugtop{margin:7px 8px;border:1.5px solid var(--verde);border-radius:12px;background:rgba(0,200,83,.08);box-shadow:0 0 0 3px rgba(0,200,83,.12)}
+        .suggbox > div.sugtop:last-child{border-bottom:1.5px solid var(--verde)}
+        .suggbox .sugtop .sgpin{color:var(--verde);border-color:rgba(0,200,83,.6)}
+        .sugghint .sgdown{flex:none;font-size:15px}
+        .suggbox .sgbtn{flex:none;font-size:12.5px;font-weight:700;color:var(--verde);border:1.5px solid var(--verde);border-radius:999px;padding:6px 11px;white-space:nowrap}
 
         .routeinfo{display:flex;gap:10px;margin:4px 0 14px}
         .chip{flex:1;background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:10px;text-align:center}
@@ -439,7 +453,7 @@ window.MG = {
 </script>
 <script src="/js/pois.js?v=6"></script>
 <script src="/js/majesgo-car.js?v=2"></script>
-<script src="/js/passenger.js?v=53"></script>
+<script src="/js/passenger.js?v=54"></script>
 <script src="/js/native.js?v=10"></script>
 </body>
 </html>
