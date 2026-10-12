@@ -87,6 +87,15 @@ class GeocodeController extends Controller
         // "inkafarma" o "el ovalo" antes que una dirección con calle y número.
         $pois = $this->mapPoiSearch($q);
 
+        // 0.c) DIRECCIÓN DE PARCELA ("D3 Parcela 13", "E5 parcela 7").
+        // Así se ubica media Majes: la irrigación se divide en secciones y parcelas, y en el
+        // campo nadie da una calle. Ningún mapa del mundo tiene las parcelas una por una,
+        // pero las SECCIONES sí están cargadas, y llevar al conductor a la sección correcta
+        // es infinitamente mejor que una pantalla vacía.
+        // Va aparte porque la búsqueda por palabras no puede encontrarlo: exige que estén
+        // TODAS, y el lugar se llama "D3" a secas, sin "parcela" ni "13".
+        $parcela = $this->seccionDeParcela($q);
+
         // 1) GOOGLE PLACES (New) — busca lugares POR NOMBRE, que es como escribe la gente.
         //
         // Reemplaza a la Geocoding API, que se usaba acá y aportaba 0 de 12 sobre las
@@ -104,7 +113,7 @@ class GeocodeController extends Controller
             Cache::forget($ck);
         }
 
-        $results = array_merge($custom, $pois, $places ?? []);
+        $results = array_merge($parcela, $custom, $pois, $places ?? []);
         // si no hay ni zonas locales ni Google, devolver null para que el frontend use Nominatim
         if (! $results) {
             return response()->json(['results' => null]);
@@ -148,6 +157,44 @@ class GeocodeController extends Controller
                 'lng'   => (float) $p->lng,
             ])
             ->all();
+    }
+
+    /**
+     * "D3 Parcela 13" -> la sección D3.
+     *
+     * Reconoce el código de sección al principio del texto (D3, E5, B1…) seguido de algo que
+     * suene a parcela o a un número. Devuelve la sección con el subtítulo diciendo CLARAMENTE
+     * que es la sección y no la parcela: prometer una precisión que no tenemos haría que el
+     * conductor se plante en el sitio equivocado creyendo que llegó.
+     */
+    private function seccionDeParcela(string $q): array
+    {
+        if (! preg_match('/^\s*([A-Ea-e])\s*-?\s*(\d{1,2})\b\s*(.*)$/u', $q, $m)) {
+            return [];
+        }
+        $resto = trim($m[3]);
+        // "D3" solo ya lo encuentra la búsqueda normal por nombre. Acá interesa el caso en
+        // que viene acompañado — "parcela 13", "lote 4", "- 13" — que es el que no encaja.
+        if ($resto === '' || ! preg_match('/parcel|lote|mz|manzana|\d/iu', $resto)) {
+            return [];
+        }
+
+        $codigo = mb_strtoupper($m[1]) . (int) $m[2];
+        $p = \App\Models\MapPoi::query()
+            ->where('active', true)
+            ->where('category', 'sector')
+            ->whereRaw('UPPER(name) = ?', [$codigo])
+            ->first();
+        if (! $p) {
+            return [];
+        }
+
+        return [[
+            'label' => 'Sección ' . $codigo,
+            'full'  => 'Te dejamos en ' . $codigo . ' · escribe la parcela en la referencia',
+            'lat'   => (float) $p->lat,
+            'lng'   => (float) $p->lng,
+        ]];
     }
 
     /**

@@ -39,6 +39,11 @@ class MapPoi extends Model
         // dirección con calle y número. "Plaza" era el 2º término más escrito en el buscador
         // y no había ni un solo punto de esta clase cargado: 17 búsquedas que no devolvían nada.
         'plaza'         => 'Plaza / parque',
+        // Las secciones de la irrigación Majes (A1…E8). En el campo nadie dice una calle:
+        // dice "estoy en D3". Son áreas grandes, así que el punto es el centro de la sección
+        // y sirve para orientar, no para marcar una puerta — por eso el pasajero debe poner
+        // el número de parcela en la referencia del viaje.
+        'sector'        => 'Sección de la irrigación',
         'otro'          => 'Otro',
     ];
 
@@ -47,6 +52,9 @@ class MapPoi extends Model
         'grifo' => 1, 'mercado' => 1, 'hotel' => 1, 'banco' => 1, 'farmacia' => 1,
         'salud' => 1, 'terminal' => 1, 'municipalidad' => 1, 'policia' => 1,
         'plaza' => 1,
+        // Prioridad baja: son 24 y cubren kilómetros. Con prioridad alta taparían de etiquetas
+        // el mapa del pueblo, que es donde ocurre casi todo el movimiento.
+        'sector' => 3,
         'comida' => 2, 'iglesia' => 2, 'colegio' => 2,
         'taller' => 3, 'otro' => 3,
     ];
