@@ -260,17 +260,30 @@
         .rqm .rqpay{text-align:left;font-size:11.5px}
         .rqearn{font-size:24px;font-weight:800;color:var(--verde);line-height:1.1}
         .rqcom{font-size:11px;color:var(--muted)}
-        .rql .lbl{font-size:11px;font-weight:800;margin-right:2px}
-        .rql .lbl.o{color:var(--verde)} .rql .lbl.d{color:#ff6b6b}
         .rqref{display:flex;gap:8px;align-items:flex-start;margin:0 0 0 19px;padding:6px 10px;border:1px solid rgba(255,193,7,.5);background:rgba(255,193,7,.08);border-radius:10px}
         .rqref .ic{flex:none;font-size:13px;line-height:1.35}
         .rqref .tx{flex:1;min-width:0;font-size:13px;line-height:1.3;color:#F5F7FA}
         .rqref .tx small{display:block;color:#FFD97A;font-size:10.5px;font-weight:700}
         .rqref .rt{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-        .rchipwrap{pointer-events:none}
-        .rchip{position:absolute;left:0;top:0;transform:translate(-50%,-50%);white-space:nowrap;font-size:11.5px;font-weight:800;padding:3px 8px;border-radius:9px;background:rgba(13,13,13,.88);border:1.5px solid;box-shadow:0 2px 8px rgba(0,0,0,.5)}
-        .rchip.acerc{color:#FFD54F;border-color:#FFC107}
-        .rchip.viaje{color:#7DE9AC;border-color:#00C853}
+        /* Los dos tramos (pedido de la central, 12 oct): en la ficha como filas y en el mapa
+           como una leyenda fija pegada al borde de la ficha — una leyenda nunca tapa un pin, y
+           las etiquetas a mitad de ruta sí lo hacían. Colores = los de cada ruta del mapa. */
+        .rqleyenda{position:absolute;left:12px;right:12px;z-index:37;display:none;flex-wrap:wrap;gap:4px 14px;justify-content:center;
+                   padding:6px 12px;border-radius:12px;background:rgba(13,13,13,.86);box-shadow:0 2px 10px rgba(0,0,0,.45);
+                   font-size:11.5px;font-weight:600;color:#cfd6de;pointer-events:none;width:max-content;max-width:calc(100% - 24px);margin:0 auto}
+        .rqleyenda.on{display:flex}
+        /* En la ventana 16:9 el anillo del radar (96 px, decorativo) tapaba justo las rutas que
+           el conductor tiene que mirar. Mientras mira una solicitud: sin radar y auto un poco
+           más chico (en .medriver: la rotación del auto va en .car y no se pisa). */
+        #app.offering .medriver .radar{display:none}
+        #app.offering .medriver{transform:scale(.8)}
+        .rqleyenda .lg{white-space:nowrap}
+        .rqleyenda .lg.y b{color:#FFD54F} .rqleyenda .lg.g b{color:#7DE9AC}
+        .rql.leg{align-items:center}
+        .rql .dot.y{background:#FFC107} .rql .dot.g{background:var(--verde)}
+        .rql.leg .tx b{font-size:13px;font-weight:700}
+        .rql .kmmin{flex:none;font-weight:800;font-size:13.5px;white-space:nowrap;padding-left:6px}
+        .rql .kmmin.y{color:#FFD54F} .rql .kmmin.g{color:#7DE9AC}
         .rqmore{text-align:center;color:var(--muted);font-size:11px;padding:9px 0 2px;letter-spacing:.2px}
         @keyframes slideup{from{transform:translateY(40px);opacity:.4}to{transform:none;opacity:1}}
         .reqhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
@@ -660,7 +673,7 @@ window.MG = {
 <script src="/js/majesgo-car.js?v=2"></script>
 <script src="/js/despierto.js?v=1"></script>
 <script src="/js/rastreo.js?v=7"></script>
-<script src="/js/driver.js?v=60"></script>
+<script src="/js/driver.js?v=61"></script>
 <script src="/js/native.js?v=10"></script>
 </body>
 </html>
