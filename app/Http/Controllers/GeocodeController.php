@@ -89,12 +89,31 @@ class GeocodeController extends Controller
         return response()->json(['results' => array_slice($results, 0, 8)]);
     }
 
-    /** Puntos de referencia que coinciden con el texto escrito. */
+    /**
+     * Puntos de referencia que coinciden con el texto escrito.
+     *
+     * Se buscan TODAS LAS PALABRAS por separado, no la frase entera.
+     *
+     * ⚠ Con la frase literal, quien escribía "plaza pionero" no encontraba nada: el lugar se
+     * llama "Plaza El Pionero" y ese "El" del medio rompía la coincidencia. La gente teclea
+     * las palabras que recuerda, en orden, saltándose los artículos — y se llevaba una
+     * pantalla vacía estando el punto cargado. Lo mismo con "mercado metropolitano" o
+     * "parque amor".
+     */
     private function mapPoiSearch(string $q): array
     {
+        $palabras = array_slice(array_filter(preg_split('/\s+/', trim($q))), 0, 5);
+        if (! $palabras) {
+            return [];
+        }
+
         return \App\Models\MapPoi::query()
             ->where('active', true)
-            ->where('name', 'like', '%' . $q . '%')
+            ->where(function ($w) use ($palabras) {
+                foreach ($palabras as $p) {
+                    $w->where('name', 'like', '%' . $p . '%');
+                }
+            })
             ->orderBy('priority')
             ->limit(4)
             ->get()
@@ -138,14 +157,28 @@ class GeocodeController extends Controller
         return CustomPlace::zoneAt($lat, $lng);
     }
 
-    /** Zonas locales que coinciden con el texto (por nombre o apodo). */
+    /**
+     * Zonas locales que coinciden con el texto (por nombre o apodo).
+     * Por palabras, igual que mapPoiSearch — ver el motivo allí.
+     */
     private function customPlaceSearch(string $q): array
     {
-        $needle = mb_strtolower($q);
+        $palabras = array_slice(array_filter(preg_split('/\s+/', mb_strtolower(trim($q)))), 0, 5);
+        if (! $palabras) {
+            return [];
+        }
         $out = [];
         foreach (CustomPlace::activeCached() as $p) {
             foreach ($p['names'] as $n) {
-                if (mb_strpos(mb_strtolower($n), $needle) !== false) {
+                $bajo = mb_strtolower($n);
+                $todas = true;
+                foreach ($palabras as $w) {
+                    if (mb_strpos($bajo, $w) === false) {
+                        $todas = false;
+                        break;
+                    }
+                }
+                if ($todas) {
                     $out[] = [
                         'label' => $p['name'],
                         'full'  => 'Zona local · Majes Drive',
