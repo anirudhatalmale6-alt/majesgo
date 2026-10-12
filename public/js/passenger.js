@@ -711,18 +711,56 @@ function bearingP(a, b) {
 function compassEs(brg) {
   return ['norte', 'noreste', 'este', 'sureste', 'sur', 'suroeste', 'oeste', 'noroeste'][Math.round((brg % 360) / 45) % 8];
 }
+/**
+ * Pintar las sugerencias.
+ *
+ * Hay DOS clases de sugerencia y se tocan igual, pero por dentro no lo son:
+ *   · las nuestras (zonas, puntos de referencia) y las de OSM ya traen lat/lng
+ *   · las de Google Places traen place_id y NO traen coordenadas
+ * Las coordenadas de Google se cobran aparte, así que se piden SOLO de la que el pasajero
+ * elija — pedirlas de las 6 sugerencias sería pagar 6 veces para usar una.
+ */
 function renderSearchResults(box, items) {
   if (!items.length) {
     box.innerHTML = '<div class="nohit">No encontramos ese lugar. Toca el punto en el mapa 👆 y lo marcamos exacto.</div>';
     return;
   }
-  box.innerHTML = items.map((x) => `<div data-lat="${x.lat}" data-lon="${x.lng}"><div class="t">${esc(x.title)}</div><div class="s">${esc(x.sub || '')}</div></div>`).join('');
-  box.querySelectorAll('div[data-lat]').forEach((el) => el.addEventListener('click', () => {
-    const p = { lat: +el.dataset.lat, lng: +el.dataset.lon };
-    setDest(p, el.querySelector('.t').textContent);
-    map.setView([p.lat, p.lng], 16); box.innerHTML = '';
+  box.innerHTML = items.map((x, i) => `<div data-i="${i}"><div class="t">${esc(x.title)}</div><div class="s">${esc(x.sub || '')}</div></div>`).join('');
+
+  const elegir = async (el) => {
+    const x = items[+el.dataset.i];
+    if (!x) return;
+    let p = (x.lat != null && x.lng != null) ? { lat: +x.lat, lng: +x.lng } : null;
+
+    if (!p && x.place_id) {
+      // Se avisa que está trabajando: resolver el lugar es una ida al servidor y sin esto
+      // el pasajero toca, no pasa nada visible, y vuelve a tocar.
+      el.classList.add('cargando');
+      try {
+        const d = await api('api/geocode/place?id=' + encodeURIComponent(x.place_id)
+          + '&s=' + encodeURIComponent(sesionBusqueda || ''));
+        if (d && d.lat != null) p = { lat: +d.lat, lng: +d.lng };
+        if (d && d.label) x.title = d.label;
+      } catch (e) { /* abajo se avisa */ }
+      el.classList.remove('cargando');
+    }
+
+    if (!p) {
+      toast('No pudimos ubicar ese lugar. Elige otro o toca el punto en el mapa.', 4000);
+      return;
+    }
+
+    // La sesión se cierra al elegir: Google cobra UNA por sesión, y reusar el mismo token
+    // para la próxima búsqueda sería seguir estirando una sesión ya facturada.
+    sesionBusqueda = null;
+
+    setDest(p, x.title);
+    map.setView([p.lat, p.lng], 16);
+    box.innerHTML = '';
     if (origin) map.fitBounds(L.latLngBounds([[origin.lat, origin.lng], [p.lat, p.lng]]).pad(0.3));
-  }));
+  };
+
+  box.querySelectorAll('div[data-i]').forEach((el) => el.addEventListener('click', () => elegir(el)));
 }
 
 // Un solo query a Nominatim (OSM). bias = usar el recuadro solo como preferencia (no recorta).
@@ -734,18 +772,37 @@ async function nominatim(q, biasOnly) {
 }
 
 let searchT, searchSeq = 0;
+
+/**
+ * Token de sesión de búsqueda (Google Places).
+ *
+ * Ata todo lo que el pasajero teclea a la única consulta que se cobra: la de cuando elige.
+ * Sin esto Google factura CADA tecla; con esto, una sesión. Se crea al empezar a escribir
+ * un destino y se tira al elegir uno (ver renderSearchResults) o al limpiar el campo.
+ */
+let sesionBusqueda = null;
+function nuevaSesionBusqueda() {
+  if (sesionBusqueda) return sesionBusqueda;
+  // No hace falta que sea criptográfico: sólo tiene que ser distinto entre búsquedas.
+  sesionBusqueda = 'mg-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+  return sesionBusqueda;
+}
+
 async function searchPlaces(q, box) {
   clearTimeout(searchT);
   if (q.length < 3) { box.innerHTML = ''; return; }
   const seq = ++searchSeq;
   searchT = setTimeout(async () => {
     box.innerHTML = '<div class="nohit">Buscando “' + esc(q) + '”…</div>';
-    // 1) proxy (Google): mejores resultados en Perú (cuando la facturación esté activa)
+    // 1) proxy del servidor: zonas y puntos propios + Google Places por nombre
     try {
-      const g = await api('api/geocode/search?q=' + encodeURIComponent(q));
+      const g = await api('api/geocode/search?q=' + encodeURIComponent(q)
+        + '&s=' + encodeURIComponent(nuevaSesionBusqueda()));
       if (seq !== searchSeq) return;
       if (g && g.results && g.results.length) {
-        renderSearchResults(box, g.results.map((x) => ({ lat: x.lat, lng: x.lng, title: x.label, sub: x.full })));
+        renderSearchResults(box, g.results.map((x) => ({
+          lat: x.lat, lng: x.lng, title: x.label, sub: x.full, place_id: x.place_id,
+        })));
         return;
       }
     } catch (e) { /* sin proxy → respaldo */ }
@@ -776,6 +833,7 @@ async function searchPlaces(q, box) {
    distintas a la vez: campo vacío arriba y precio de la ruta vieja abajo. */
 function limpiarDestino(yaEscribiendo) {
   dest = null; quote = null; price = null;
+  sesionBusqueda = null;             // empieza una búsqueda nueva, no la continuación de la vieja
   clearTimeout(quoteT);              // una cotización en vuelo repintaría la ruta recién borrada
   if (dMarker) { dMarker.remove(); dMarker = null; }
   if (routeLine) { routeLine.remove(); routeLine = null; }

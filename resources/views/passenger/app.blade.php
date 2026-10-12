@@ -163,6 +163,11 @@
         .suggbox > div{padding:9px 14px;border-bottom:1px solid var(--line);font-size:13.5px;cursor:pointer}
         .suggbox > div:last-child{border-bottom:0}
         .suggbox > div:hover{background:#232830}
+        /* La sugerencia tocada mientras se piden sus coordenadas. Sin esta señal el pasajero
+           toca, no ve nada y vuelve a tocar — y el segundo toque llega cuando la lista ya
+           cambió, así que elige otro lugar. */
+        .suggbox > div.cargando{background:#232830;opacity:.6;pointer-events:none}
+        .suggbox > div.cargando .t::after{content:" …"}
         /* Sin resultados no debe quedar el marco vacío: dentro de la tarjeta agrupada se veía
            como una raya suelta bajo el destino */
         .suggbox:empty{display:none}
@@ -434,7 +439,7 @@ window.MG = {
 </script>
 <script src="/js/pois.js?v=6"></script>
 <script src="/js/majesgo-car.js?v=2"></script>
-<script src="/js/passenger.js?v=51"></script>
+<script src="/js/passenger.js?v=52"></script>
 <script src="/js/native.js?v=10"></script>
 </body>
 </html>

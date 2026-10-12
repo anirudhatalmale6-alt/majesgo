@@ -8,13 +8,26 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
 /**
- * Proxy de geocodificación (Hito 4 — Opción 1). Prefiere Google Maps Geocoding
- * (mejor cobertura de calles en Perú); si no hay clave o Google falla, devuelve
- * null y el frontend usa su respaldo con Nominatim (OSM). La clave vive solo en
- * el servidor (config), nunca en el navegador. Cachea para minimizar llamadas/costo.
+ * Proxy de búsqueda de lugares. La clave de Google vive sólo acá, nunca en el navegador,
+ * y todo se cachea para no pagar dos veces la misma consulta.
+ *
+ * DOS APIS DE GOOGLE, CADA UNA PARA LO SUYO — no son intercambiables:
+ *   · search()  -> Places API (New) Autocomplete: busca lugares POR NOMBRE.
+ *   · reverse() -> Geocoding API: convierte COORDENADAS en un nombre (el pin del mapa).
+ *
+ * Durante meses search() usó Geocoding y por eso el buscador parecía roto: medido contra
+ * las 12 búsquedas más frecuentes de los pasajeros, Geocoding aportaba 0. Es un traductor
+ * de direcciones, no un buscador de sitios. Si alguien vuelve a mezclarlas, el síntoma es
+ * ese: respuestas tipo "Perú" o lugares de otra ciudad.
+ *
+ * Si Google falla o no hay clave, se devuelve null y el navegador cae a Nominatim (OSM).
  */
 class GeocodeController extends Controller
 {
+    /** El Pedregal. Centro del círculo al que se limita la búsqueda. */
+    private const CENTRO_LAT = -16.3627;
+    private const CENTRO_LNG = -72.1908;
+
     private function key(): ?string
     {
         return config('services.google_maps.key');
@@ -74,13 +87,24 @@ class GeocodeController extends Controller
         // "inkafarma" o "el ovalo" antes que una dirección con calle y número.
         $pois = $this->mapPoiSearch($q);
 
-        $ck = 'geo:sea:' . mb_strtolower($q);
-        $google = Cache::remember($ck, now()->addDays(7), fn () => $this->googleSearch($q));
-        if ($google === null) {
+        // 1) GOOGLE PLACES (New) — busca lugares POR NOMBRE, que es como escribe la gente.
+        //
+        // Reemplaza a la Geocoding API, que se usaba acá y aportaba 0 de 12 sobre las
+        // búsquedas reales de los pasajeros: Geocoding traduce DIRECCIONES a coordenadas, no
+        // busca sitios por nombre. Devolvía "Perú" para "Terminal" y El Ovalo de CUSCO para
+        // "Ovalo". Places encuentra "Mercado metropolitano, Majes", que no tenía nadie.
+        // Geocoding se sigue usando en reverse() — ahí sí es la herramienta correcta.
+        //
+        // El sessionToken llega del navegador y ata todo lo que el pasajero teclea con la
+        // única consulta que se cobra, la de cuando ELIGE. Sin él, Google cobra cada tecla.
+        $sesion = (string) $request->query('s', '');
+        $ck = 'geo:pl:' . mb_strtolower($q);
+        $places = Cache::remember($ck, now()->addDays(7), fn () => $this->placesAutocomplete($q, $sesion));
+        if ($places === null) {
             Cache::forget($ck);
         }
 
-        $results = array_merge($custom, $pois, $google ?? []);
+        $results = array_merge($custom, $pois, $places ?? []);
         // si no hay ni zonas locales ni Google, devolver null para que el frontend use Nominatim
         if (! $results) {
             return response()->json(['results' => null]);
@@ -124,6 +148,134 @@ class GeocodeController extends Controller
                 'lng'   => (float) $p->lng,
             ])
             ->all();
+    }
+
+    /**
+     * Sugerencias de Google Places (New) mientras el pasajero escribe.
+     *
+     * NO devuelven coordenadas: Google las cobra aparte y sólo tiene sentido pedirlas del
+     * que el pasajero ELIJA (ver place()). Por eso cada fila viaja con su place_id y sin
+     * lat/lng, y el navegador sabe que a esas hay que resolverlas al tocarlas.
+     *
+     * ⚠⚠ 'locationRestriction' y NO 'locationBias'. Con bias —que es "preferí lo cercano"—
+     * la prueba dio 6 aciertos de 12: salía la Plaza de Armas de AREQUIPA, el Terminal de
+     * Arequipa y un colegio de TACNA. Con restriction —"sólo dentro de este círculo"— dio
+     * 10 de 12. "Preferir" no alcanza cuando el lugar famoso está a 400 km.
+     */
+    private function placesAutocomplete(string $q, string $sesion): ?array
+    {
+        if (! $this->googleEnabled()) {
+            return null;
+        }
+        try {
+            $cuerpo = [
+                'input'               => $q,
+                'locationRestriction' => ['circle' => [
+                    'center' => ['latitude' => self::CENTRO_LAT, 'longitude' => self::CENTRO_LNG],
+                    'radius' => 30000.0,
+                ]],
+                'languageCode'        => 'es',
+                'includedRegionCodes' => ['pe'],
+            ];
+            if ($sesion !== '') {
+                $cuerpo['sessionToken'] = $sesion;
+            }
+
+            $r = Http::timeout(6)
+                ->withHeaders(['X-Goog-Api-Key' => $this->key()])
+                ->post('https://places.googleapis.com/v1/places:autocomplete', $cuerpo);
+
+            if ($r->failed()) {
+                $this->markGoogleDown();
+                return null;
+            }
+
+            $out = [];
+            foreach ($r->json()['suggestions'] ?? [] as $s) {
+                $p = $s['placePrediction'] ?? null;
+                if (! $p || empty($p['placeId'])) {
+                    continue;   // las predicciones de consulta ('queryPrediction') no son lugares
+                }
+                $principal = $p['structuredFormat']['mainText']['text'] ?? ($p['text']['text'] ?? null);
+                if (! $principal) {
+                    continue;
+                }
+                $out[] = [
+                    'label'    => $principal,
+                    'full'     => $p['structuredFormat']['secondaryText']['text'] ?? '',
+                    'lat'      => null,          // se piden al elegir, no antes
+                    'lng'      => null,
+                    'place_id' => $p['placeId'],
+                ];
+                if (count($out) >= 6) {
+                    break;
+                }
+            }
+
+            return $out;
+        } catch (\Throwable $e) {
+            $this->markGoogleDown();
+            return null;
+        }
+    }
+
+    /**
+     * Coordenadas del lugar que el pasajero eligió. Es la ÚNICA llamada que se cobra.
+     *
+     * El sessionToken tiene que ser EL MISMO que se usó mientras escribía: así Google cobra
+     * una sesión en vez de una consulta por tecla.
+     */
+    public function place(Request $request)
+    {
+        $id = (string) $request->query('id', '');
+        // Los ids de Google son alfanuméricos con - y _. Filtrar acá evita que un id raro
+        // se concatene a la URL y termine pegándole a otra ruta de la API de Google.
+        if ($id === '' || ! preg_match('/^[A-Za-z0-9_\-]{10,256}$/', $id)) {
+            return response()->json(['message' => 'Lugar no válido.'], 422);
+        }
+        if (! $this->key()) {
+            return response()->json(['message' => 'Búsqueda no disponible.'], 503);
+        }
+
+        $sesion = (string) $request->query('s', '');
+
+        // Un mismo destino lo eligen muchas personas (el mercado, el terminal): cachearlo
+        // 30 días evita pagar la misma consulta una y otra vez. Las coordenadas de un lugar
+        // no se mueven.
+        $datos = Cache::remember('geo:place:' . $id, now()->addDays(30), function () use ($id, $sesion) {
+            try {
+                $r = Http::timeout(6)->withHeaders([
+                    'X-Goog-Api-Key'   => $this->key(),
+                    'X-Goog-FieldMask' => 'id,displayName,formattedAddress,location',
+                ])->get('https://places.googleapis.com/v1/places/' . $id, $sesion !== '' ? ['sessionToken' => $sesion] : []);
+
+                if ($r->failed()) {
+                    return null;
+                }
+                $d = $r->json();
+                $loc = $d['location'] ?? null;
+                if (! $loc || ! isset($loc['latitude'], $loc['longitude'])) {
+                    return null;
+                }
+
+                return [
+                    'label' => $d['displayName']['text'] ?? ($d['formattedAddress'] ?? 'Destino'),
+                    'full'  => $d['formattedAddress'] ?? '',
+                    'lat'   => (float) $loc['latitude'],
+                    'lng'   => (float) $loc['longitude'],
+                ];
+            } catch (\Throwable $e) {
+                return null;
+            }
+        });
+
+        if (! $datos) {
+            Cache::forget('geo:place:' . $id);   // un fallo no se cachea 30 días
+
+            return response()->json(['message' => 'No pudimos ubicar ese lugar.'], 502);
+        }
+
+        return response()->json($datos);
     }
 
     /** Zonas locales activas (para dibujar sus nombres en el mapa del pasajero). */
@@ -229,79 +381,6 @@ class GeocodeController extends Controller
         }
     }
 
-    private function googleSearch(string $q): ?array
-    {
-        if (! $this->googleEnabled()) {
-            return null;
-        }
-        try {
-            $r = Http::timeout(6)->get('https://maps.googleapis.com/maps/api/geocode/json', [
-                'address'    => $q,
-                'components' => 'country:PE',
-                'language'   => 'es',
-                'region'     => 'pe',
-                'bounds'     => '-16.45,-72.28|-16.28,-72.10', // sesga hacia Majes/El Pedregal
-                'key'        => $this->key(),
-            ]);
-            $d = $r->json();
-            if (($d['status'] ?? '') !== 'OK') {
-                if (($d['status'] ?? '') !== 'ZERO_RESULTS') {
-                    $this->markGoogleDown();
-                }
-                return null;
-            }
-            // Tipos demasiado genéricos: apuntan a todo un barrio/distrito, no a un lugar puntual.
-            // Si Google solo devuelve eso (típico al buscar un negocio por nombre en zona poco mapeada),
-            // lo descartamos y el frontend usa el respaldo Nominatim, que sí tiene esos POIs por nombre.
-            $broad = ['locality', 'political', 'neighborhood', 'sublocality', 'administrative_area_level_1',
-                      'administrative_area_level_2', 'administrative_area_level_3', 'postal_code', 'plus_code', 'country'];
-            $out = [];
-            foreach (array_slice($d['results'] ?? [], 0, 8) as $res) {
-                $loc = $res['geometry']['location'] ?? null;
-                if (! $loc) {
-                    continue;
-                }
-                // Solo la zona de Majes/El Pedregal: 'bounds' de Google es sesgo, no filtro,
-                // así que puede devolver calles homónimas de Lima u otra ciudad. Recortamos duro.
-                if (abs((float) $loc['lat'] + 16.3627) > 0.5 || abs((float) $loc['lng'] + 72.1908) > 0.5) {
-                    continue;
-                }
-                $types = $res['types'] ?? [];
-                $isBroad = $types && ! array_diff($types, $broad); // todos sus tipos son genéricos
-                $fa = $res['formatted_address'] ?? '';
-                // Un "plus code" (p. ej. "MR64+R7V") es la cuadrícula de Google, no un nombre.
-                // ⚠ Antes solo se miraba el ARRANQUE de la dirección, y se colaban las que lo
-                // traen en el medio: buscando "mercado metropolitano" Google devolvía
-                // "E5, MR64+R7V, Majes" y al pasajero le aparecía "E5, MR64+R7V" como si
-                // fuera el nombre del sitio. Ahora se mira CADA parte.
-                $isPlusCode = false;
-                foreach (explode(',', $fa) as $parte) {
-                    if (preg_match('/^\s*[A-Z0-9]{4,}\+[A-Z0-9]+\s*$/', $parte)) {
-                        $isPlusCode = true;
-                        break;
-                    }
-                }
-                if (($res['partial_match'] ?? false) && $isBroad) {
-                    continue; // coincidencia parcial que solo acertó el barrio → no sirve
-                }
-                if ($isBroad || $isPlusCode) {
-                    continue;
-                }
-                $out[] = [
-                    'label'     => $this->shortLabel($res),
-                    'full'      => $fa,
-                    'lat'       => (float) $loc['lat'],
-                    'lng'       => (float) $loc['lng'],
-                ];
-                if (count($out) >= 6) {
-                    break;
-                }
-            }
-            return $out; // puede ser [] → el frontend cae a Nominatim
-        } catch (\Throwable $e) {
-            return null;
-        }
-    }
 
     /** Etiqueta corta (2 partes) desde un resultado de Google, sin país ni código postal. */
     private function shortLabel(?array $res): ?string

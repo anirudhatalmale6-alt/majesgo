@@ -53,6 +53,9 @@ Route::prefix('app')->name('app.')->group(function () {
     Route::middleware('passenger')->group(function () {
         Route::get('api/geocode/reverse', [GeocodeController::class, 'reverse']);
         Route::get('api/geocode/search', [GeocodeController::class, 'search']);
+        // Coordenadas del lugar elegido. Va aparte de search() porque es la única llamada
+        // que Google cobra: se hace una vez, al tocar la sugerencia, no mientras se escribe.
+        Route::get('api/geocode/place', [GeocodeController::class, 'place']);
         Route::get('api/zones', [GeocodeController::class, 'zones']);
         Route::get('api/drivers/nearby', [PassengerRide::class, 'nearbyDrivers']);
         Route::post('api/push/subscribe', [PassengerRide::class, 'subscribePush']);
