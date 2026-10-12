@@ -252,10 +252,18 @@ class GeocodeController extends Controller
         if (! $p) {
             return [];
         }
-        $seccionCargada = \Illuminate\Support\Facades\DB::table('parcels')->where('section', $codigo)->exists();
-        $sub = ($numero !== null && $seccionCargada)
-            ? 'No encontramos la parcela ' . $numero . ' en ' . $codigo . ' · revisa el número'
-            : 'Te dejamos en ' . $codigo . ' · escribe la parcela en la referencia';
+        // ⚠ "No la tenemos" NO es "no existe". En el plano faltan rótulos sueltos (C2 trae
+        // 113 de sus 114): decirle "revisa el número" a quien vive en esa parcela sería
+        // acusarlo de equivocarse. Sólo un número MAYOR que la última parcela de la sección
+        // está realmente fuera de rango.
+        $ultima = \Illuminate\Support\Facades\DB::table('parcels')->where('section', $codigo)->max('number');
+        if ($numero !== null && $ultima !== null && $numero > $ultima) {
+            $sub = $codigo . ' llega hasta la parcela ' . $ultima . ' · revisa el número';
+        } elseif ($numero !== null && $ultima !== null) {
+            $sub = 'La parcela ' . $numero . ' no figura en el plano · te dejamos en ' . $codigo . ', escríbela en la referencia';
+        } else {
+            $sub = 'Te dejamos en ' . $codigo . ' · escribe la parcela en la referencia';
+        }
 
         return [[
             'label' => 'Sección ' . $codigo,
