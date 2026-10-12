@@ -17,6 +17,7 @@ class MapPoi extends Model
         'lat'      => 'float',
         'lng'      => 'float',
         'active'   => 'boolean',
+        'on_map'   => 'boolean',
         'priority' => 'integer',
     ];
 
@@ -39,6 +40,9 @@ class MapPoi extends Model
         // dirección con calle y número. "Plaza" era el 2º término más escrito en el buscador
         // y no había ni un solo punto de esta clase cargado: 17 búsquedas que no devolvían nada.
         'plaza'         => 'Plaza / parque',
+        // Calles del plano catastral de la municipalidad. Se BUSCAN pero no se dibujan
+        // (on_map = false): son 704 y llenarían el mapa de chinches.
+        'calle'         => 'Calle / avenida',
         // Las secciones de la irrigación Majes (A1…E8). En el campo nadie dice una calle:
         // dice "estoy en D3". Son áreas grandes, así que el punto es el centro de la sección
         // y sirve para orientar, no para marcar una puerta — por eso el pasajero debe poner
@@ -51,7 +55,7 @@ class MapPoi extends Model
     public const DEFAULT_PRIORITY = [
         'grifo' => 1, 'mercado' => 1, 'hotel' => 1, 'banco' => 1, 'farmacia' => 1,
         'salud' => 1, 'terminal' => 1, 'municipalidad' => 1, 'policia' => 1,
-        'plaza' => 1,
+        'plaza' => 1, 'calle' => 2,
         // Prioridad baja: son 24 y cubren kilómetros. Con prioridad alta taparían de etiquetas
         // el mapa del pueblo, que es donde ocurre casi todo el movimiento.
         'sector' => 3,
@@ -73,6 +77,7 @@ class MapPoi extends Model
         return Cache::rememberForever('map.pois', function () {
             return self::query()
                 ->where('active', true)
+                ->where('on_map', true)
                 ->orderBy('priority')
                 ->get(['name', 'category', 'priority', 'lat', 'lng'])
                 ->map(fn ($p) => [
