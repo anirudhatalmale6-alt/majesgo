@@ -84,12 +84,22 @@ class GeocodeController extends Controller
             return response()->json(['results' => null]);
         }
 
+        // "Hospital de Ciudad Majes", "farmacia en El Pedregal": la gente (y sobre todo quien
+        // lo DICE con el micrófono) agrega dónde queda, aunque toda la app ya es Majes. Ese
+        // agregado rompía la búsqueda: la zona "Hospital Majes" no contiene "ciudad" y Google
+        // devolvía "Ciudad Majes" e iglesias en vez del hospital. Se busca también el NÚCLEO.
+        $nucleo = self::sinLugar($q);
+
         // 0) ZONAS LOCALES de MajesGo primero (aparecen arriba en las sugerencias)
         $custom = $this->customPlaceSearch($q);
 
         // 0.b) PUNTOS DE REFERENCIA (grifos, mercados, farmacias…): la gente escribe
         // "inkafarma" o "el ovalo" antes que una dirección con calle y número.
         $pois = $this->mapPoiSearch($q);
+        if ($nucleo !== $q && ! $custom && ! $pois) {
+            $custom = $this->customPlaceSearch($nucleo);
+            $pois = $this->mapPoiSearch($nucleo);
+        }
 
         // 0.c) DIRECCIÓN DE PARCELA ("D3 Parcela 13", "E5 parcela 7").
         // Así se ubica media Majes: la irrigación se divide en secciones y parcelas, y en el
@@ -117,6 +127,27 @@ class GeocodeController extends Controller
             Cache::forget($ck);
         }
 
+        if ($nucleo !== $q) {
+            $ckN = 'geo:pl:' . mb_strtolower($nucleo);
+            $delNucleo = Cache::remember($ckN, now()->addDays(7), fn () => $this->placesAutocomplete($nucleo, $sesion));
+            if ($delNucleo === null) {
+                Cache::forget($ckN);
+            }
+            // juntar las dos listas sin repetir, y ordenar por cuánto se parecen a lo pedido:
+            // la palabra principal ("hospital") pesa más que el lugar ("ciudad majes")
+            $vistos = [];
+            $juntos = [];
+            foreach (array_merge($places ?? [], $delNucleo ?? []) as $r) {
+                $k = $r['place_id'] ?? $r['label'];
+                if (isset($vistos[$k])) {
+                    continue;
+                }
+                $vistos[$k] = true;
+                $juntos[] = $r;
+            }
+            $places = self::ordenarPorParecido($juntos, $q, $nucleo);
+        }
+
         $results = array_merge($parcela, $custom, $pois, $places ?? []);
         // si no hay ni zonas locales ni Google, devolver null para que el frontend use Nominatim
         if (! $results) {
@@ -124,6 +155,62 @@ class GeocodeController extends Controller
         }
 
         return response()->json(['results' => array_slice($results, 0, 8)]);
+    }
+
+    /** Palabras que no dicen QUÉ se busca. */
+    private const VACIAS = ['de', 'del', 'la', 'el', 'los', 'las', 'en', 'a', 'al', 'y', 'por', 'para'];
+    /** Palabras que dicen DÓNDE (toda la app ya es Majes): pesan poco al comparar. */
+    private const LUGAR = ['ciudad', 'majes', 'pedregal', 'villa', 'modulo', 'módulo', 'arequipa'];
+
+    /**
+     * "Hospital de Ciudad Majes" → "Hospital"; "farmacia en El Pedregal" → "farmacia".
+     * Sólo quita el lugar del FINAL y sólo si queda algo que buscar: "Ciudad Majes" o
+     * "Villa El Pedregal" dichos solos se quedan como están.
+     */
+    public static function sinLugar(string $q): string
+    {
+        $n = preg_replace(
+            '/\s+(?:de|del|en)\s+(?:la\s+)?(?:ciudad\s+(?:de\s+)?majes|majes|(?:villa\s+)?el\s+pedregal|pedregal|arequipa)\s*$/iu',
+            '', trim($q)
+        );
+        $n = trim((string) $n);
+
+        return mb_strlen($n) >= 3 ? $n : trim($q);
+    }
+
+    private static function plano(string $t): string
+    {
+        $t = mb_strtolower($t);
+
+        return strtr($t, ['á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u', 'ü' => 'u']);
+    }
+
+    /** Orden estable por parecido: la palabra principal vale 2, el lugar 0,5, el resto 1. */
+    public static function ordenarPorParecido(array $items, string $q, string $nucleo): array
+    {
+        $palabras = array_values(array_diff(preg_split('/\s+/', self::plano($q)), self::VACIAS, ['']));
+        $nuc = array_values(array_diff(preg_split('/\s+/', self::plano($nucleo)), self::VACIAS, ['']));
+        $principal = $nuc[0] ?? null;
+        $lugar = array_map([self::class, 'plano'], self::LUGAR);
+        foreach ($items as $i => &$it) {
+            $label = self::plano(($it['label'] ?? '') . ' ');
+            $p = 0.0;
+            foreach ($palabras as $w) {
+                if ($w !== '' && mb_strpos($label, $w) !== false) {
+                    $p += $w === $principal ? 2 : (in_array($w, $lugar, true) ? 0.5 : 1);
+                }
+            }
+            $it['_p'] = $p;
+            $it['_i'] = $i;
+        }
+        unset($it);
+        usort($items, fn ($a, $b) => [$b['_p'], $a['_i']] <=> [$a['_p'], $b['_i']]);
+
+        return array_map(function ($it) {
+            unset($it['_p'], $it['_i']);
+
+            return $it;
+        }, $items);
     }
 
     /**
