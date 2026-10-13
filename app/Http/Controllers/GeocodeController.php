@@ -88,6 +88,8 @@ class GeocodeController extends Controller
         // lo DICE con el micrófono) agrega dónde queda, aunque toda la app ya es Majes. Ese
         // agregado rompía la búsqueda: la zona "Hospital Majes" no contiene "ciudad" y Google
         // devolvía "Ciudad Majes" e iglesias en vez del hospital. Se busca también el NÚCLEO.
+        // Pero sólo si hace falta: si "Iglesia de Ciudad Majes" ya trae la iglesia de Ciudad
+        // Majes, buscar "Iglesia" a secas llenaría la lista de OTRAS iglesias.
         $nucleo = self::sinLugar($q);
 
         // 0) ZONAS LOCALES de MajesGo primero (aparecen arriba en las sugerencias)
@@ -96,10 +98,6 @@ class GeocodeController extends Controller
         // 0.b) PUNTOS DE REFERENCIA (grifos, mercados, farmacias…): la gente escribe
         // "inkafarma" o "el ovalo" antes que una dirección con calle y número.
         $pois = $this->mapPoiSearch($q);
-        if ($nucleo !== $q && ! $custom && ! $pois) {
-            $custom = $this->customPlaceSearch($nucleo);
-            $pois = $this->mapPoiSearch($nucleo);
-        }
 
         // 0.c) DIRECCIÓN DE PARCELA ("D3 Parcela 13", "E5 parcela 7").
         // Así se ubica media Majes: la irrigación se divide en secciones y parcelas, y en el
@@ -127,6 +125,14 @@ class GeocodeController extends Controller
             Cache::forget($ck);
         }
 
+        // ¿Alguna respuesta trae lo PRINCIPAL que pidió ("hospital")? Si sí, el núcleo sobra.
+        if ($nucleo !== $q && self::traeLoPrincipal(array_merge($custom, $pois, $places ?? []), $nucleo)) {
+            $nucleo = $q;
+        }
+        if ($nucleo !== $q && ! $custom && ! $pois) {
+            $custom = $this->customPlaceSearch($nucleo);
+            $pois = $this->mapPoiSearch($nucleo);
+        }
         if ($nucleo !== $q) {
             $ckN = 'geo:pl:' . mb_strtolower($nucleo);
             $delNucleo = Cache::remember($ckN, now()->addDays(7), fn () => $this->placesAutocomplete($nucleo, $sesion));
@@ -183,6 +189,23 @@ class GeocodeController extends Controller
         $t = mb_strtolower($t);
 
         return strtr($t, ['á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u', 'ü' => 'u']);
+    }
+
+    /** ¿Algún resultado contiene la palabra principal del núcleo? */
+    private static function traeLoPrincipal(array $items, string $nucleo): bool
+    {
+        $nuc = array_values(array_diff(preg_split('/\s+/', self::plano($nucleo)), self::VACIAS, ['']));
+        $principal = $nuc[0] ?? null;
+        if ($principal === null) {
+            return true;
+        }
+        foreach ($items as $it) {
+            if (mb_strpos(self::plano($it['label'] ?? ''), $principal) !== false) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** Orden estable por parecido: la palabra principal vale 2, el lugar 0,5, el resto 1. */
