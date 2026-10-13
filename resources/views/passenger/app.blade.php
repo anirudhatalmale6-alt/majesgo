@@ -87,6 +87,33 @@
         .mapbtn{flex:none;width:34px;height:34px;border-radius:10px;border:1px solid var(--line);background:var(--panel);font-size:16px;cursor:pointer;margin-left:6px;display:grid;place-items:center}
         .mapbtn.o{border-color:rgba(0,200,83,.5)} .mapbtn.d{border-color:rgba(255,82,82,.5)}
         .mapbtn svg{display:block}
+        /* Micrófono del destino (13 oct): mismo tamaño que el pin, en verde para que se note */
+        .mapbtn.mic{color:var(--verde);border-color:rgba(0,200,83,.5)}
+        .mapbtn.mic:active{background:rgba(0,200,83,.18)}
+        /* Capa de "te escucho": ondas que laten alrededor del micrófono mientras oye */
+        .vozcapa{position:fixed;inset:0;z-index:120;display:none;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.55);
+                 padding:0 0 calc(env(safe-area-inset-bottom) + 0px)}
+        .vozcapa.on{display:flex}
+        .vozcaja{width:100%;max-width:520px;background:var(--panel);border-radius:22px 22px 0 0;padding:26px 20px calc(env(safe-area-inset-bottom) + 20px);
+                 text-align:center;box-shadow:0 -12px 44px rgba(0,0,0,.6);animation:vozsube .22s ease}
+        @keyframes vozsube{from{transform:translateY(40px);opacity:.5}to{transform:none;opacity:1}}
+        .vozmic{position:relative;width:96px;height:96px;margin:6px auto 16px;border:0;background:none;padding:0;display:block;cursor:pointer;-webkit-tap-highlight-color:transparent}
+        .vozmic .nucleo{position:absolute;inset:14px;border-radius:50%;background:var(--verde);color:#fff;display:grid;place-items:center;box-shadow:0 6px 18px rgba(0,200,83,.45);z-index:2;transition:transform .2s}
+        .vozmic .onda{position:absolute;inset:14px;border-radius:50%;background:rgba(0,200,83,.35);z-index:1;opacity:0}
+        .vozcapa[data-estado="escuchando"] .vozmic .onda{animation:vozonda 1.6s ease-out infinite}
+        .vozcapa[data-estado="escuchando"] .vozmic .o2{animation-delay:.53s}
+        .vozcapa[data-estado="escuchando"] .vozmic .o3{animation-delay:1.06s}
+        .vozcapa[data-estado="escuchando"] .vozmic .nucleo{animation:vozlatido 1.6s ease-in-out infinite}
+        @keyframes vozonda{0%{transform:scale(1);opacity:.75}100%{transform:scale(1.75);opacity:0}}
+        @keyframes vozlatido{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
+        .vozcapa[data-estado="preparando"] .vozmic .nucleo,
+        .vozcapa[data-estado="procesando"] .vozmic .nucleo{background:#2f6b4a;animation:vozlatido 1s ease-in-out infinite}
+        .vozcapa[data-estado="error"] .vozmic .nucleo{background:#3a414a;color:#cfd6de;box-shadow:none}
+        .voztit{font-size:19px;font-weight:800;margin-bottom:6px}
+        .vozsub{font-size:13.5px;color:var(--muted);line-height:1.4;min-height:19px;max-width:340px;margin:0 auto}
+        .vozvivo{font-size:16px;font-weight:600;color:#7DE9AC;min-height:22px;margin:10px 0 2px}
+        .vozbtns{display:flex;gap:10px;margin-top:14px}
+        .vozbtns .btn{flex:1}
         .btnpin{display:inline-flex;vertical-align:-4px}.btnpin svg{filter:drop-shadow(0 1px 1px rgba(0,0,0,.4))}
         .mapmode{position:absolute;top:calc(env(safe-area-inset-top) + 66px);left:14px;z-index:19;width:40px;height:40px;border-radius:50%;border:0;background:rgba(13,13,13,.72);backdrop-filter:blur(8px);font-size:17px;cursor:pointer;display:grid;place-items:center;box-shadow:0 2px 8px rgba(0,0,0,.3)}
         /* Acercar / alejar. Los botones que trae Leaflet se ponían abajo a la izquierda,
@@ -455,7 +482,8 @@ window.MG = {
 </script>
 <script src="/js/pois.js?v=6"></script>
 <script src="/js/majesgo-car.js?v=2"></script>
-<script src="/js/passenger.js?v=54"></script>
+<script src="/js/voz.js?v=1"></script>
+<script src="/js/passenger.js?v=55"></script>
 <script src="/js/native.js?v=10"></script>
 </body>
 </html>

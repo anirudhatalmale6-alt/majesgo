@@ -98,6 +98,13 @@ const SHEET_PEEK = 96; // respaldo: px visibles si no hay bloque "esencial" para
 const ME_ICON = '<div class="mepax"><span class="mehalo"></span>'
   + '<img class="mefig" src="/img/pasajero.png?v=1" alt="Tu ubicación" draggable="false"></div>';
 /* Pin de color para los botones "elegir en el mapa" (verde=origen, rojo=destino) */
+/** Micrófono del buscador de destino (ver voz.js). */
+function micSvg(size) {
+  return '<svg viewBox="0 0 24 24" width="' + size + '" height="' + size + '" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">'
+    + '<rect x="9" y="2.5" width="6" height="11.5" rx="3" fill="currentColor" stroke="none"/>'
+    + '<path d="M5.5 11a6.5 6.5 0 0 0 13 0"/><path d="M12 17.5v3.5"/><path d="M8.5 21h7"/></svg>';
+}
+
 function pinBtn(color) {
   return '<svg viewBox="0 0 24 34" width="15" height="20" aria-hidden="true"><path fill="' + color + '" stroke="#fff" stroke-width="2.4" d="M12 1C6 1 1.2 5.8 1.2 11.8 1.2 19.6 12 33 12 33s10.8-13.4 10.8-21.2C22.8 5.8 18 1 12 1z"/><circle cx="12" cy="11.8" r="3.9" fill="#fff"/></svg>';
 }
@@ -849,6 +856,99 @@ async function searchPlaces(q, box) {
   }, 400);
 }
 
+/* ====== Buscar el destino con la voz ======
+   El micrófono sólo LLENA el buscador: lo que dijo entra a searchPlaces() igual que si lo
+   hubiera escrito, y el pasajero toca el resultado para confirmar. Nunca se elige solo
+   un destino a partir de la voz (una palabra mal oída no puede pedir un taxi). */
+function vozLista() { return !!(window.MGVoz && window.MGVoz.disponible()); }
+
+const VOZ_ERROR = {
+  permiso: ['Necesito permiso para el micrófono', 'Actívalo en Ajustes › Apps › Majes Drive › Permisos, o escribe tu destino.'],
+  silencio: ['No te escuché', 'Toca “Reintentar” y di tu destino, por ejemplo: “Hospital de Majes”.'],
+  'no-entendi': ['No te entendí bien', 'Intenta otra vez hablando cerca del celular, o escríbelo.'],
+  red: ['Sin conexión', 'Para reconocer la voz se necesita internet. Revisa tu señal.'],
+  otro: ['No se pudo usar el micrófono', 'Escribe tu destino en el buscador.'],
+};
+
+function capaVoz() {
+  let c = document.getElementById('vozCapa');
+  if (c) return c;
+  c = document.createElement('div');
+  c.id = 'vozCapa';
+  c.className = 'vozcapa';
+  c.innerHTML = `
+    <div class="vozcaja" role="dialog" aria-modal="true" aria-labelledby="vozTit">
+      <button type="button" class="vozmic" id="vozMic" aria-label="Terminar de hablar">
+        <span class="onda"></span><span class="onda o2"></span><span class="onda o3"></span>
+        <span class="nucleo">${micSvg(34)}</span>
+      </button>
+      <div class="voztit" id="vozTit">Te escucho…</div>
+      <div class="vozsub" id="vozSub"></div>
+      <div class="vozvivo" id="vozVivo"></div>
+      <div class="vozbtns" id="vozBtns"></div>
+    </div>`;
+  document.body.appendChild(c);
+  // tocar fuera de la caja = cancelar
+  c.addEventListener('click', (e) => { if (e.target === c) cerrarVoz(); });
+  // tocar el micrófono grande: mientras oye = "ya terminé"; después de un error = probar otra vez
+  $('#vozMic').addEventListener('click', () => {
+    if (c.dataset.estado === 'escuchando') window.MGVoz.terminar();
+    else if (c.dataset.estado === 'error') buscarConVoz();
+  });
+  return c;
+}
+
+function pintarVoz(estado, titulo, sub, botones) {
+  const c = capaVoz();
+  c.dataset.estado = estado;
+  c.classList.add('on');
+  $('#vozTit').textContent = titulo;
+  $('#vozSub').textContent = sub || '';
+  if (estado !== 'escuchando') $('#vozVivo').textContent = '';
+  const b = $('#vozBtns');
+  b.innerHTML = (botones || []).map((x, i) => `<button type="button" class="btn ${x.ghost ? 'ghost' : ''}" data-i="${i}">${x.txt}</button>`).join('');
+  b.querySelectorAll('button').forEach((el) => el.addEventListener('click', () => botones[+el.dataset.i].fn()));
+}
+
+function cerrarVoz() {
+  if (window.MGVoz) window.MGVoz.cancelar();
+  const c = document.getElementById('vozCapa');
+  if (c) { c.classList.remove('on'); c.dataset.estado = ''; }
+}
+
+function buscarConVoz() {
+  if (!vozLista()) return;
+  // si el teclado estaba abierto, se cierra: tapaba la animación
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  const cancelar = { txt: 'Cancelar', ghost: true, fn: cerrarVoz };
+  const escribir = { txt: 'Escribir', ghost: true, fn: () => { cerrarVoz(); openSheet(); const el = $('#dIn'); if (el) el.focus(); } };
+  const reintentar = { txt: 'Reintentar', fn: buscarConVoz };
+  window.MGVoz.escuchar({
+    estado(e) {
+      if (e === 'preparando') pintarVoz('preparando', 'Preparando el micrófono…', '', [cancelar]);
+      else if (e === 'escuchando') pintarVoz('escuchando', 'Te escucho…', 'Di a dónde vas. Por ejemplo: “Quiero ir al Hospital de Majes”.', [cancelar]);
+      else if (e === 'procesando') pintarVoz('procesando', 'Buscando lo que dijiste…', '', [cancelar]);
+    },
+    parcial(t) { const v = $('#vozVivo'); if (v) v.textContent = '“' + t + '”'; },
+    listo(frases) {
+      // la más probable primero; si al limpiarla no queda nada, probar la siguiente
+      let q = '';
+      for (const f of frases) { q = window.MGVoz.limpiar(f); if (q) break; }
+      if (!q) { pintarVoz('error', VOZ_ERROR['no-entendi'][0], VOZ_ERROR['no-entendi'][1], [reintentar, escribir]); return; }
+      cerrarVoz();
+      openSheet();
+      const el = $('#dIn');
+      if (el) el.value = q;
+      const caja = $('#sugg');
+      if (caja) searchPlaces(q, caja);
+    },
+    error(motivo) {
+      const m = VOZ_ERROR[motivo] || VOZ_ERROR.otro;
+      pintarVoz('error', m[0], m[1], motivo === 'permiso' || motivo === 'otro' ? [escribir] : [reintentar, escribir]);
+    },
+  });
+}
+
 /* ====== Deshacer una dirección equivocada ======
    Elegir mal es lo normal: uno escribe "Mercado", toca la primera sugerencia y no era esa.
    Sin una salida, el pasajero se queda con una ruta que no quiere y el único camino es
@@ -973,7 +1073,7 @@ function renderPlanning() {
       <div class="fieldgroup">
         <div class="fieldrow"><span class="dot o"></span><div class="fcol"><label class="flbl" for="oIn">¿Dónde te recogemos?</label><input id="oIn" value="${(origin && origin.address) ? esc(origin.address) : 'Mi ubicación'}" placeholder="Tu punto de recojo"></div>${(originPinned || (origin && origin.address && origin.address !== 'Mi ubicación')) ? '<button class="clearbtn" id="oClear" title="Volver a mi ubicación" aria-label="Volver a mi ubicación">✕</button>' : ''}<button class="mapbtn o" id="oMap" title="Elegir el recojo en el mapa" aria-label="Elegir el recojo en el mapa">${pinBtn('#00C853')}</button></div>
         <div class="sugg">
-          <div class="fieldrow"><span class="dot d"></span><div class="fcol"><label class="flbl" for="dIn">¿A dónde vas?</label><input id="dIn" placeholder="Escríbelo o elígelo en el mapa" value="${dest && dest.address ? esc(dest.address) : ''}"></div>${dest ? '<button class="clearbtn" id="dClear" title="Borrar el destino" aria-label="Borrar el destino">✕</button>' : ''}<button class="mapbtn d" id="dMap" title="Elegir destino en el mapa" aria-label="Elegir destino en el mapa">${pinBtn('#ff5252')}</button></div>
+          <div class="fieldrow"><span class="dot d"></span><div class="fcol"><label class="flbl" for="dIn">¿A dónde vas?</label><input id="dIn" placeholder="${vozLista() ? 'Escríbelo o dilo' : 'Escríbelo o elígelo en el mapa'}" value="${dest && dest.address ? esc(dest.address) : ''}"></div>${dest ? '<button class="clearbtn" id="dClear" title="Borrar el destino" aria-label="Borrar el destino">✕</button>' : ''}${!dest && vozLista() ? '<button class="mapbtn mic" id="dMic" title="Decir el destino con la voz" aria-label="Decir el destino con la voz">' + micSvg(18) + '</button>' : ''}<button class="mapbtn d" id="dMap" title="Elegir destino en el mapa" aria-label="Elegir destino en el mapa">${pinBtn('#ff5252')}</button></div>
           <div class="suggbox" id="sugg"></div>
         </div>
         ${showRef ? `<div class="fieldrow"><span class="dot" style="background:#FFC107"></span><div class="fcol"><label class="flbl" for="refIn">Referencia del recojo (opcional)</label><input id="refIn" placeholder="Casa, color, algo cercano…" value="${reference ? esc(reference) : ''}"></div></div>` : ''}
@@ -1006,6 +1106,7 @@ function renderPlanning() {
   const dMap = $('#dMap'); if (dMap) dMap.addEventListener('click', () => enterPick('dest'));
   const pickDest = $('#pickDest'); if (pickDest) pickDest.addEventListener('click', () => enterPick('dest'));
   const dClear = $('#dClear'); if (dClear) dClear.addEventListener('click', () => limpiarDestino());
+  const dMic = $('#dMic'); if (dMic) dMic.addEventListener('click', buscarConVoz);
   const oClear = $('#oClear'); if (oClear) oClear.addEventListener('click', volverAMiUbicacion);
   const dIn = $('#dIn'); if (dIn) {
     dIn.addEventListener('focus', openSheet);   // al tocar el destino, se abre el panel (búsqueda + teclado)
