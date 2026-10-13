@@ -815,6 +815,34 @@ function initMap() {
     setupDSheetDrag();
   const ro = new ResizeObserver(() => { if (!dSheetDragging) applyDSheetSnap(false); });
   ro.observe($('#sheet'));
+  // la barra de arriba crece con la letra grande del celular: los botones van debajo de ELLA
+  const tb = document.querySelector('.topbar');
+  if (tb) new ResizeObserver(colocarBotonesMapa).observe(tb);
+  colocarBotonesMapa();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(colocarBotonesMapa);
+}
+
+/**
+ * Tema y zoom van DEBAJO de la barra de arriba. Estaban a 66 px fijos, pero en un celular
+ * con "tamaño de fuente" grande (Ajustes de Android) la barra mide más y los tapaba
+ * (foto de la central, 12 oct). Nunca los sube por encima de su lugar de siempre.
+ */
+function colocarBotonesMapa() {
+  const tb = document.querySelector('.topbar'), bm = $('#btnMapMode'), zm = $('#mapZoom');
+  // con la letra grande "Majes Drive" + CONDUCTOR no entra: antes de cortar la etiqueta por
+  // la mitad, se esconde (el conductor ya sabe en qué app está)
+  const brand = document.querySelector('.topbar .brand');
+  if (brand) {
+    brand.classList.remove('sintag');
+    if (brand.scrollWidth > brand.clientWidth + 1) brand.classList.add('sintag');
+  }
+  if (!tb || !bm || !zm) return;
+  bm.style.top = ''; zm.style.top = '';
+  const minimo = tb.getBoundingClientRect().bottom - 8; // la barra trae 12 px de aire abajo
+  const actual = bm.getBoundingClientRect().top;
+  if (actual >= minimo) return;
+  bm.style.top = Math.round(minimo) + 'px';
+  zm.style.top = Math.round(minimo + bm.offsetHeight + 8) + 'px';
 }
 
 /**
@@ -1806,6 +1834,11 @@ function pintarTramos(req, acerc) {
   ley.querySelector('#lgA').textContent = a;
   ley.querySelector('#lgT').textContent = t;
   ley.classList.add('on');
+  // UNA sola línea siempre: con la letra grande del celular se partía en dos y le quitaba
+  // otro renglón al mapa. Si no entra, se achica entera (no se corta ningún número).
+  ley.style.transform = '';
+  const cabe = window.innerWidth - 24;
+  if (ley.offsetWidth > cabe) ley.style.transform = 'translateX(-50%) scale(' + (cabe / ley.offsetWidth).toFixed(3) + ')';
   applyReqSnap();
 }
 

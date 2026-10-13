@@ -104,8 +104,10 @@
         .topbar{position:absolute;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;justify-content:space-between;
             padding:calc(env(safe-area-inset-top) + 12px) 14px 12px;pointer-events:none}
         .topbar .brand,.topbar .iconbtn{pointer-events:auto}
-        .brand{display:flex;align-items:center;gap:7px;background:rgba(13,13,13,.72);backdrop-filter:blur(8px);padding:7px 13px;border-radius:999px}
-        .brand b{font-size:16px} .brand .g{color:var(--verde)}
+        .brand{display:flex;align-items:center;gap:7px;background:rgba(13,13,13,.72);backdrop-filter:blur(8px);padding:7px 13px;border-radius:999px;
+                white-space:nowrap;min-width:0;flex:0 1 auto;overflow:hidden}
+        /* en una línea aunque el celular tenga la letra grande (ver la app del conductor) */
+        .brand b{font-size:16px;white-space:nowrap} .brand .g{color:var(--verde)}
         .iconbtn{pointer-events:auto;width:42px;height:42px;border-radius:50%;background:rgba(13,13,13,.72);backdrop-filter:blur(8px);
             border:0;color:#fff;display:grid;place-items:center;cursor:pointer}
         .iconbtn svg{width:22px;height:22px}

@@ -152,8 +152,13 @@
         .topbar{position:absolute;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;justify-content:space-between;
             padding:calc(env(safe-area-inset-top) + 12px) 14px 12px;pointer-events:none}
         .topbar .brand,.topbar .iconbtn,.topbar .saldo{pointer-events:auto}
-        .brand{display:flex;align-items:center;gap:7px;background:rgba(13,13,13,.72);backdrop-filter:blur(8px);padding:7px 13px;border-radius:999px}
-        .brand b{font-size:15px} .brand .g{color:var(--verde)}
+        .brand{display:flex;align-items:center;gap:7px;background:rgba(13,13,13,.72);backdrop-filter:blur(8px);padding:7px 13px;border-radius:999px;
+                white-space:nowrap;min-width:0;flex:0 1 auto;overflow:hidden}
+        /* "Majes Drive" en UNA línea aunque el celular tenga la letra grande: partido en dos
+           la barra duplicaba su alto y le comía mapa a la ficha (foto de la central, 12 oct) */
+        .brand b{font-size:15px;white-space:nowrap}
+        .topbar .rgt{flex:none}
+        .brand.sintag .tag{display:none} .brand .g{color:var(--verde)}
         .brand .tag{font-size:9px;font-weight:700;color:#3a2e00;background:var(--amarillo);padding:2px 7px;border-radius:999px;margin-left:2px}
         .rgt{display:flex;align-items:center;gap:9px}
         .saldo{display:flex;flex-direction:column;align-items:flex-end;background:rgba(13,13,13,.72);backdrop-filter:blur(8px);padding:6px 13px;border-radius:14px;cursor:pointer}
@@ -272,9 +277,9 @@
         /* Los dos tramos (pedido de la central, 12 oct): en la ficha como filas y en el mapa
            como una leyenda fija pegada al borde de la ficha — una leyenda nunca tapa un pin, y
            las etiquetas a mitad de ruta sí lo hacían. Colores = los de cada ruta del mapa. */
-        .rqleyenda{position:absolute;left:12px;right:12px;z-index:37;display:none;flex-wrap:wrap;gap:4px 14px;justify-content:center;
+        .rqleyenda{position:absolute;left:50%;transform:translateX(-50%);transform-origin:center bottom;z-index:37;display:none;flex-wrap:nowrap;white-space:nowrap;gap:4px 14px;justify-content:center;
                    padding:6px 12px;border-radius:12px;background:rgba(13,13,13,.86);box-shadow:0 2px 10px rgba(0,0,0,.45);
-                   font-size:11.5px;font-weight:600;color:#cfd6de;pointer-events:none;width:max-content;max-width:calc(100% - 24px);margin:0 auto}
+                   font-size:11.5px;font-weight:600;color:#cfd6de;pointer-events:none;width:max-content}
         .rqleyenda.on{display:flex}
         /* En la ventana 16:9 el anillo del radar (96 px, decorativo) tapaba justo las rutas que
            el conductor tiene que mirar. Mientras mira una solicitud: sin radar y auto un poco
@@ -677,7 +682,7 @@ window.MG = {
 <script src="/js/majesgo-car.js?v=2"></script>
 <script src="/js/despierto.js?v=1"></script>
 <script src="/js/rastreo.js?v=7"></script>
-<script src="/js/driver.js?v=62"></script>
+<script src="/js/driver.js?v=63"></script>
 <script src="/js/native.js?v=10"></script>
 </body>
 </html>
