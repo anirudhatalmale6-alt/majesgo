@@ -25,7 +25,7 @@
 <div class="wrap">
   <header><span style="font-size:22px">📍</span><b>Majes<span class="g">Go</span></b></header>
   <h1>Política de Privacidad</h1>
-  <div class="upd">Última actualización: 8 de agosto de 2026</div>
+  <div class="upd">Última actualización: 14 de octubre de 2026</div>
 
   <p>Majes Drive ("nosotros") opera las aplicaciones móviles y el servicio de solicitud de taxis
   Majes Drive para pasajeros y conductores en Majes / El Pedregal, Arequipa, Perú. Esta política
@@ -36,6 +36,7 @@
     <li><b>Datos de cuenta:</b> nombre y número de celular. Para los conductores, además: datos del vehículo (marca, modelo, placa, color) y de la cuenta.</li>
     <li><b>Ubicación:</b> ubicación precisa del dispositivo mientras usas la app, para conectar pasajeros con conductores cercanos, calcular la ruta y el precio, y mostrar el viaje en el mapa en tiempo real.</li>
     <li><b>Datos del viaje:</b> origen, destino, referencia, precio, método de pago (efectivo/Yape), estado y mensajes de chat del viaje.</li>
+    <li><b>Micrófono (solo pasajeros, opcional):</b> si tocas el botón del micrófono para decir tu destino, la app usa el micrófono únicamente mientras te escucha. El audio lo procesa el servicio de reconocimiento de voz de Google en tu celular; Majes Drive <b>no graba ni guarda el audio</b> y solo recibe el texto, que se usa como búsqueda de destino igual que si lo hubieras escrito.</li>
     <li><b>Notificaciones:</b> un identificador de dispositivo (token de Firebase Cloud Messaging) para enviarte avisos de viajes.</li>
     <li><b>Datos técnicos básicos:</b> registros necesarios para el funcionamiento y la seguridad del servicio.</li>
   </ul>
@@ -57,7 +58,7 @@
   <h2>3. Con quién se comparten</h2>
   <ul>
     <li><b>Entre pasajero y conductor emparejados:</b> nombre, punto de recojo/destino y ubicación en tiempo real, solo durante el viaje, para poder completarlo.</li>
-    <li><b>Proveedores de servicio:</b> Google Firebase (notificaciones) y servicios de mapas/geocodificación, para operar la app.</li>
+    <li><b>Proveedores de servicio:</b> Google Firebase (notificaciones), servicios de mapas/geocodificación y el reconocimiento de voz de Google del celular (solo si usas el micrófono), para operar la app.</li>
     <li><b>Autoridades:</b> si la ley lo exige.</li>
     <li>No vendemos tus datos personales a terceros.</li>
   </ul>
