@@ -432,6 +432,12 @@ async function doAuth() {
   try {
     const r = await api('api/login', { phone, password: pass });
     if (r && r.csrf) MG.csrf = r.csrf;
+    /* 🔴 Avisarle al celular que AHORA hay sesión. Sin esto, quien entraba con la app ya
+       abierta quedaba marcado como "sin sesión" (lo había dicho start()): el token de avisos
+       se soltaba al llegar y nunca se registraba, ni siquiera tocando "Activar avisos".
+       14 oct: 15 de los 19 conductores nuevos de 3 días no tenían token por esto. */
+    MG.sesionAbierta = true;
+    if (MG.pushSesion) MG.pushSesion(true);
     $('#auth').classList.add('hidden');
     const m = await api('api/me');
     if (m.docs_blocked) { me = m.driver; await abrirDocumentos(); return; }
@@ -478,6 +484,8 @@ if ($('#btnSignup')) $('#btnSignup').addEventListener('click', async () => {
       vehicle_color: $('#suColor').value.trim(),
     });
     if (r && r.csrf) MG.csrf = r.csrf;
+    MG.sesionAbierta = true;                    // ver doAuth: el registro también abre sesión
+    if (MG.pushSesion) MG.pushSesion(true);
     await abrirDocumentos();
   } catch (e) {
     err.textContent = e.errors ? Object.values(e.errors)[0][0] : e.message;
@@ -1258,6 +1266,11 @@ function renderHome() {
  * no si el celular dice que dio permiso: el permiso puede estar dado y el token no haber
  * llegado nunca, y ese caso es indistinguible desde el celular.
  */
+/** Ninguna espera del botón puede quedar colgada: a los `ms` sigue con `valor`. */
+function conTope(promesa, ms, valor) {
+  return Promise.race([promesa, new Promise((r) => setTimeout(() => r(valor), ms))]);
+}
+
 async function fixPush() {
   const b = $('#btnFixPush');
   if (b) { b.disabled = true; b.textContent = 'Activando…'; }
@@ -1275,22 +1288,23 @@ async function fixPush() {
   try {
     const PN = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.PushNotifications;
     if (PN) {
-      let p = await PN.checkPermissions();
-      if (!p || p.receive !== 'granted') p = await PN.requestPermissions();
+      let p = await conTope(PN.checkPermissions(), 5000, null);
+      // el cuadro de permiso lo contesta una persona: se le da más tiempo
+      if (!p || p.receive !== 'granted') p = await conTope(PN.requestPermissions(), 60000, null);
       permiso = (p && p.receive) || null;
       // Sin permiso, registrar no sirve de nada y encima tarda.
-      if (permiso === 'granted') await PN.register();
+      if (permiso === 'granted') await conTope(PN.register(), 8000);
       /* ⚠ register() NO vuelve a emitir el evento de registro si el token no cambió, así que
          para un celular que ya tenía token este botón no hacía absolutamente nada. Se reenvía
          el que ya conocemos: ese es justamente el caso del conductor al que le falló el envío
          la primera vez (por ejemplo con el CSRF vencido tras iniciar sesión). */
-      if (permiso === 'granted' && MG.reenviarToken) { try { await MG.reenviarToken(); } catch (e) {} }
+      if (permiso === 'granted' && MG.reenviarToken) { try { await conTope(MG.reenviarToken(), 10000); } catch (e) {} }
     }
   } catch (e) {
     permiso = permiso || 'error';
   }
   // Web: suscripción del navegador (la app nativa también la acepta como respaldo).
-  try { await enablePush(); } catch (e) {}
+  try { await conTope(enablePush(), 10000); } catch (e) {}
 
   /* El token de Firebase no llega al instante y el tiempo depende de la señal. En vez de
      esperar un número fijo y declarar el fracaso, se pregunta al servidor varias veces:
@@ -1298,7 +1312,17 @@ async function fixPush() {
      pudo" que era mentira. */
   for (let i = 0; i < 7 && !pushOk; i++) {
     await new Promise((r) => setTimeout(r, i === 0 ? 1500 : 1800));
-    await refreshPushState();
+    await conTope(refreshPushState(), 8000);
+  }
+
+  // Si no quedó, que el servidor se entere de POR QUÉ (antes no quedaba rastro de nada)
+  if (!pushOk) {
+    try {
+      await conTope(api('api/push/diag', {
+        permiso: permiso, error: MG.pushError || null, token: !!MG.pushToken,
+        post: MG.pushPost || null, build: MG.appBuild || null,
+      }), 6000);
+    } catch (e) {}
   }
 
   if (pushOk) {
@@ -1308,6 +1332,13 @@ async function fixPush() {
     // "revisa los permisos" sin decirle DÓNDE no le sirve a nadie.
     toast('Tu celular tiene bloqueados los avisos de Majes Drive. Entra a Ajustes del '
         + 'celular → Aplicaciones → Majes Drive → Notificaciones y actívalas.', 9000);
+  } else if (MG.pushError) {
+    // Firebase no le dio token al celular: casi siempre "Servicios de Google Play" viejos
+    toast('Tu celular no logró conectarse al servicio de avisos de Google. Abre Play Store, '
+        + 'busca "Servicios de Google Play", actualízalo y reinicia el celular. Luego vuelve a tocar Activar avisos.', 12000);
+  } else if (permiso === 'granted' && !MG.pushToken) {
+    toast('Tu celular todavía no entregó su código de avisos. Cierra Majes Drive por completo, '
+        + 'ábrela de nuevo y vuelve a tocar Activar avisos.', 10000);
   } else {
     toast('No pudimos activarlos ahora. Revisa tu señal y vuelve a intentarlo en un momento.', 7000);
   }

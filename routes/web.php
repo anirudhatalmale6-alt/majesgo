@@ -102,6 +102,8 @@ Route::prefix('conductor')->name('driver.')->group(function () {
         Route::get('api/zones', [GeocodeController::class, 'zones']);
         Route::post('api/push/subscribe', [DriverRide::class, 'subscribePush']);
         Route::post('api/push/fcm-token', [DriverRide::class, 'subscribeFcm']);
+        // Qué pasó en el celular cuando "Activar avisos" no funcionó (solo registra, no cambia nada)
+        Route::post('api/push/diag', [DriverRide::class, 'pushDiag'])->middleware('throttle:10,1');
 
         // Solicitudes entrantes
         Route::get('api/pending', [DriverRide::class, 'pending']);

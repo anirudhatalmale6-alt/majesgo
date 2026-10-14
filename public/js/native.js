@@ -57,6 +57,7 @@
       // timbre. Un canal que apunta a un sonido que no está en el apk sale MUDO.
       body: JSON.stringify({ token: token, build: appBuild }),
     }).then(function (res) {
+      MG.pushPost = res.status; // para el diagnóstico de "Activar avisos"
       if (res.ok) return true;
       // 419 = el token CSRF cambió bajo nuestros pies (login). Una sola reintentada: si
       // vuelve a fallar, algo más pasa y no tiene sentido insistir en un bucle.
@@ -89,7 +90,9 @@
    */
   function soltar(token) {
     if (!token) return;
-    MG.pushToken = null;
+    // ⚠ El token NO se olvida: es del CELULAR, no de la cuenta. Antes se ponía en null y,
+    // si después alguien iniciaba sesión, ya no había qué registrar (Android no lo vuelve a
+    // entregar): ese conductor quedaba sin avisos para siempre. Basta con soltarlo en el servidor.
     fetch(base + '/api/push/release', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
@@ -148,6 +151,7 @@
       if (P.App && P.App.getInfo) {
         return P.App.getInfo().then(function (info) {
           appBuild = parseInt((info && info.build) || '0', 10) || 0;
+          MG.appBuild = appBuild;
         }).catch(function () {});
       }
     } catch (e) {}
@@ -192,7 +196,13 @@
         }).catch(function () {});
       }
       PN.addListener('registration', function (t) { registrado(t && t.value); });
-      PN.addListener('registrationError', function () {});
+      // ⚠ Antes era un listener VACÍO: si Firebase no le daba token al celular (Servicios de
+      // Google Play viejos o ausentes, sin red, fecha del celular mal), el conductor quedaba
+      // sin avisos y nadie sabía por qué. Ahora se guarda el motivo: "Activar avisos" lo
+      // muestra y lo manda al servidor (api/push/diag).
+      PN.addListener('registrationError', function (e) {
+        MG.pushError = String((e && (e.error || e.message)) || e || 'registrationError').slice(0, 300);
+      });
       // Al tocar la notificación, la app se abre (WebView ya está en la app correcta).
       PN.addListener('pushNotificationActionPerformed', function () {});
 

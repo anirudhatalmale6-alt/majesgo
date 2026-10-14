@@ -186,6 +186,12 @@ async function doAuth() {
       r = await api('api/login', { phone, password: pass });
     }
     if (r && r.csrf) MG.csrf = r.csrf;   // el token rota al regenerar la sesión
+    /* 🔴 Avisarle al celular que AHORA hay sesión. Sin esto, quien entraba con la app ya
+       abierta quedaba marcado como "sin sesión" (lo había dicho start()): el token de avisos
+       se soltaba al llegar y nunca se registraba, ni siquiera tocando "Activar avisos".
+       14 oct: 15 de los 19 conductores nuevos de 3 días no tenían token por esto. */
+    MG.sesionAbierta = true;
+    if (MG.pushSesion) MG.pushSesion(true);
     $('#auth').classList.add('hidden');
     await boot();
     // Sólo al CREAR la cuenta, no al volver a entrar: a quien ya usó la app no se le repite.

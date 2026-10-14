@@ -162,6 +162,32 @@ class RideController extends Controller
     }
 
     /**
+     * Lo que vio el celular cuando "Activar avisos" no logró dejar un token en el servidor.
+     *
+     * Antes el error de registro de Firebase se tragaba en un listener vacío: un conductor sin
+     * avisos y nadie —ni él, ni la central, ni yo— sabía por qué. Esto sólo lo anota (log +
+     * caché 7 días por conductor) para poder diagnosticar; no toca ningún dato.
+     */
+    public function pushDiag(Request $request)
+    {
+        $driver = $this->driver($request);
+        $d = $request->validate([
+            'permiso' => ['nullable', 'string', 'max:20'],
+            'error'   => ['nullable', 'string', 'max:300'],
+            'token'   => ['nullable', 'boolean'],
+            'post'    => ['nullable', 'integer', 'min:0', 'max:999'],
+            'build'   => ['nullable', 'integer', 'min:0', 'max:100000'],
+        ]);
+        $d['ua'] = mb_substr((string) $request->userAgent(), 0, 200);
+        $d['push_ok'] = $this->pushReady($driver);
+        $d['cuando'] = now()->toDateTimeString();
+        \Illuminate\Support\Facades\Log::warning('push-diag conductor #' . $driver->id . ' ' . $driver->code, $d);
+        \Illuminate\Support\Facades\Cache::put('pushdiag:driver:' . $driver->id, $d, now()->addDays(7));
+
+        return response()->json(['ok' => true]);
+    }
+
+    /**
      * Recalcular la ruta desde la posición actual del conductor hacia el objetivo del tramo
      * (recojo si va a buscar al pasajero; destino si ya lo lleva a bordo). Se usa cuando el
      * conductor se desvía de la línea trazada. Reutiliza OSRM (con respaldo) del servidor.
