@@ -944,7 +944,7 @@ function buscarConVoz() {
       cerrarVoz();
       openSheet();
       const el = $('#dIn');
-      if (el) el.value = q;
+      if (el) { el.value = q; const ph = $('#dPh'); if (ph) ph.style.display = 'none'; }
       const caja = $('#sugg');
       if (caja) searchPlaces(q, caja);
     },
@@ -1079,7 +1079,7 @@ function renderPlanning() {
       <div class="fieldgroup">
         <div class="fieldrow"><span class="dot o"></span><div class="fcol"><label class="flbl" for="oIn">¿Dónde te recogemos?</label><input id="oIn" value="${(origin && origin.address) ? esc(origin.address) : 'Mi ubicación'}" placeholder="Tu punto de recojo"></div>${(originPinned || (origin && origin.address && origin.address !== 'Mi ubicación')) ? '<button class="clearbtn" id="oClear" title="Volver a mi ubicación" aria-label="Volver a mi ubicación">✕</button>' : ''}<button class="mapbtn o" id="oMap" title="Elegir el recojo en el mapa" aria-label="Elegir el recojo en el mapa">${pinBtn('#00C853')}</button></div>
         <div class="sugg">
-          <div class="fieldrow"><span class="dot d"></span><div class="fcol"><label class="flbl" for="dIn">¿A dónde vas?</label><input id="dIn" placeholder="${vozLista() ? 'Escríbelo o dilo' : 'Escríbelo o elígelo en el mapa'}" value="${dest && dest.address ? esc(dest.address) : ''}"></div>${dest ? '<button class="clearbtn" id="dClear" title="Borrar el destino" aria-label="Borrar el destino">✕</button>' : ''}${!dest && vozLista() ? '<button class="mapbtn mic" id="dMic" title="Decir el destino con la voz" aria-label="Decir el destino con la voz">' + micSvg(18) + '</button>' : ''}<button class="mapbtn d" id="dMap" title="Elegir destino en el mapa" aria-label="Elegir destino en el mapa">${pinBtn('#ff5252')}</button></div>
+          <div class="fieldrow"><span class="dot d"></span><div class="fcol"><label class="flbl" for="dIn">¿A dónde vas?</label><input id="dIn" placeholder="${vozLista() ? '' : 'Escríbelo o elígelo en el mapa'}" aria-label="¿A dónde vas? Escríbelo o toca el micrófono" value="${dest && dest.address ? esc(dest.address) : ''}">${vozLista() && !(dest && dest.address) ? '<span class="phvoz" id="dPh" aria-hidden="true">Escríbelo o <b>Quiero ir a</b></span>' : ''}</div>${dest ? '<button class="clearbtn" id="dClear" title="Borrar el destino" aria-label="Borrar el destino">✕</button>' : ''}${!dest && vozLista() ? '<button class="mapbtn mic" id="dMic" title="Decir el destino con la voz" aria-label="Decir el destino con la voz">' + micSvg(18) + '</button>' : ''}<button class="mapbtn d" id="dMap" title="Elegir destino en el mapa" aria-label="Elegir destino en el mapa">${pinBtn('#ff5252')}</button></div>
           <div class="suggbox" id="sugg"></div>
         </div>
         ${showRef ? `<div class="fieldrow"><span class="dot" style="background:#FFC107"></span><div class="fcol"><label class="flbl" for="refIn">Referencia del recojo (opcional)</label><input id="refIn" placeholder="Casa, color, algo cercano…" value="${reference ? esc(reference) : ''}"></div></div>` : ''}
@@ -1116,6 +1116,12 @@ function renderPlanning() {
   const oClear = $('#oClear'); if (oClear) oClear.addEventListener('click', volverAMiUbicacion);
   const dIn = $('#dIn'); if (dIn) {
     dIn.addEventListener('focus', openSheet);   // al tocar el destino, se abre el panel (búsqueda + teclado)
+    // "Escríbelo o Quiero ir a" (pedido de la central, 16 oct) es un texto de DOS colores, y un
+    // placeholder sólo admite uno: va en un <span> encima del campo que se esconde al escribir.
+    const ph = $('#dPh');
+    const pintarPh = () => { if (ph) ph.style.display = dIn.value ? 'none' : ''; };
+    pintarPh();
+    dIn.addEventListener('input', pintarPh);
     dIn.addEventListener('input', () => {
       // Si borra el texto a mano, el destino elegido también se suelta. Si no, la pantalla
       // se contradice: campo vacío pero precio, ruta y "Buscar taxi" del punto anterior.

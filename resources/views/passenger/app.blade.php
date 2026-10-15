@@ -181,7 +181,11 @@
         .fieldrow input::placeholder{color:#6b7480}
         .fieldrow small{color:var(--muted);font-size:11px}
         /* Etiqueta-pregunta arriba del campo (más clara que un rótulo lateral) */
-        .fieldrow .fcol{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+        .fieldrow .fcol{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;position:relative}
+        /* "Escríbelo o Quiero ir a" sobre el campo vacío del destino (16 oct): gris + verde,
+           igual que un placeholder pero de dos colores; no recibe toques (el toque es del input) */
+        .fieldrow .phvoz{position:absolute;left:0;right:0;bottom:0;font-size:14.5px;line-height:normal;color:#6b7480;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .fieldrow .phvoz b{color:var(--verde);font-weight:600}
         .fieldrow .fcol input{width:100%;flex:none}
         .fieldrow .flbl{font-size:10.5px;font-weight:600;color:var(--muted);line-height:1.1}
 
@@ -483,7 +487,7 @@ window.MG = {
 <script src="/js/pois.js?v=6"></script>
 <script src="/js/majesgo-car.js?v=2"></script>
 <script src="/js/voz.js?v=1"></script>
-<script src="/js/passenger.js?v=57"></script>
+<script src="/js/passenger.js?v=58"></script>
 <script src="/js/native.js?v=11"></script>
 </body>
 </html>
