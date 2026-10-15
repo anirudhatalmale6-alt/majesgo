@@ -1222,6 +1222,15 @@ function renderRide(r) {
 
   if (r.status !== 'ofrecido') { clearInterval(offerTimer); offerKey = null; }
 
+  // El aviso "¿Cancelar la búsqueda? Ningún conductor tomó tu viaje" deja de ser cierto en
+  // cuanto alguien acepta: se cierra solo para que el pasajero vea la oferta y no cancele
+  // sin saberlo un viaje que ya tiene conductor.
+  const cm = $('#cancelModal');
+  if (cm && cm.dataset.tipo === 'buscando' && !cm.classList.contains('hidden') && r.status !== 'solicitando') {
+    closeCancelModal();
+    if (r.status === 'ofrecido') toast('¡Un conductor aceptó tu viaje! Revisa su oferta.', 5000);
+  }
+
   if (r.status === 'completado') { ackRide(r); renderCompleted(r); return; }
   // Se acabó el tiempo de búsqueda: pantalla propia con la opción de reintentar, en vez de
   // devolverlo a "¿A dónde vamos?" con un aviso que se va solo y perdiendo el destino.
@@ -1590,12 +1599,19 @@ function cancelRide() {
  *
  * Devuelve true si el viaje quedó efectivamente cancelado.
  */
-async function doCancel(reason) {
+async function doCancel(reason, visto) {
   try {
-    await api('api/rides/cancel', { reason });
+    await api('api/rides/cancel', { reason, visto: visto || null });
   } catch (e) {
     // 401/403: api() ya devolvió al pasajero a la pantalla de acceso; no hay nada que decir acá.
     if (e && (e.status === 401 || e.status === 403)) return false;
+    // 409: mientras decidía, un conductor aceptó. No se canceló: se cierra el aviso y el
+    // sondeo pinta la oferta (ver el comentario en el servidor, RideController::cancel).
+    if (e && e.status === 409) {
+      closeCancelModal();
+      toast(e.message || '¡Un conductor aceptó tu viaje! Revisa su oferta.', 5000);
+      return false;
+    }
     // 422 = el servidor dice que ya no hay viaje activo (se canceló solo por tiempo, o el
     // toque se contó dos veces). El pedido NO está vivo, así que limpiar es lo correcto.
     if (!e || e.status !== 422) {
@@ -1649,7 +1665,7 @@ function darLaBienvenida(idPasajero) {
 }
 
 function closeCancelModal() {
-  const m = $('#cancelModal'); m.classList.add('hidden'); m.innerHTML = '';
+  const m = $('#cancelModal'); m.classList.add('hidden'); m.innerHTML = ''; m.dataset.tipo = '';
 }
 /**
  * Cancelar mientras TODAVÍA se busca taxi (nadie aceptó aún).
@@ -1667,6 +1683,7 @@ function closeCancelModal() {
 function openCancelBuscandoModal() {
   paxCancelReason = null;
   const m = $('#cancelModal');
+  m.dataset.tipo = 'buscando';
   m.innerHTML = `
     <div class="modalcard">
       <h2>¿Cancelar la búsqueda?</h2>
@@ -1689,7 +1706,7 @@ function openCancelBuscandoModal() {
     const b = $('#cxConfirm'); if (b) { b.disabled = true; b.innerHTML = '<span class="spin"></span>'; }
     // Si no se pudo cancelar, el modal SE QUEDA y el botón vuelve: cerrarlo dejaría al
     // pasajero mirando un viaje que él cree cancelado y que en el servidor sigue vivo.
-    if (await doCancel(paxCancelReason)) { closeCancelModal(); return; }
+    if (await doCancel(paxCancelReason, 'solicitando')) { closeCancelModal(); return; }
     if (b) { b.disabled = false; b.textContent = 'Sí, cancelar búsqueda'; }
   });
   $('#cxBack').addEventListener('click', closeCancelModal);

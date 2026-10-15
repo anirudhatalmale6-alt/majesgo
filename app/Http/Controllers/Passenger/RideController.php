@@ -418,7 +418,22 @@ class RideController extends Controller
 
         $data = $request->validate([
             'reason' => ['nullable', 'string', 'max:120'],
+            // el estado que el pasajero tenía en pantalla al decidir cancelar
+            'visto'  => ['nullable', 'string', 'in:solicitando'],
         ]);
+
+        /* 🔴 Carrera entre el pasajero y el conductor (14/15 oct, datos reales): el pasajero
+           abría "¿Cancelar la búsqueda? Ningún conductor tomó tu viaje" y, mientras lo leía,
+           un conductor aceptaba. Al confirmar se cancelaba un viaje que YA tenía conductor:
+           6 de las 9 cancelaciones "tardías" de pasajeros reales fueron 1-4 s después de
+           aceptar. Si decidió viendo "buscando" y ahora hay un conductor, no se cancela:
+           se le devuelve la oferta para que la vea y decida con la información real. */
+        if (($data['visto'] ?? null) === 'solicitando' && $ride->status !== 'solicitando' && $ride->driver_id) {
+            return response()->json([
+                'conductor' => true,
+                'message'   => '¡Un conductor acaba de aceptar tu viaje! Revisa su oferta antes de decidir.',
+            ], 409);
+        }
 
         // ¿Fue una cancelación "tardía"? (el conductor ya estaba asignado / en camino / esperando)
         $lateCancel = in_array($ride->status, ['aceptado', 'en_camino', 'llego'], true) && $ride->driver_id;
