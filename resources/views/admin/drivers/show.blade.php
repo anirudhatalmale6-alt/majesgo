@@ -80,6 +80,26 @@
 
         {{-- Historial de saldo --}}
         <div class="card" style="padding:0">
+            <div class="between" style="padding:16px 18px 6px"><h3>Viajes que canceló</h3><span class="muted" style="font-size:12.5px">{{ $totalCancelaciones }} en total</span></div>
+            <table>
+                <thead><tr><th>Fecha y hora</th><th>Viaje</th><th>Pasajero</th><th>Motivo</th><th>Etapa</th></tr></thead>
+                <tbody>
+                @forelse($cancelaciones as $c)
+                    <tr>
+                        <td class="muted" style="font-size:12.5px">{{ optional($c->cancelled_at)->format('d/m H:i') }}</td>
+                        <td style="font-size:12.5px">{{ $c->code }}</td>
+                        <td style="font-size:12.5px">{{ optional($c->passenger)->name ?? '—' }}</td>
+                        <td style="font-size:12.5px">{{ $c->cancel_reason ?: 'sin motivo' }}</td>
+                        <td style="font-size:12px" class="muted">{{ $c->arrived_at ? 'ya había llegado' : 'iba en camino' }}</td>
+                    </tr>
+                @empty
+                    <tr><td colspan="5" class="muted" style="text-align:center;padding:22px">Este conductor no canceló ningún viaje.</td></tr>
+                @endforelse
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card" style="padding:0">
             <div class="between" style="padding:16px 18px 6px"><h3>Movimientos de saldo</h3></div>
             <table>
                 <thead><tr><th>Fecha</th><th>Concepto</th><th style="text-align:right">Monto</th><th style="text-align:right">Saldo</th></tr></thead>

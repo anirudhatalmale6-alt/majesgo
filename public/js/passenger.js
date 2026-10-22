@@ -1279,6 +1279,9 @@ function renderRide(r) {
   // devolverlo a "¿A dónde vamos?" con un aviso que se va solo y perdiendo el destino.
   if (r.status === 'sin_conductor') { renderNoDriver(r); return; }
   if (r.status === 'cancelado') {
+    // Lo canceló el CONDUCTOR: pantalla propia con el motivo y "Pedir otro taxi" (22 oct).
+    // Antes era un aviso de 3 s y volvía al inicio: quien volvía de WhatsApp no entendía nada.
+    if (r.cancelled_by === 'conductor') { renderDriverCancelled(r); return; }
     ackRide(r); stopPolling();
     toast('El viaje fue cancelado.');
     resetAfterRide(); return;
@@ -1495,6 +1498,34 @@ function renderNoDriver(r) {
   requestAnimationFrame(() => applySheetSnap(false));
 }
 
+/** El conductor canceló: decirlo claro, con el motivo, y ofrecer otro taxi con un toque. */
+function renderDriverCancelled(r) {
+  // Igual que renderNoDriver: no se marca como visto hasta que elija, para que si cierra y
+  // vuelve a abrir la app (o entra tocando la notificación) siga viendo esta pantalla.
+  stopPolling();
+  clearDriverFromMap();
+  curRide = r;
+  sheetState = 'open';
+  const d = r.driver || {};
+  $('#sheetBody').classList.add('hascta');
+  $('#sheetBody').innerHTML = `
+    <div class="searching">
+      <div class="nodrv">🚫</div>
+      <h2>Tu conductor canceló el viaje</h2>
+      <div class="sub">${r.cancel_msg ? esc(r.cancel_msg) + ' ' : ''}${d.name ? esc(d.name) + ' canceló' : 'Se canceló'} tu viaje a ${esc((r.dest && r.dest.address) || 'tu destino')}${r.cancelled_at ? ' a las ' + esc(r.cancelled_at) : ''}.
+        Puedes pedir otro taxi ahora mismo con el mismo recojo, destino y precio.</div>
+    </div>
+    <div class="sheetcta">
+      <div class="acts">
+        <button class="btn ghost" id="btnNuevoViaje">Cambiar viaje</button>
+        <button class="btn" id="btnReintentar" data-txt="Pedir otro taxi">Pedir otro taxi</button>
+      </div>
+    </div>`;
+  $('#btnNuevoViaje').addEventListener('click', () => { ackRide(r); curRide = null; resetAfterRide(); });
+  $('#btnReintentar').addEventListener('click', () => { ackRide(r); retryRide(r); });
+  requestAnimationFrame(() => applySheetSnap(false));
+}
+
 /** Vuelve a pedir el MISMO viaje (mismo origen, destino, precio y forma de pago). */
 async function retryRide(r) {
   const b = $('#btnReintentar');
@@ -1512,7 +1543,7 @@ async function retryRide(r) {
     startPolling();
   } catch (e) {
     toast(e.message || 'No se pudo pedir de nuevo.');
-    if (b) { b.disabled = false; b.textContent = 'Intentar de nuevo'; }
+    if (b) { b.disabled = false; b.textContent = b.dataset.txt || 'Intentar de nuevo'; }
   }
 }
 

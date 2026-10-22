@@ -943,14 +943,38 @@ class RideController extends Controller
             return response()->json(['message' => 'No tienes un viaje activo.'], 422);
         }
 
+        // El motivo es obligatorio desde la app nueva. Una pestaña abierta con la versión
+        // anterior todavía manda la cancelación sin motivo: se acepta igual (no dejar al
+        // conductor trabado) y queda anotado que no lo eligió.
+        $clave = (string) $request->input('reason', '');
+        $motivo = Ride::MOTIVOS_CONDUCTOR[$clave][0] ?? 'Sin motivo (versión anterior de la app)';
+
         $ride->forceFill([
             'status'        => 'cancelado',
             'cancelled_by'  => 'conductor',
-            'cancel_reason' => $request->input('reason'),
+            'cancel_reason' => $motivo,
             'cancelled_at'  => now(),
         ])->save();
 
         $driver->update(['status' => 'disponible']);
+
+        // "No se presentó" sólo cuenta si de verdad llegó al recojo
+        if ($clave === 'no_aparece' && $ride->arrived_at && $ride->passenger) {
+            $ride->passenger->increment('noshow_count');
+        }
+
+        /* 🔴 Antes el pasajero NO se enteraba (caso real de la central, 22 oct): salió a
+           WhatsApp esperando el taxi y 5 minutos después descubrió que el conductor había
+           cancelado. Ahora le llega un push aunque tenga el celular bloqueado, y al abrir la
+           app ve "Tu conductor canceló el viaje" con "Pedir otro taxi" (ver Passenger
+           RideController::current, que muestra esa pantalla hasta 30 min después). */
+        $explicacion = $ride->mensajeCancelacionConductor();
+        defer(fn () => WebPushSender::toOwner('passenger', (int) $ride->passenger_id, [
+            'title' => 'Tu conductor canceló el viaje',
+            'body'  => trim(($explicacion ? $explicacion.' ' : '').'Toca para pedir otro taxi.'),
+            'url'   => '/app',
+            'tag'   => 'ride-cancelled',
+        ]));
 
         return response()->json(['ok' => true]);
     }
@@ -1357,6 +1381,8 @@ class RideController extends Controller
             // esperando que el pasajero confirme que ya está en el taxi (inicio desde lejos)
             'onboard_request' => $ride->onboard_request_at !== null && $ride->onboard_request_at->gt(now()->subMinutes(5)),
             'arrive_radius_m' => (int) Setting::get('arrive_radius_m', 250),
+            // motivos para cancelar (clave => texto); la regla y los textos viven en Ride
+            'cancel_reasons'  => collect(Ride::MOTIVOS_CONDUCTOR)->map(fn ($m) => $m[0])->all(),
             'passenger'    => $this->passengerCard($ride),
             'currency'     => Setting::get('currency', 'S/'),
         ];

@@ -92,6 +92,35 @@ class Ride extends Model
         return (bool) $this->is_demo || (bool) $this->driver?->is_demo;
     }
 
+    /**
+     * Motivos con los que un CONDUCTOR cancela (pedido de la central, 22 oct).
+     * clave => [lo que elige el conductor (y se guarda en cancel_reason), lo que lee el pasajero].
+     * Un null en el segundo = no se le explica el motivo al pasajero ("Otro motivo").
+     */
+    public const MOTIVOS_CONDUCTOR = [
+        'no_aparece' => ['El pasajero no se presentó', 'Tu conductor llegó al punto de recojo pero no te encontró.'],
+        'direccion'  => ['No encuentro la dirección de recojo', 'Tu conductor no pudo encontrar tu punto de recojo.'],
+        'pidio'      => ['El pasajero me pidió cancelar', 'Tu conductor indicó que le pediste cancelar el viaje.'],
+        'vehiculo'   => ['Problema con mi vehículo', 'Tu conductor tuvo un problema con su vehículo.'],
+        'demora'     => ['No llegaré a tiempo / tráfico', 'Tu conductor no podrá llegar a tiempo.'],
+        'otro'       => ['Otro motivo', null],
+    ];
+
+    /** Texto para el pasajero cuando el conductor canceló (null = sin detalle). */
+    public function mensajeCancelacionConductor(): ?string
+    {
+        if ($this->cancelled_by !== 'conductor') {
+            return null;
+        }
+        foreach (self::MOTIVOS_CONDUCTOR as [$etiqueta, $paraPasajero]) {
+            if ($etiqueta === $this->cancel_reason) {
+                return $paraPasajero;
+            }
+        }
+
+        return null;
+    }
+
     /* ---- Helpers ---- */
 
     public static function makeCode(): string

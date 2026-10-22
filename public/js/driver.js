@@ -2310,11 +2310,53 @@ async function completeRide() {
   } catch (e) { toast(e.message); b.disabled = false; b.textContent = 'Finalizar viaje'; }
 }
 
-async function cancelRide() {
-  if (!confirm('¿Cancelar este viaje?')) return;
-  try { await api('api/cancel', {}); } catch (e) {}
-  ride = null; online = true; me.status = 'disponible';
-  clearTrip(); toast('Viaje cancelado.'); renderHome();
+/**
+ * Cancelar un viaje aceptado: con MOTIVO obligatorio (pedido de la central, 22 oct).
+ *
+ * 🔴 Antes era un confirm() y un catch vacío: si la cancelación no llegaba al servidor (sin
+ * señal), la app igual decía "Viaje cancelado" y lo soltaba, mientras el pasajero seguía
+ * esperando un taxi que nadie iba a llevar. Ahora sólo se da por cancelado si el servidor
+ * lo confirma, y el pasajero recibe un aviso con el motivo.
+ */
+function cancelRide() {
+  if (!ride) return;
+  const motivos = ride.cancel_reasons || { otro: 'Otro motivo' };
+  let elegido = null;
+  const m = $('#cancelModal');
+  m.innerHTML = `
+    <div class="modalcard">
+      <div class="micon">⚠️</div>
+      <h2>¿Por qué cancelas el viaje?</h2>
+      <p class="msub">El pasajero recibirá un aviso de que cancelaste, con el motivo.</p>
+      <div class="reasons" id="dcxReasons">
+        ${Object.entries(motivos).map(([k, t]) => `<button class="reason" data-k="${esc(k)}">${esc(t)}</button>`).join('')}
+      </div>
+      <button class="btn danger" id="dcxOk" disabled>Cancelar viaje</button>
+      <button class="btn ghost" id="dcxBack" style="margin-top:10px">Volver al viaje</button>
+    </div>`;
+  m.classList.remove('hidden');
+  const btns = [...m.querySelectorAll('#dcxReasons .reason')];
+  btns.forEach((b) => b.addEventListener('click', () => {
+    elegido = b.dataset.k; btns.forEach((x) => x.classList.toggle('on', x === b));
+    $('#dcxOk').disabled = false;
+  }));
+  $('#dcxBack').addEventListener('click', () => { m.classList.add('hidden'); m.innerHTML = ''; });
+  $('#dcxOk').addEventListener('click', async () => {
+    const ok = $('#dcxOk'); ok.disabled = true; ok.innerHTML = '<span class="spin"></span>';
+    try {
+      await api('api/cancel', { reason: elegido });
+    } catch (e) {
+      // 422 = ya no había viaje activo (lo canceló el pasajero un segundo antes): soltar igual
+      if (!e || e.status !== 422) {
+        toast('No se pudo cancelar: revisa tu señal y vuelve a intentarlo. El viaje sigue activo.', 6000);
+        ok.disabled = false; ok.textContent = 'Cancelar viaje';
+        return;
+      }
+    }
+    m.classList.add('hidden'); m.innerHTML = '';
+    ride = null; online = true; me.status = 'disponible';
+    clearTrip(); toast('Viaje cancelado. Le avisamos al pasajero.'); renderHome();
+  });
 }
 
 function renderCompleted(r) {

@@ -162,9 +162,15 @@ class RideController extends Controller
 
         if (! $ride) {
             // ¿Un viaje que acaba de terminar y el pasajero aún no ve el resultado?
+            // Si lo canceló el CONDUCTOR se muestra durante 30 min: el pasajero pudo estar en
+            // otra app (WhatsApp) y volver mucho después; con 2 min volvía a la pantalla de
+            // inicio sin enterarse de qué había pasado con su taxi (caso real, 22 oct).
             $recent = $passenger->rides()
                 ->whereIn('status', ['completado', 'cancelado', 'sin_conductor'])
-                ->where('updated_at', '>=', now()->subMinutes(2))
+                ->where(fn ($q) => $q->where('updated_at', '>=', now()->subMinutes(2))
+                    ->orWhere(fn ($w) => $w->where('status', 'cancelado')->where('cancelled_by', 'conductor')
+                        ->where('cancelled_at', '>=', now()->subMinutes(30))))
+                ->latest('id')
                 ->first();
             if ($recent && $request->session()->get('pax_ack_ride') != $recent->id) {
                 return response()->json(['ride' => $this->payload($recent, null)]);
@@ -700,6 +706,11 @@ class RideController extends Controller
             // Si ya avisó "Ya salgo", el botón queda en su estado de confirmado aunque
             // recargue la app o se le corte la señal a mitad.
             'on_my_way'    => $ride->on_my_way_at !== null,
+            // quién canceló (pasajero | conductor | null) y, si fue el conductor, por qué en
+            // palabras para el pasajero (null = sin detalle)
+            'cancelled_by' => $ride->status === 'cancelado' ? $ride->cancelled_by : null,
+            'cancel_msg'   => $ride->mensajeCancelacionConductor(),
+            'cancelled_at' => optional($ride->cancelled_at)->format('H:i'),
             // El conductor pide confirmar que el pasajero ya está a bordo (inició desde lejos)
             'onboard_request' => $ride->onboard_request_at !== null && $ride->onboard_request_at->gt(now()->subMinutes(5))
                 && in_array($ride->status, ['aceptado', 'en_camino', 'llego'], true),

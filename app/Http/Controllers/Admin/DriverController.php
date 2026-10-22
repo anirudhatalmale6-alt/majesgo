@@ -70,7 +70,11 @@ class DriverController extends Controller
     public function show(Driver $driver)
     {
         $driver->load(['movements' => fn ($m) => $m->take(15), 'recharges' => fn ($r) => $r->latest()->take(10)]);
-        return view('admin.drivers.show', compact('driver'));
+        // Cancelaciones hechas por este conductor: quién, cuándo y por qué (pedido de la central)
+        $cancelaciones = $driver->rides()->where('status', 'cancelado')->where('cancelled_by', 'conductor')
+            ->with('passenger')->latest('cancelled_at')->take(15)->get();
+        $totalCancelaciones = $driver->rides()->where('status', 'cancelado')->where('cancelled_by', 'conductor')->count();
+        return view('admin.drivers.show', compact('driver', 'cancelaciones', 'totalCancelaciones'));
     }
 
     public function edit(Driver $driver)

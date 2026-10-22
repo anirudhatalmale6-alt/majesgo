@@ -88,7 +88,7 @@
                             <span class="badge {{ $rcls }}">{{ $r->statusLabel() }}</span>
                             @if($r->status=='cancelado')
                                 <div class="muted" style="font-size:11.5px;margin-top:3px">
-                                    Canceló: {{ $r->cancelled_by ?: 'sin dato' }}@if($r->cancel_reason) · {{ $r->cancel_reason }}@endif
+                                    Canceló: {{ $r->cancelled_by ?: 'sin dato' }}@if($r->cancelled_by === 'conductor' && $r->driver) ({{ $r->driver->code }})@endif@if($r->cancel_reason) · {{ $r->cancel_reason }}@endif@if($r->cancelled_at) · {{ $r->cancelled_at->format('d/m H:i') }}@endif
                                 </div>
                             @endif
                         </td>
