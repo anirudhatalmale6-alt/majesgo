@@ -68,6 +68,7 @@ Route::prefix('app')->name('app.')->group(function () {
         Route::get('api/rides/messages', [PassengerRide::class, 'messages']);
         Route::post('api/rides/messages', [PassengerRide::class, 'sendMessage']);
         Route::post('api/rides/on-my-way', [PassengerRide::class, 'onMyWay']);
+        Route::post('api/rides/confirm-onboard', [PassengerRide::class, 'confirmOnboard']);
         Route::post('api/rides/cancel', [PassengerRide::class, 'cancel']);
         Route::post('api/rides/rate', [PassengerRide::class, 'rate']);
         Route::post('api/rides/report', [PassengerRide::class, 'report']);
@@ -120,6 +121,8 @@ Route::prefix('conductor')->name('driver.')->group(function () {
         Route::post('api/messages', [DriverRide::class, 'sendMessage']);
         Route::post('api/arrive', [DriverRide::class, 'arrive']);
         Route::post('api/start', [DriverRide::class, 'start']);
+        // iniciar sin haber marcado "Llegué" (se olvidó y ya se alejó): GPS o confirma el pasajero
+        Route::post('api/start-far', [DriverRide::class, 'startFar']);
         Route::post('api/complete', [DriverRide::class, 'complete']);
         Route::post('api/cancel', [DriverRide::class, 'cancel']);
         Route::post('api/rate', [DriverRide::class, 'ratePassenger']);

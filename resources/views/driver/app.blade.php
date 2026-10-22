@@ -682,7 +682,7 @@ window.MG = {
 <script src="/js/majesgo-car.js?v=2"></script>
 <script src="/js/despierto.js?v=1"></script>
 <script src="/js/rastreo.js?v=7"></script>
-<script src="/js/driver.js?v=64"></script>
+<script src="/js/driver.js?v=65"></script>
 <script src="/js/native.js?v=11"></script>
 </body>
 </html>

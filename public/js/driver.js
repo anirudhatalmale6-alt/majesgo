@@ -59,7 +59,7 @@ async function api(path, body, method) {
     kickToLogin('Tu sesión se cerró. Vuelve a ingresar para seguir recibiendo viajes.');
     throw { status: 401, message: 'Sesión cerrada', expired: true };
   }
-  if (!res.ok) throw { status: res.status, message: data.message || 'Ocurrió un error', errors: data.errors };
+  if (!res.ok) throw Object.assign({}, data, { status: res.status, message: data.message || 'Ocurrió un error', errors: data.errors });
   return data;
 }
 
@@ -353,7 +353,7 @@ function checkReroute() {
   if (now - lastRerouteAt < REROUTE_COOLDOWN_MS) return;
   doReroute();
 }
-async function doReroute() {
+async function doReroute(silencioso) {
   rerouting = true; lastRerouteAt = Date.now();
   try {
     const r = await api('api/reroute', { lat: myPos.lat, lng: myPos.lng });
@@ -366,7 +366,7 @@ async function doReroute() {
         if (navLine) navLine.setLatLngs(activeRoute.coords);
         else navLine = L.polyline(activeRoute.coords, { color: color, weight: 6, opacity: .9 }).addTo(navMap);
       }
-      toast('Ruta recalculada');
+      if (!silencioso) toast('Ruta recalculada');
     }
   } catch (e) { /* si falla el recálculo, mantenemos la ruta anterior */ }
   finally { rerouting = false; lastRerouteAt = Date.now(); }
@@ -1118,7 +1118,7 @@ function renderNavAction() {
     const st = r.status;
     if (st === 'llego') await act('api/start', 'Viaje iniciado. Buen camino.');
     else if (st === 'a_bordo') await completeRide();
-    else await act('api/arrive', 'Marcado: llegaste al punto.', posicionAhora());
+    else await marcarLlegada();   // si está lejos, pregunta "¿Ya recogiste al pasajero?"
     // el viaje pudo cambiar de estado o terminar
     if (navOpen && ride && ACTIVE.includes(ride.status)) { drawNavRoute(ride); renderNavAction(); if (myPos) navUpdateFromMyPos(); }
     else closeNav();
@@ -2090,6 +2090,7 @@ function renderRide(r) {
   $('#sheetBody').innerHTML = `
     <div class="statusband">${r.status_label}<small>${goingToDest ? 'Lleva al pasajero a su destino' : 'Recoge al pasajero en el punto marcado'}</small></div>
     ${r.status === 'llego' && r.on_my_way ? '<div class="paxsalgo">🚶 El pasajero ya está saliendo</div>' : ''}
+    ${r.onboard_request ? '<div class="paxsalgo">⏳ Esperando que el pasajero confirme en su app que ya está en tu taxi</div>' : ''}
     <div class="drv">
       <div class="av">${p.initial || 'P'}</div>
       <div><div class="nm">${esc(p.name || 'Pasajero')}</div><div class="car2">⭐ ${(p.rating || 5).toFixed(1)} · ${p.trips || 0} viajes</div></div>
@@ -2106,7 +2107,7 @@ function renderRide(r) {
       ${goingToDest ? '' : '<button class="btn danger" id="btnCancel">Cancelar</button>'}
     </div>`;
 
-  const a = $('#btnArrive'); if (a) a.addEventListener('click', () => act('api/arrive', 'Marcado: llegaste al punto.', posicionAhora()));
+  const a = $('#btnArrive'); if (a) a.addEventListener('click', marcarLlegada);
   const s = $('#btnStart'); if (s) s.addEventListener('click', () => act('api/start', 'Viaje iniciado. Buen camino.'));
   const c = $('#btnComplete'); if (c) c.addEventListener('click', completeRide);
   const cc = $('#btnCancel'); if (cc) cc.addEventListener('click', cancelRide);
@@ -2115,6 +2116,127 @@ function renderRide(r) {
   // (mantener referencia al destino externo por si se necesita)
   window._extNav = () => window.open('https://www.google.com/maps/dir/?api=1&destination=' + navTarget.lat + ',' + navTarget.lng + '&travelmode=driving', '_blank');
   checkArrival(); // reaplica el resaltado si ya está en el punto
+  resolverEsperaAbordo(r);
+}
+
+/* ====== Iniciar el viaje sin haber marcado "Llegué" (pedido de la central, 22 oct) ======
+   Caso real: el conductor recogió al pasajero, arrancó sin marcar la llegada y, ya lejos,
+   el servidor le rechazaba "Llegué" (radio de llegada): sin "Llegué" no aparece "Iniciar
+   viaje" y el viaje quedaba trabado con el pasajero adentro.
+   Ahora se le pregunta "¿Ya recogiste al pasajero?" en dos momentos —al tocar "Llegué"
+   lejos del punto, y si se aleja del recojo después de haber pasado por él— y puede
+   iniciar desde donde está. La VALIDACIÓN vive en el servidor (startFar): GPS que pasó por
+   el recojo, o confirmación del pasajero en su app. */
+let esperaAbordo = null;          // id del viaje que espera la confirmación del pasajero
+const preguntadoAlejarse = {};    // una sola pregunta automática por viaje
+const estuvoCercaRecojo = {};     // el GPS lo ubicó dentro del radio del recojo en este viaje
+
+async function marcarLlegada() {
+  const btns = document.querySelectorAll('#sheetBody .btn'); btns.forEach((b) => b.disabled = true);
+  try {
+    const r = await api('api/arrive', posicionAhora());
+    ride = r.ride; toast('Marcado: llegaste al punto.'); renderRide(ride);
+  } catch (e) {
+    btns.forEach((b) => b.disabled = false);
+    if (e && e.lejos) preguntarAbordo(e.metros, 'llegada');
+    else toast(e.message);
+  }
+}
+
+function modalAbordo() {
+  let m = document.getElementById('abordoModal');
+  if (!m) {
+    m = document.createElement('div');
+    m.className = 'modal hidden'; m.id = 'abordoModal';
+    document.body.appendChild(m);
+  }
+  return m;
+}
+function cerrarAbordo() { const m = document.getElementById('abordoModal'); if (m) { m.classList.add('hidden'); m.innerHTML = ''; } }
+
+function preguntarAbordo(metros, motivo) {
+  if (!ride) return;
+  if (navOpen) closeNav();   // la navegación tapa todo: la pregunta tiene que verse
+  const m = modalAbordo();
+  const dist = metros != null ? km(metros) : 'lejos';
+  const sub = motivo === 'alejando'
+    ? `Te estás alejando del punto de recojo (estás a ${dist}) y el viaje todavía no empezó.`
+    : `Estás a ${dist} del punto de recojo, por eso no se puede marcar la llegada.`;
+  m.innerHTML = `
+    <div class="modalcard">
+      <div class="micon" style="background:rgba(255,193,7,.16)">🧍</div>
+      <h2>¿Ya recogiste al pasajero?</h2>
+      <p class="msub">${sub} Si ya está contigo, puedes iniciar el viaje desde aquí.</p>
+      <button class="btn" id="abSi">Sí, ya está conmigo: iniciar viaje</button>
+      <button class="btn ghost" id="abNo" style="margin-top:10px">No, todavía voy al recojo</button>
+    </div>`;
+  m.classList.remove('hidden');
+  $('#abNo').addEventListener('click', cerrarAbordo);
+  $('#abSi').addEventListener('click', iniciarDesdeAqui);
+}
+
+async function iniciarDesdeAqui() {
+  const b = $('#abSi'); if (b) { b.disabled = true; b.innerHTML = '<span class="spin"></span>'; }
+  try {
+    const r = await api('api/start-far', posicionAhora());
+    ride = r.ride;
+    if (r.esperando) {
+      esperaAbordo = ride.id;
+      const p = ride.passenger || {};
+      modalAbordo().innerHTML = `
+        <div class="modalcard">
+          <div class="spin" style="width:34px;height:34px;border-width:3px;border-top-color:var(--amarillo);margin:6px auto 14px"></div>
+          <h2>Esperando al pasajero…</h2>
+          <p class="msub">Le pedimos a ${esc(p.name || 'el pasajero')} que confirme en su app que ya está en tu taxi. El viaje empieza apenas lo confirme.</p>
+          <button class="btn ghost" id="abChat">💬 Escribirle por el chat</button>
+          <button class="btn ghost" id="abCerrar" style="margin-top:10px">Cerrar</button>
+        </div>`;
+      $('#abCerrar').addEventListener('click', cerrarAbordo);
+      $('#abChat').addEventListener('click', () => { cerrarAbordo(); openChat(p.name); });
+      renderRide(ride);
+      return;
+    }
+    cerrarAbordo();
+    toast('Viaje iniciado desde tu ubicación. Buen camino.');
+    renderRide(ride);
+    rutaDesdeAqui();
+  } catch (e) {
+    toast(e.message || 'No se pudo iniciar el viaje.');
+    if (b) { b.disabled = false; b.textContent = 'Sí, ya está conmigo: iniciar viaje'; }
+  }
+}
+
+/** Al iniciar lejos del recojo, la ruta guardada sale del recojo: se pide una desde AQUÍ. */
+function rutaDesdeAqui() {
+  if (!myPos || !ride || ride.status !== 'a_bordo') return;
+  syncActiveRoute(ride);
+  setTimeout(() => doReroute(true), 150);   // sin aviso: no tapar "Viaje iniciado"
+}
+
+/** Cada sondeo: ¿el pasajero ya contestó "¿Ya estás en el taxi?" */
+function resolverEsperaAbordo(r) {
+  if (esperaAbordo !== r.id) return;
+  if (r.status === 'a_bordo') {
+    esperaAbordo = null; cerrarAbordo();
+    toast('El pasajero confirmó. Viaje iniciado.', 4000);
+    rutaDesdeAqui();
+  } else if (!r.onboard_request) {
+    esperaAbordo = null; cerrarAbordo();
+    toast('El pasajero indicó que todavía no está en tu taxi (o no respondió).', 6000);
+  }
+}
+
+/** Se alejó del recojo DESPUÉS de haber pasado por él, sin marcar nada: preguntar una vez. */
+function vigilarAlejamiento() {
+  if (!ride || !myPos || !['aceptado', 'en_camino'].includes(ride.status)) return;
+  const radio = Number(ride.arrive_radius_m) || 250;
+  const d = haversineM(myPos.lat, myPos.lng, ride.origin.lat, ride.origin.lng);
+  if (d <= radio) { estuvoCercaRecojo[ride.id] = true; return; }
+  if (estuvoCercaRecojo[ride.id] && d > radio + 150 && !preguntadoAlejarse[ride.id] && esperaAbordo !== ride.id) {
+    preguntadoAlejarse[ride.id] = true;
+    const abierto = document.querySelector('.modal:not(.hidden)');
+    if (!abierto) preguntarAbordo(Math.round(d), 'alejando');
+  }
 }
 
 function renderWaitingConfirm(r) {
@@ -2144,6 +2266,7 @@ function renderWaitingConfirm(r) {
    avisa y resalta el botón de acción para que sea claro qué tocar. */
 function checkArrival() {
   if (!ride || !myPos) return;
+  vigilarAlejamiento();
   let target, label;
   if (ride.status === 'en_camino' || ride.status === 'aceptado') { target = ride.origin; label = '¡Llegaste al punto de recojo!'; }
   else if (ride.status === 'a_bordo') { target = ride.dest; label = '¡Llegaste al destino!'; }

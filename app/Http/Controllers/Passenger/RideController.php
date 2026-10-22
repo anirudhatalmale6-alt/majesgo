@@ -552,6 +552,44 @@ class RideController extends Controller
      * escribir: el pasajero está cerrando la puerta de su casa y el conductor está en la
      * calle esperando.
      */
+    /**
+     * El pasajero contesta "¿Ya estás en el taxi?" (el conductor pidió iniciar desde lejos).
+     * Sí → el viaje empieza ahí mismo. No → se avisa al conductor por el chat y no se inicia.
+     * Ver Driver\RideController::startFar.
+     */
+    public function confirmOnboard(Request $request)
+    {
+        $data = $request->validate(['si' => ['required', 'boolean']]);
+        $ride = $this->passenger($request)->activeRide();
+        if (! $ride || ! in_array($ride->status, ['aceptado', 'en_camino', 'llego'], true)
+            || ! $ride->onboard_request_at || $ride->onboard_request_at->lte(now()->subMinutes(5))) {
+            return response()->json(['message' => 'Ya no hay nada que confirmar.'], 422);
+        }
+
+        if ($data['si']) {
+            $ride->forceFill([
+                'status'             => 'a_bordo',
+                'arrived_at'         => $ride->arrived_at ?? now(),
+                'started_at'         => $ride->started_at ?? now(),
+                'start_mode'         => 'pasajero',
+                'onboard_request_at' => null,
+            ])->save();
+            $ride->messages()->create(['sender' => 'pasajero', 'body' => 'Sí, ya estoy en el taxi ✅']);
+        } else {
+            $ride->forceFill(['onboard_request_at' => null])->save();
+            $ride->messages()->create(['sender' => 'pasajero', 'body' => 'Todavía no estoy en el taxi.']);
+        }
+
+        defer(fn () => WebPushSender::toOwner('driver', (int) $ride->driver_id, [
+            'title' => $data['si'] ? 'El pasajero confirmó: viaje iniciado' : 'El pasajero dice que aún no está en el taxi',
+            'body'  => $data['si'] ? 'Ya puedes llevarlo a su destino.' : 'El viaje no se inició.',
+            'url'   => '/conductor',
+            'tag'   => 'ride-onboard',
+        ]));
+
+        return response()->json(['ok' => true, 'ride' => $this->payload($ride->fresh(), $this->driverPosArr($ride))]);
+    }
+
     public function onMyWay(Request $request)
     {
         $ride = $this->chatRide($this->passenger($request));
@@ -662,6 +700,9 @@ class RideController extends Controller
             // Si ya avisó "Ya salgo", el botón queda en su estado de confirmado aunque
             // recargue la app o se le corte la señal a mitad.
             'on_my_way'    => $ride->on_my_way_at !== null,
+            // El conductor pide confirmar que el pasajero ya está a bordo (inició desde lejos)
+            'onboard_request' => $ride->onboard_request_at !== null && $ride->onboard_request_at->gt(now()->subMinutes(5))
+                && in_array($ride->status, ['aceptado', 'en_camino', 'llego'], true),
             'driver'       => $driver ? [
                 'name'    => $driver->full_name,
                 'vehicle' => trim(($driver->vehicle_make . ' ' . $driver->vehicle_model)),

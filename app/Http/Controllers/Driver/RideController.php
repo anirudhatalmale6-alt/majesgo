@@ -120,6 +120,7 @@ class RideController extends Controller
         }
 
         $driver->forceFill(['lat' => $d['lat'], 'lng' => $d['lng'], 'last_active_at' => now()])->saveQuietly();
+        self::anotarCercaDelRecojo($driver->id, (float) $d['lat'], (float) $d['lng']);
 
         return response()->json(['ok' => true]);
     }
@@ -134,8 +135,47 @@ class RideController extends Controller
         ]);
 
         $driver->update(['lat' => $d['lat'], 'lng' => $d['lng'], 'last_active_at' => now()]);
+        self::anotarCercaDelRecojo($driver->id, (float) $d['lat'], (float) $d['lng']);
 
         return response()->json(['ok' => true, 'saldo' => (float) $driver->saldo, 'can_receive' => $driver->canReceiveRides()]);
+    }
+
+    /**
+     * Deja escrito, UNA vez por viaje, que el GPS del conductor pasó por el punto de recojo.
+     *
+     * Es la prueba que permite iniciar el viaje desde lejos si se olvidó de marcar "Llegué"
+     * (ver startFar). Se toma de las posiciones que la app ya manda, así que no agrega
+     * ningún pedido nuevo al servidor: sólo una consulta barata mientras va a recoger.
+     */
+    private static function anotarCercaDelRecojo(int $driverId, float $lat, float $lng): void
+    {
+        $ride = Ride::where('driver_id', $driverId)->whereIn('status', ['aceptado', 'en_camino'])
+            ->whereNull('near_pickup_at')->latest('id')->first();
+        if (! $ride) {
+            return;
+        }
+        $radio = (float) Setting::get('arrive_radius_m', 250);
+        $radio = $radio > 0 ? $radio : 250;
+        if (Routing::haversine($lat, $lng, (float) $ride->origin_lat, (float) $ride->origin_lng) <= $radio) {
+            $ride->forceFill(['near_pickup_at' => now()])->saveQuietly();
+        }
+    }
+
+    /** Metros del conductor al recojo con la posición del pedido o la última guardada (null = sin GPS). */
+    private function metrosAlRecojo(Request $request, Ride $ride): ?int
+    {
+        $driver = $this->driver($request);
+        $lat = $request->input('lat');
+        $lng = $request->input('lng');
+        if (! (is_numeric($lat) && is_numeric($lng) && abs((float) $lat) <= 90 && abs((float) $lng) <= 180)) {
+            if ($driver->lat === null || $driver->lng === null) {
+                return null;
+            }
+            $lat = $driver->lat;
+            $lng = $driver->lng;
+        }
+
+        return (int) round(Routing::haversine((float) $lat, (float) $lng, (float) $ride->origin_lat, (float) $ride->origin_lng));
     }
 
     /** Guarda la suscripción push del navegador del conductor. */
@@ -743,7 +783,15 @@ class RideController extends Controller
         }
 
         if ($error = $this->lejosDelRecojo($request, $ride)) {
-            return response()->json(['message' => $error], 422);
+            $metros = $this->metrosAlRecojo($request, $ride);
+            // Con distancia medida la app pregunta "¿Ya recogiste al pasajero?" y ofrece
+            // iniciar desde ahí (startFar). Sin GPS sólo se muestra el mensaje: no hay nada
+            // que validar.
+            return response()->json([
+                'message' => $error,
+                'lejos'   => $metros !== null,
+                'metros'  => $metros,
+            ], 422);
         }
         $ride->forceFill(['status' => 'llego', 'arrived_at' => $ride->arrived_at ?? now()])->save();
 
@@ -780,8 +828,74 @@ class RideController extends Controller
         if (! $ride) {
             return response()->json(['message' => 'No hay un viaje para iniciar.'], 422);
         }
-        $ride->forceFill(['status' => 'a_bordo', 'started_at' => $ride->started_at ?? now()])->save();
+        $ride->forceFill(['status' => 'a_bordo', 'started_at' => $ride->started_at ?? now(), 'start_mode' => $ride->start_mode ?? 'normal'])->save();
         return response()->json(['ok' => true, 'ride' => $this->payload($ride)]);
+    }
+
+    /**
+     * Iniciar el viaje SIN haber marcado "Llegué", desde donde esté el conductor.
+     *
+     * Caso real (22 oct, prueba de la central): el conductor recogió al pasajero, arrancó sin
+     * marcar la llegada y, ya a más del radio, el servidor le rechazaba "Llegué". Sin "Llegué"
+     * no aparece "Iniciar viaje": el viaje quedaba trabado con el pasajero adentro.
+     *
+     * Se inicia sólo con una de estas pruebas (la regla vive aquí, no en el botón):
+     *  · está dentro del radio del recojo → como un inicio normal ('cerca');
+     *  · su GPS pasó por el recojo durante este viaje (near_pickup_at) → al instante ('gps');
+     *  · si no hay ninguna de las dos, el PASAJERO confirma en su app que ya está en el taxi
+     *    (onboard_request_at → Passenger\RideController::confirmOnboard, modo 'pasajero').
+     *    Así nadie puede iniciar una carrera desde lejos sin el pasajero.
+     * Queda escrito cómo se inició y a cuántos metros, para que la central pueda revisarlo.
+     */
+    public function startFar(Request $request)
+    {
+        $ride = $this->requireActive($request, ['aceptado', 'en_camino', 'llego']);
+        if (! $ride) {
+            return response()->json(['message' => 'No hay un viaje para iniciar.'], 422);
+        }
+        if ($ride->status === 'llego') {
+            return $this->start($request);
+        }
+
+        $metros = $this->metrosAlRecojo($request, $ride);
+        $radio = (float) Setting::get('arrive_radius_m', 250);
+        $cerca = $metros !== null && ($radio <= 0 || $metros <= $radio);
+        $modo = $cerca ? 'cerca' : ($ride->near_pickup_at ? 'gps' : null);
+
+        if ($modo) {
+            $ride->forceFill([
+                'status'             => 'a_bordo',
+                'arrived_at'         => $ride->arrived_at ?? $ride->near_pickup_at ?? now(),
+                'started_at'         => $ride->started_at ?? now(),
+                'start_mode'         => $modo,
+                'start_far_m'        => $metros,
+                'onboard_request_at' => null,
+            ])->save();
+            defer(fn () => WebPushSender::toOwner('passenger', (int) $ride->passenger_id, [
+                'title' => 'Tu viaje comenzó 🚕',
+                'body'  => 'Buen viaje. Puedes seguir la ruta en Majes Drive.',
+                'url'   => '/app',
+                'tag'   => 'ride-started',
+            ]));
+
+            return response()->json(['ok' => true, 'ride' => $this->payload($ride->fresh())]);
+        }
+
+        // Sin prueba de GPS: se le pregunta al pasajero. Un pedido repetido dentro de la
+        // espera no vuelve a sonarle.
+        $repetido = $ride->onboard_request_at && $ride->onboard_request_at->gt(now()->subMinutes(5));
+        $ride->forceFill(['onboard_request_at' => now(), 'start_far_m' => $metros])->save();
+        if (! $repetido) {
+            $quien = trim((string) optional($ride->driver)->full_name) ?: 'Tu conductor';
+            defer(fn () => WebPushSender::toOwner('passenger', (int) $ride->passenger_id, [
+                'title' => '¿Ya estás en el taxi?',
+                'body'  => $quien.' indica que ya te recogió. Confírmalo en Majes Drive para iniciar el viaje.',
+                'url'   => '/app',
+                'tag'   => 'ride-onboard',
+            ]));
+        }
+
+        return response()->json(['ok' => true, 'esperando' => true, 'ride' => $this->payload($ride->fresh())]);
     }
 
     public function complete(Request $request)
@@ -1240,6 +1354,9 @@ class RideController extends Controller
             // El pasajero ya avisó que está bajando. El push puede perderse (celular en
             // silencio, sin datos un rato); esto queda a la vista mientras dure la espera.
             'on_my_way'    => $ride->on_my_way_at !== null,
+            // esperando que el pasajero confirme que ya está en el taxi (inicio desde lejos)
+            'onboard_request' => $ride->onboard_request_at !== null && $ride->onboard_request_at->gt(now()->subMinutes(5)),
+            'arrive_radius_m' => (int) Setting::get('arrive_radius_m', 250),
             'passenger'    => $this->passengerCard($ride),
             'currency'     => Setting::get('currency', 'S/'),
         ];

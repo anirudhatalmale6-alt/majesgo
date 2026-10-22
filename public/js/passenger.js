@@ -1204,8 +1204,45 @@ async function tick() {
   pollTimer = setTimeout(tick, ACTIVE_ST.includes(r.status) ? 1600 : 2500);
 }
 
+/* ====== "¿Ya estás en el taxi?" (22 oct) ======
+   El conductor pidió iniciar el viaje lejos del punto de recojo y su GPS no muestra que haya
+   pasado por ahí: el viaje sólo empieza si el pasajero lo confirma (ver startFar en el
+   servidor). Así un conductor no puede iniciar una carrera sin el pasajero. */
+function revisarAbordo(r) {
+  let m = document.getElementById('abordoPax');
+  const pide = r.onboard_request && ['aceptado', 'en_camino', 'llego'].includes(r.status);
+  if (!pide) { if (m && !m.classList.contains('hidden')) { m.classList.add('hidden'); m.innerHTML = ''; } return; }
+  if (m && !m.classList.contains('hidden')) return;          // ya está a la vista
+  if (!m) { m = document.createElement('div'); m.className = 'modal hidden'; m.id = 'abordoPax'; document.body.appendChild(m); }
+  const d = r.driver || {};
+  m.innerHTML = `
+    <div class="modalcard">
+      <div class="micon" style="background:rgba(0,200,83,.14)">🚕</div>
+      <h2>¿Ya estás en el taxi?</h2>
+      <p class="msub">${esc(d.name || 'Tu conductor')} indica que ya te recogió. Confírmalo para iniciar el viaje.</p>
+      <button class="btn" id="abPaxSi">Sí, ya estoy en el taxi</button>
+      <button class="btn ghost" id="abPaxNo" style="margin-top:10px">No, todavía no</button>
+    </div>`;
+  m.classList.remove('hidden');
+  const responder = async (si) => {
+    m.querySelectorAll('button').forEach((x) => { x.disabled = true; });
+    try {
+      const res = await api('api/rides/confirm-onboard', { si });
+      m.classList.add('hidden'); m.innerHTML = '';
+      toast(si ? '¡Buen viaje! Tu viaje ya comenzó.' : 'Le avisamos a tu conductor que todavía no estás en el taxi.', 4000);
+      if (res && res.ride) renderRide(res.ride);
+    } catch (e) {
+      m.classList.add('hidden'); m.innerHTML = '';
+      toast(e.message || 'No se pudo enviar tu respuesta.');
+    }
+  };
+  $('#abPaxSi').addEventListener('click', () => responder(true));
+  $('#abPaxNo').addEventListener('click', () => responder(false));
+}
+
 function renderRide(r) {
   curRide = r;
+  revisarAbordo(r);
   sheetState = 'open';   // durante el viaje el panel va abierto (info del conductor / estado)
   if (typeof r.last_message_id === 'number') rideLastMsgId = r.last_message_id;
   // dibujar rutas
