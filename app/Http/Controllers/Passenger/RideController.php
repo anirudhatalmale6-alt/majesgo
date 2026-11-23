@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Driver;
 use App\Models\Passenger;
 use App\Models\Ride;
+use App\Models\RideOffer;
 use App\Models\Setting;
 use App\Services\DemoSim;
 use App\Services\Dispatch;
@@ -355,6 +356,7 @@ class RideController extends Controller
         }
 
         $ride->forceFill(['status' => 'en_camino', 'offered_at' => null])->save();
+        RideOffer::cerrar($ride->id, 'aceptado');
 
         return response()->json(['ok' => true, 'ride' => $this->payload($ride->fresh('driver'), $this->driverPosArr($ride))]);
     }
@@ -369,7 +371,7 @@ class RideController extends Controller
             return response()->json(['message' => 'No hay una oferta para rechazar.'], 422);
         }
 
-        Dispatch::releaseOffer($ride);
+        Dispatch::releaseOffer($ride, 'rechazado');
 
         return response()->json(['ok' => true, 'ride' => $this->payload($ride->fresh(), null)]);
     }
@@ -396,7 +398,7 @@ class RideController extends Controller
 
     private function offerInfo(Ride $ride): array
     {
-        $timeout = (int) Setting::get('offer_timeout_s', 15);
+        $timeout = Fare::offerTimeout($ride); // 25 s si el conductor pidió más, 15 s si no
         $elapsed = $ride->offered_at ? (int) abs($ride->offered_at->diffInSeconds(now())) : 0;
         $d = $ride->driver;
         $toPickup = null;
@@ -443,6 +445,11 @@ class RideController extends Controller
 
         // ¿Fue una cancelación "tardía"? (el conductor ya estaba asignado / en camino / esperando)
         $lateCancel = in_array($ride->status, ['aceptado', 'en_camino', 'llego'], true) && $ride->driver_id;
+
+        // cancelar con una oferta en pantalla también es una respuesta a esa oferta
+        if ($ride->status === 'ofrecido') {
+            RideOffer::cerrar($ride->id, 'cancelado');
+        }
 
         $ride->forceFill([
             'status'        => 'cancelado',

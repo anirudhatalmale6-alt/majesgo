@@ -100,6 +100,30 @@
         </div>
 
         <div class="card" style="padding:0">
+            @php($totOf = $resumenOfertas->sum())
+            <div class="between" style="padding:16px 18px 6px"><h3>Contraofertas</h3>
+                <span class="muted" style="font-size:12.5px">{{ $totOf }} en total{{ $totOf ? ' · aceptadas '.($resumenOfertas['aceptado'] ?? 0).' · rechazadas '.($resumenOfertas['rechazado'] ?? 0).' · sin respuesta '.($resumenOfertas['vencido'] ?? 0) : '' }}</span></div>
+            <table>
+                <thead><tr><th>Fecha y hora</th><th>Viaje</th><th>Pasajero</th><th style="text-align:right">Precio app</th><th style="text-align:right">Pidió</th><th>Respuesta</th></tr></thead>
+                <tbody>
+                @forelse($ofertas as $o)
+                    @php($oc = ['aceptado'=>'on','rechazado'=>'blk','vencido'=>'sus','cancelado'=>'off','pendiente'=>'off'][$o->outcome] ?? 'off')
+                    <tr>
+                        <td class="muted" style="font-size:12.5px">{{ $o->created_at->format('d/m H:i') }}</td>
+                        <td style="font-size:12.5px">{{ optional($o->ride)->code ?? '—' }}</td>
+                        <td style="font-size:12.5px">{{ optional(optional($o->ride)->passenger)->name ?? '—' }}</td>
+                        <td style="text-align:right;font-size:12.5px">{{ $cur }} {{ number_format($o->base_price,2) }}</td>
+                        <td style="text-align:right;font-weight:700">{{ $cur }} {{ number_format($o->total,2) }} <span class="muted" style="font-weight:400;font-size:12px">(+{{ number_format($o->counter_offer,2) }})</span></td>
+                        <td><span class="badge {{ $oc }}">{{ \App\Models\RideOffer::OUTCOMES[$o->outcome] ?? $o->outcome }}</span></td>
+                    </tr>
+                @empty
+                    <tr><td colspan="6" class="muted" style="text-align:center;padding:22px">Este conductor todavía no pidió más en ningún viaje.</td></tr>
+                @endforelse
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card" style="padding:0">
             <div class="between" style="padding:16px 18px 6px"><h3>Movimientos de saldo</h3></div>
             <table>
                 <thead><tr><th>Fecha</th><th>Concepto</th><th style="text-align:right">Monto</th><th style="text-align:right">Saldo</th></tr></thead>

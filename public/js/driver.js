@@ -129,6 +129,11 @@ function rideTotal(r) {
 }
 // Importes que el conductor puede añadir al aceptar (los define la central). [] = apagado.
 let counterOptions = [];
+// Contraoferta LIBRE (24 nov): el conductor escribe su precio, entre lo que ya paga el
+// pasajero y el tope por carrera de la central. Lo decide el servidor por conductor
+// (se prueba primero con unos pocos), por eso viaja en cada sondeo.
+let counterFree = false;
+let counterMax = null; // tope por carrera (sólo con monto libre)
 let reqBump = 0; // ajuste elegido en la tarjeta que está en pantalla
 
 let offerLabels = []; // etiquetas resaltadas (recojo + destino) durante la oferta
@@ -1505,6 +1510,8 @@ async function tick() {
       const d = await api('api/pending');
       if (typeof d.commission_pct === 'number') commissionPct = d.commission_pct;
       counterOptions = (d.counter && d.counter.enabled && Array.isArray(d.counter.options)) ? d.counter.options : [];
+      counterFree = !!(d.counter && d.counter.enabled && d.counter.free);
+      counterMax = counterFree ? Number(d.counter.max_total) || null : null;
       // La lista se repinta en cada sondeo: entran las nuevas y salen las que otro ya tomó.
       // (los viajes activos salieron antes por 'return'; aquí 'ride' es null o ya finalizado)
       renderRequests(d.requests || []);
@@ -1681,13 +1688,7 @@ function showRequest(req) {
         ${req.reference ? `<div class="rqref"><span class="ic">💬</span><span class="tx"><small>Referencia del pasajero</small><span class="rt">${esc(req.reference)}</span></span></div>` : ''}
         <div class="rql leg"><span class="dot g"></span><span class="tx"><b>Pasajero a destino</b><small>Destino: ${esc(dZona)}</small></span><span class="kmmin g" id="reqTrip"></span></div>
       </div>
-      ${counterOptions.length
-        ? `<div class="bumps" id="reqBumps">
-             <div class="brow">
-               ${counterOptions.map((b) => `<button type="button" class="bump" data-b="${b}">+ ${CUR} ${Number(b).toFixed(2)}</button>`).join('')}
-             </div>
-           </div>`
-        : ''}
+      ${bloqueContraoferta(req)}
       <div class="acts">
         <button class="btn ghost" id="reqNo">Rechazar</button>
         <button class="btn" id="reqYes">Aceptar</button>
@@ -1724,9 +1725,32 @@ function showRequest(req) {
     b.addEventListener('click', () => {
       const v = Number(b.dataset.b) || 0;
       reqBump = (reqBump === v) ? 0 : v;
-      paintReq(req);
+      paintReq(req, true);
     });
   });
+  // monto libre: − / + de a S/ 1 y el campo donde escribe su precio
+  document.querySelectorAll('#reqBumps .pstep').forEach((b) => {
+    b.addEventListener('click', () => {
+      const precio = precioBase(req) + reqBump + Number(b.dataset.d);
+      reqBump = acotarAjuste(req, precio - precioBase(req));
+      paintReq(req, true);
+    });
+  });
+  const campo = $('#reqPrecio');
+  if (campo) {
+    campo.addEventListener('focus', () => campo.select());
+    // mientras escribe: se recalcula todo, pero el campo NO se reescribe (le saltaría el cursor)
+    campo.addEventListener('input', () => {
+      const v = leerPrecio(campo.value);
+      reqBump = acotarAjuste(req, v == null ? 0 : v - precioBase(req));
+      paintReq(req, false, v);
+    });
+    // al salir del campo (o tocar Listo en el teclado) queda escrito el precio que se enviará
+    const fijar = () => paintReq(req, true);
+    campo.addEventListener('change', fijar);
+    campo.addEventListener('blur', fijar);
+    campo.addEventListener('keydown', (e) => { if (e.key === 'Enter') campo.blur(); });
+  }
 
   // Barra = lo que le queda a la BÚSQUEDA del pasajero (dato real del servidor), no una
   // cuenta inventada. Y NO cierra la ficha: mirar un viaje es pasivo, el conductor puede
@@ -1790,13 +1814,76 @@ function encuadrarViaje(req) {
   // el encuadre va animado: se baja la bandera cuando termina, no en la línea siguiente
   setTimeout(() => { encuadrando = false; acomodarEtiquetas(); }, 400);
 }
+/* ---------- Contraoferta ---------- */
+
+/** Lo que paga el pasajero sin contraoferta (viaje + aproximación). */
+function precioBase(req) {
+  const apFee = Number(req.approach_fee) || 0;
+  return req.total_price != null ? Number(req.total_price) : Number(req.offered_price) + apFee;
+}
+
+/** Cuánto puede subir este conductor en ESTE viaje (lo calcula el servidor con el tope). */
+function margenSubida(req) {
+  if (!counterFree) return Infinity;
+  return Math.max(0, Number(req.counter_room) || 0);
+}
+
+/** Ajuste válido: nunca negativo, nunca sobre el tope, a 10 céntimos (igual que el servidor). */
+function acotarAjuste(req, ajuste) {
+  const a = Math.round((Number(ajuste) || 0) * 10) / 10;
+  return Math.min(margenSubida(req), Math.max(0, a));
+}
+
+/** "18", "18.5", "18,50", "S/ 20" → número; vacío o basura → null. */
+function leerPrecio(txt) {
+  const v = parseFloat(String(txt || '').replace(',', '.').replace(/[^0-9.]/g, ''));
+  return isFinite(v) ? v : null;
+}
+
+/**
+ * La fila de contraoferta de la ficha.
+ * - Modo cerrado: los botones de la central (+3 / +5), como siempre.
+ * - Modo libre: «Tu precio» con − / + y el campo para escribirlo, los mismos botones como
+ *   atajo y el tope a la vista. Si la carrera ya llega al tope, no hay nada que subir.
+ */
+function bloqueContraoferta(req) {
+  if (!counterFree) {
+    return counterOptions.length
+      ? `<div class="bumps" id="reqBumps">
+           <div class="brow">
+             ${counterOptions.map((b) => `<button type="button" class="bump" data-b="${b}">+ ${CUR} ${Number(b).toFixed(2)}</button>`).join('')}
+           </div>
+         </div>`
+      : '';
+  }
+  const tope = precioBase(req) + margenSubida(req);
+  if (margenSubida(req) <= 0) {
+    return `<div class="bumps" id="reqBumps"><div class="pmax">Esta carrera ya llega al máximo${counterMax ? ' de ' + money(counterMax) : ''}: se cobra el precio de la app.</div></div>`;
+  }
+  return `<div class="bumps" id="reqBumps">
+      <div class="tuprecio">
+        <span class="tl"><b>Tu precio</b>app ${money(precioBase(req))}</span>
+        <button type="button" class="pstep" data-d="-1" aria-label="Bajar S/ 1">−</button>
+        <label class="pbox" id="reqPbox"><span class="cur">${CUR}</span><input id="reqPrecio" type="text" inputmode="decimal" autocomplete="off" value="${precioBase(req).toFixed(2)}" aria-label="Tu precio"></label>
+        <button type="button" class="pstep" data-d="1" aria-label="Subir S/ 1">+</button>
+      </div>
+      ${counterOptions.length ? `<div class="brow">
+        ${counterOptions.map((b) => `<button type="button" class="bump" data-b="${b}">+ ${CUR} ${Number(b).toFixed(2)}</button>`).join('')}
+      </div>` : ''}
+      <div class="pmax" id="reqMax">Máximo ${money(tope)} por carrera</div>
+    </div>`;
+}
+
 /**
  * Repinta las cifras de la tarjeta según el ajuste elegido (reqBump).
  * Solo toca los nodos de importes: la cuenta regresiva y el mapa se quedan como están.
+ *
+ * @param reescribir  true = dejar en el campo el precio que se enviará (al salir del campo,
+ *                    con − / + o un atajo); false = el conductor está escribiendo, no tocarlo.
+ * @param escrito     lo que tiene escrito ahora (para avisar si se pasa del tope o no llega)
  */
-function paintReq(req) {
-  const apFee = Number(req.approach_fee) || 0;
-  const base  = req.total_price != null ? Number(req.total_price) : Number(req.offered_price) + apFee;
+function paintReq(req, reescribir, escrito) {
+  const base  = precioBase(req);
   const total = base + reqBump;
   const com   = commissionFor(total);
 
@@ -1809,9 +1896,33 @@ function paintReq(req) {
   const c = $('#reqCom');
   if (c) c.textContent = `Comisión ${money(com)}`;
 
+  const margen = margenSubida(req);
   document.querySelectorAll('#reqBumps .bump').forEach((b) => {
-    b.classList.toggle('on', Number(b.dataset.b) === reqBump && reqBump > 0);
+    const v = Number(b.dataset.b);
+    b.classList.toggle('on', v === reqBump && reqBump > 0);
+    // un atajo que se pasaría del tope no se puede tocar (ej. +5 sobre S/ 22 con tope S/ 25)
+    b.disabled = v > margen + 0.001;
   });
+
+  if (counterFree) {
+    const campo = $('#reqPrecio');
+    if (campo && reescribir !== false) campo.value = total.toFixed(2);
+    const menos = document.querySelector('#reqBumps .pstep[data-d="-1"]');
+    const mas   = document.querySelector('#reqBumps .pstep[data-d="1"]');
+    if (menos) menos.disabled = reqBump <= 0;
+    if (mas) mas.disabled = reqBump >= margen - 0.001;
+    // Aviso mientras escribe: lo que se enviará es lo acotado, y se le dice por qué.
+    const aviso = $('#reqMax'), caja = $('#reqPbox');
+    if (aviso) {
+      const tope = base + margen;
+      let txt = `Máximo ${money(tope)} por carrera`, mal = false;
+      if (escrito != null && escrito > tope + 0.001) { txt = `El máximo es ${money(tope)}`; mal = true; }
+      else if (escrito != null && escrito < base - 0.001) { txt = `No puede ser menos que ${money(base)}`; mal = true; }
+      aviso.textContent = txt;
+      aviso.classList.toggle('mal', mal);
+      if (caja) caja.classList.toggle('mal', mal);
+    }
+  }
 
   const yes = $('#reqYes');
   if (yes && !yes.disabled) yes.textContent = reqBump > 0 ? `Pedir ${money(total)}` : 'Aceptar';
@@ -2020,14 +2131,23 @@ function mostrarPanelHome(visible) {
 }
 async function acceptRequest(req) {
   const btn = $('#reqYes'); btn.disabled = true; btn.innerHTML = '<span class="spin"></span>';
-  const bump = reqBump; // congelar: el servidor lo valida igual contra la lista de la central
+  const bump = reqBump; // congelar: el servidor lo valida igual (lista de la central o tope)
   try {
     const r = await api('api/accept', { code: req.code, bump });
     hideRequests(); // se lo quedó: fuera todo el panel, ahora manda el viaje en curso
     ride = r.ride; online = true; me.status = 'ocupado';
-    toast(bump > 0 ? `Enviado con ${money(bump)} más. Esperando al pasajero…` : 'Enviado. Esperando que el pasajero confirme…');
+    toast(bump > 0 ? `Enviado: pediste ${money(precioBase(req) + bump)}. Esperando al pasajero…` : 'Enviado. Esperando que el pasajero confirme…');
     renderRide(ride);
   } catch (e) {
+    // El precio no cabe bajo el tope (la central lo cambió mientras miraba la ficha): el viaje
+    // sigue libre, así que se queda en la ficha con el precio de la app y puede volver a enviar.
+    if (e.status === 422 && e.max_total != null) {
+      toast(e.message);
+      reqBump = 0;
+      btn.disabled = false;
+      paintReq(req, true);
+      return;
+    }
     // No se lo quedó (409 = se le adelantó otro). Vuelve a la LISTA, que puede tener más
     // viajes esperando: perder uno no debe dejarlo con la pantalla vacía.
     toast(e.status === 409 ? 'Ese viaje ya fue tomado por otro conductor.' : e.message);
@@ -2253,7 +2373,7 @@ function renderWaitingConfirm(r) {
       <div class="statesub" style="margin-top:4px">${esc(p.name || 'El pasajero')} está confirmando tu viaje. Un momento por favor.</div>
     </div>
     ${Number(r.counter_offer) > 0
-      ? `<div class="earnnote warn" style="margin:10px 0 0">Le pediste ${money(r.counter_offer)} más. Si no acepta, el viaje pasa a otro conductor.</div>`
+      ? `<div class="earnnote warn" style="margin:10px 0 0">Propusiste ${money(rideTotal(r))} (precio de la app ${money(rideTotal(r) - Number(r.counter_offer))}). Si no acepta, el viaje pasa a otro conductor.</div>`
       : ''}
     <div class="drv" style="margin-top:8px">
       <div class="av">${p.initial || 'P'}</div>

@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Models\Driver;
+use App\Models\Ride;
 use App\Models\Setting;
 
 /**
@@ -22,6 +24,13 @@ use App\Models\Setting;
  *   - Al aceptar, el conductor puede añadir uno de los importes cerrados que fija la central
  *     (+3 / +5 por defecto). No escribe montos libres: elige entre botones.
  *   - El pasajero ve el desglose y confirma o busca otro conductor. No hay regateo de ida y vuelta.
+ *
+ * CONTRAOFERTA LIBRE (pedido de la central, 24 nov):
+ *   - El conductor escribe su precio (o usa los mismos botones como atajo).
+ *   - Nunca por debajo de lo que ya paga el pasajero, nunca por encima del tope por carrera
+ *     (S/ 25 por defecto). Si la carrera ya llega al tope, no se puede subir: se respeta el precio.
+ *   - Se activa por etapas: apagada → sólo los conductores de prueba → todos (counter_free_mode).
+ *   - Con contraoferta, el pasajero tiene más segundos para decidir (counter_timeout_s).
  *
  * COMISIÓN: porcentaje de la tarifa (5% por defecto); el 95% restante queda para el conductor.
  * Se aplica sobre el total cobrado (viaje + aproximación + ajuste), que es lo que el pasajero paga.
@@ -137,18 +146,21 @@ class Fare
 
     /* ---------- Contraoferta del conductor (importes cerrados, no negociación) ---------- */
 
-    public static function counterEnabled(): bool
+    public static function counterEnabled(?Driver $driver = null): bool
     {
-        return (string) Setting::get('counter_offer_enabled', '1') === '1'
-            && self::counterOptions() !== [];
+        if ((string) Setting::get('counter_offer_enabled', '1') !== '1') {
+            return false;
+        }
+
+        return self::counterOptions() !== [] || ($driver && self::counterFree($driver));
     }
 
     /**
      * Importes que el conductor puede añadir, definidos por la central ("3,5" por defecto).
      *
-     * Es una lista CERRADA a propósito: el conductor elige entre dos o tres botones, no escribe
-     * un monto. Así el pasajero nunca ve un precio inesperado y no hace falta un ida y vuelta
-     * de regateo (que sería otra pantalla y otro tiempo de espera).
+     * En el modo cerrado es la lista COMPLETA de lo permitido: el conductor elige entre dos o
+     * tres botones, no escribe un monto. En el modo libre son sólo atajos (+3 / +5) junto al
+     * campo donde escribe su precio.
      *
      * @return array<int,float> ordenados de menor a mayor, máximo 4
      */
@@ -169,29 +181,116 @@ class Fare
         return array_slice($out, 0, 4);
     }
 
+    /** 'off' | 'prueba' | 'todos' */
+    public static function counterFreeMode(): string
+    {
+        $m = (string) Setting::get('counter_free_mode', 'off');
+
+        return in_array($m, ['off', 'prueba', 'todos'], true) ? $m : 'off';
+    }
+
+    /** Códigos de los conductores que prueban la contraoferta libre ("MG-0012, MG-0031"). */
+    public static function counterFreeDrivers(): array
+    {
+        $raw = (string) Setting::get('counter_free_drivers', '');
+
+        return array_values(array_filter(array_map(
+            fn ($c) => strtoupper(trim($c)),
+            preg_split('/[\s,;]+/', $raw) ?: []
+        )));
+    }
+
+    /** ¿Este conductor puede escribir su propio precio? */
+    public static function counterFree(Driver $driver): bool
+    {
+        if ((string) Setting::get('counter_offer_enabled', '1') !== '1') {
+            return false;
+        }
+
+        return match (self::counterFreeMode()) {
+            'todos'  => true,
+            'prueba' => in_array(strtoupper((string) $driver->code), self::counterFreeDrivers(), true),
+            default  => false,
+        };
+    }
+
+    /** Precio máximo por carrera con contraoferta libre (lo que paga el pasajero en total). */
+    public static function counterMaxTotal(): float
+    {
+        return max(0.0, (float) Setting::get('counter_max_total', 25.00));
+    }
+
+    /**
+     * Cuánto puede subir el conductor sobre $base (lo que ya paga el pasajero) sin pasar del tope.
+     * 0 si la carrera ya llega al tope: ahí se respeta el precio calculado.
+     */
+    public static function counterRoom(float $base): float
+    {
+        return max(0.0, round(self::counterMaxTotal() - $base, 2));
+    }
+
     /**
      * Valida el ajuste que mandó la app del conductor.
      *
-     * ⚠ Nunca se confía en el monto que llega del celular: si no es EXACTAMENTE uno de los
-     * importes configurados (o la contraoferta está apagada), se cobra 0. Un conductor no puede
-     * inventarse un "+50" tocando la API por su cuenta.
+     * ⚠ Nunca se confía en el monto que llega del celular.
+     * - Modo cerrado: si no es EXACTAMENTE uno de los importes configurados (o la contraoferta
+     *   está apagada), se cobra 0. Un conductor no puede inventarse un "+50" tocando la API.
+     * - Modo libre: se redondea a S/ 0.10 y tiene que caber bajo el tope.
+     *   Si no cabe devuelve null y el controlador contesta 422: en el modo libre el conductor
+     *   ESCRIBIÓ un precio, y cobrarle otro distinto sin avisar sería peor que rechazarlo.
+     *
+     * @param  float  $base  lo que paga el pasajero sin contraoferta (viaje + aproximación)
      */
-    public static function counterOffer(float $amount): float
+    public static function counterOffer(float $amount, ?Driver $driver = null, float $base = 0.0): ?float
     {
-        if ($amount <= 0 || ! self::counterEnabled()) {
+        if ($amount <= 0 || ! self::counterEnabled($driver)) {
             return 0.0;
+        }
+
+        if ($driver && self::counterFree($driver)) {
+            // a 10 céntimos, igual que la app. No a S/ 0.50: con una carrera de S/ 15.30 el
+            // conductor que escribe S/ 18 tiene que pedir 2.70, si no vería 17.80 o 18.30.
+            $amount = round($amount, 1);
+            if ($amount <= 0) {
+                return 0.0;
+            }
+
+            return $amount <= self::counterRoom($base) + 0.001 ? $amount : null;
         }
 
         return in_array(round($amount, 2), self::counterOptions(), true) ? round($amount, 2) : 0.0;
     }
 
     /** Parámetros vigentes de la contraoferta (para pintar los botones en la app). */
-    public static function counterRules(): array
+    public static function counterRules(?Driver $driver = null): array
     {
+        $free = $driver && self::counterFree($driver);
+
         return [
-            'enabled' => self::counterEnabled(),
-            'options' => self::counterEnabled() ? self::counterOptions() : [],
+            'enabled'   => self::counterEnabled($driver),
+            'options'   => self::counterEnabled($driver) ? self::counterOptions() : [],
+            'free'      => $free,
+            'max_total' => $free ? self::counterMaxTotal() : null,
+            'timeout_s' => self::counterTimeout(),
         ];
+    }
+
+    /** Segundos que tiene el pasajero para confirmar a un conductor SIN contraoferta. */
+    public static function offerTimeoutBase(): int
+    {
+        return max(5, (int) Setting::get('offer_timeout_s', 15));
+    }
+
+    /** Segundos que tiene el pasajero para decidir cuando el conductor pidió más. */
+    public static function counterTimeout(): int
+    {
+        return max(5, (int) Setting::get('counter_timeout_s', 25));
+    }
+
+    /** Tiempo límite de ESTA oferta: con contraoferta el pasajero tiene que leer un precio nuevo. */
+    public static function offerTimeout(Ride $ride): int
+    {
+        return (float) $ride->counter_offer > 0 ? self::counterTimeout() : self::offerTimeoutBase();
     }
 
     /** Comisión de la app para una tarifa dada (porcentaje configurable). */

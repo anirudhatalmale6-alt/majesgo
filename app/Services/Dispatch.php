@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Driver;
 use App\Models\Ride;
+use App\Models\RideOffer;
 use App\Models\Setting;
 use App\Services\Fare;
 use App\Services\WebPushSender;
@@ -326,18 +327,24 @@ class Dispatch
         if ($ride->status !== 'ofrecido' || ! $ride->offered_at) {
             return false;
         }
-        $timeout = (int) Setting::get('offer_timeout_s', 15);
+        // con contraoferta el pasajero tiene más tiempo: tiene que leer un precio nuevo
+        $timeout = Fare::offerTimeout($ride);
         if ((int) abs($ride->offered_at->diffInSeconds(now())) < $timeout) {
             return false;
         }
-        self::releaseOffer($ride);
+        self::releaseOffer($ride, 'vencido');
 
         return true;
     }
 
-    /** Devuelve el viaje a búsqueda y excluye al conductor ofrecido (rechazo o vencimiento). */
-    public static function releaseOffer(Ride $ride): void
+    /**
+     * Devuelve el viaje a búsqueda y excluye al conductor ofrecido (rechazo o vencimiento).
+     * $outcome queda en el registro de ofertas: 'rechazado' (tocó Buscar otro) o 'vencido'.
+     */
+    public static function releaseOffer(Ride $ride, string $outcome = 'rechazado'): void
     {
+        RideOffer::cerrar($ride->id, $outcome);
+
         $driverId = $ride->driver_id;
         $excluded = (array) $ride->excluded_driver_ids;
         if ($driverId) {

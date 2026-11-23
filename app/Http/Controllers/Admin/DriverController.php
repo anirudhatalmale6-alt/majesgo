@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Driver;
+use App\Models\RideOffer;
 use App\Services\DriverPhotos;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -74,7 +75,13 @@ class DriverController extends Controller
         $cancelaciones = $driver->rides()->where('status', 'cancelado')->where('cancelled_by', 'conductor')
             ->with('passenger')->latest('cancelled_at')->take(15)->get();
         $totalCancelaciones = $driver->rides()->where('status', 'cancelado')->where('cancelled_by', 'conductor')->count();
-        return view('admin.drivers.show', compact('driver', 'cancelaciones', 'totalCancelaciones'));
+        // Contraofertas: cuánto pidió de más y qué respondió el pasajero (ver RideOffer)
+        $ofertas = RideOffer::where('driver_id', $driver->id)->where('counter_offer', '>', 0)
+            ->with('ride.passenger')->latest('id')->take(15)->get();
+        $resumenOfertas = RideOffer::where('driver_id', $driver->id)->where('counter_offer', '>', 0)
+            ->selectRaw('outcome, COUNT(*) n')->groupBy('outcome')->pluck('n', 'outcome');
+
+        return view('admin.drivers.show', compact('driver', 'cancelaciones', 'totalCancelaciones', 'ofertas', 'resumenOfertas'));
     }
 
     public function edit(Driver $driver)

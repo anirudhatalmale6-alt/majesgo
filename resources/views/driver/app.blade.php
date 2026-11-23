@@ -348,6 +348,20 @@
               border-radius:11px;font-size:14px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent}
         .bump:active{transform:scale(.97)}
         .bump.on{background:rgba(255,193,7,.16);border-color:var(--amarillo);color:#FFD97A}
+        .bump:disabled{opacity:.35;cursor:default;transform:none}
+        /* Contraoferta LIBRE: el conductor escribe su precio (o lo ajusta con − / +) */
+        .tuprecio{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+        .tuprecio .tl{flex:1;color:var(--muted);font-size:12.5px;line-height:1.25}
+        .tuprecio .tl b{display:block;color:#F5F7FA;font-size:13.5px}
+        .pstep{width:44px;height:44px;flex:none;border:1px solid var(--line);background:#12151a;color:#F5F7FA;border-radius:11px;
+               font-size:22px;font-weight:700;line-height:1;cursor:pointer;-webkit-tap-highlight-color:transparent}
+        .pstep:disabled{opacity:.35;cursor:default}
+        .pbox{display:flex;align-items:center;gap:4px;height:44px;border:1px solid var(--amarillo);border-radius:11px;background:#12151a;padding:0 10px}
+        .pbox .cur{color:var(--muted);font-size:13px;font-weight:700}
+        .pbox input{width:62px;border:0;background:transparent;color:#FFD97A;font-size:19px;font-weight:800;text-align:right;outline:none;padding:0}
+        .pbox.mal{border-color:#ff6b6b}
+        .pmax{color:var(--muted);font-size:11.5px;text-align:center;margin-top:7px}
+        .pmax.mal{color:#ff8a80;font-weight:600}
         .vehbox{margin-bottom:14px}
         .vehimg{width:100%;height:170px;object-fit:cover;border-radius:12px;border:1px solid var(--line);display:block;background:#12151a}
         .vehempty{width:100%;height:110px;border-radius:12px;border:1px dashed var(--line);background:#12151a;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font-size:30px;color:var(--muted)}
@@ -682,7 +696,7 @@ window.MG = {
 <script src="/js/majesgo-car.js?v=2"></script>
 <script src="/js/despierto.js?v=1"></script>
 <script src="/js/rastreo.js?v=7"></script>
-<script src="/js/driver.js?v=66"></script>
+<script src="/js/driver.js?v=67"></script>
 <script src="/js/native.js?v=11"></script>
 </body>
 </html>

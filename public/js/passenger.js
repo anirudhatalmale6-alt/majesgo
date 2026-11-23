@@ -1393,14 +1393,14 @@ function renderOffer(r) {
            <div class="chip"><div class="v">${money(rideTotal(r))}</div><div class="l">${r.payment_method === 'yape' ? 'Yape' : 'Efectivo'}</div></div>
          </div>`}
     ${hasBreak ? `<div class="breakdown">
-      <div><span>Viaje hasta tu destino</span><b>${money(tripLine(r))}</b></div>
-      <div><span>Lo que pide el conductor</span><b>+ ${money(cFee)}</b></div>
+      <div><span>Precio de la app</span><b>${money(tripLine(r))}</b></div>
+      <div><span>Propuesta del conductor</span><b>${money(rideTotal(r))} <small style="font-weight:600;color:#FFD97A">(+ ${money(cFee)})</small></b></div>
       <div class="tot"><span>Total a pagar</span><b>${money(rideTotal(r))}</b></div>
     </div>` : ''}
     <div class="sub" style="text-align:center;margin:-4px 0 2px">${cFee > 0
       // "más que tu oferta" ya no calza: la línea del viaje trae el acercamiento sumado y no
       // coincide con lo que el pasajero tecleó. Se habla del cobro extra, no de la diferencia.
-      ? `Este conductor pide ${money(cFee)} más por esta carrera. Si prefieres, busca otro.`
+      ? `Este conductor propone ${money(rideTotal(r))} por esta carrera. Si prefieres, busca otro.`
       : 'Si no respondes a tiempo, buscaremos otro automáticamente.'}</div>
     <div class="sheetcta">
       <div class="acts">

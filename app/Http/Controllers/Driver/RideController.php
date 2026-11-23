@@ -8,6 +8,7 @@ use App\Models\Driver;
 use App\Models\DriverSession;
 use App\Models\Recharge;
 use App\Models\Ride;
+use App\Models\RideOffer;
 use App\Models\Setting;
 use App\Services\Dispatch;
 use App\Services\Fare;
@@ -308,6 +309,7 @@ class RideController extends Controller
                 ->get();
         }
 
+        $libre = Fare::counterFree($driver);
         $out = [];
         foreach ($rides as $ride) {
             // no volver a ofrecer un viaje que el pasajero ya rechazó a este conductor (permanente)
@@ -338,6 +340,8 @@ class RideController extends Controller
                 'approach_m'          => (int) round($approachM),
                 'approach_fee'        => $approachFee,
                 'total_price'         => Fare::total((float) $ride->offered_price, $approachFee),
+                // cuánto puede subir este conductor sin pasar del tope (sólo contraoferta libre)
+                'counter_room'        => $libre ? Fare::counterRoom(Fare::total((float) $ride->offered_price, $approachFee)) : null,
                 'trip_distance_m'     => $ride->distance_m,
                 'trip_duration_s'     => $ride->duration_s,
                 'offered_price'       => (float) $ride->offered_price,
@@ -363,7 +367,7 @@ class RideController extends Controller
             'requests'       => $out,
             'commission_pct' => Fare::commissionPct(),
             'approach'       => Fare::approachRules(),
-            'counter'        => Fare::counterRules(), // importes que puede añadir al aceptar
+            'counter'        => Fare::counterRules($driver), // importes que puede añadir al aceptar
             'currency'       => Setting::get('currency', 'S/'),
         ]);
     }
@@ -378,9 +382,8 @@ class RideController extends Controller
             'bump' => ['nullable', 'numeric'],
         ]);
 
-        // Fuera de la transacción: si el monto no es uno de los configurados, se cobra 0
-        // (nunca se rechaza el viaje por eso — el conductor igual quiere la carrera).
-        $counterOffer = Fare::counterOffer((float) ($data['bump'] ?? 0));
+        $bump = (float) ($data['bump'] ?? 0);
+        $libre = Fare::counterFree($driver);
 
         if (! $driver->canReceiveRides()) {
             return response()->json(['message' => 'No puedes aceptar viajes ahora (revisa tu saldo o estado).'], 422);
@@ -389,7 +392,9 @@ class RideController extends Controller
             return response()->json(['message' => 'Ya tienes un viaje en curso.'], 422);
         }
 
-        $ride = DB::transaction(function () use ($data, $driver, $counterOffer) {
+        $fueraDeTope = null; // tope que no respetó el precio pedido (modo libre) → 422
+
+        $ride = DB::transaction(function () use ($data, $driver, $bump, $libre, &$fueraDeTope) {
             $ride = Ride::where('code', $data['code'])
                 ->where('status', 'solicitando')
                 ->whereNull('driver_id')
@@ -413,7 +418,19 @@ class RideController extends Controller
             $approachM   = Fare::approachDistance((float) $driver->lat, (float) $driver->lng, (float) $ride->origin_lat, (float) $ride->origin_lng);
             $approachFee = Fare::approach($approachM);
 
-            // El conductor "ofrece" el viaje; el pasajero debe confirmarlo (15s).
+            // Contraoferta: se valida AQUÍ, con el precio real de la carrera (viaje + recojo de
+            // ESTE conductor), que es contra lo que se mide el tope. Modo cerrado: un monto que
+            // no es de la lista se cobra 0 (el conductor igual quiere la carrera). Modo libre:
+            // el conductor escribió un precio; si no cabe, se le dice en vez de cobrarle otro.
+            $base = Fare::total((float) $ride->offered_price, $approachFee);
+            $counterOffer = Fare::counterOffer($bump, $driver, $base);
+            if ($counterOffer === null) {
+                $fueraDeTope = ['max' => Fare::counterMaxTotal(), 'base' => $base];
+
+                return null;
+            }
+
+            // El conductor "ofrece" el viaje; el pasajero debe confirmarlo (15 s; 25 s si pidió más).
             // Salvo el revisor de Google: del otro lado hay un pasajero simulado que no
             // va a confirmar nunca, así que su viaje pasa directo a 'aceptado' y puede
             // seguir con llegué → iniciar → finalizar. Y conserva is_demo para que no
@@ -434,8 +451,29 @@ class RideController extends Controller
 
             $driver->update(['status' => 'ocupado']);
 
+            RideOffer::create([
+                'ride_id'       => $ride->id,
+                'driver_id'     => $driver->id,
+                'base_price'    => $base,
+                'counter_offer' => $counterOffer,
+                'total'         => Fare::total($base, 0, $counterOffer),
+                'libre'         => $libre,
+                // el revisor de Google no espera confirmación: su viaje queda aceptado al instante
+                'outcome'       => $isReviewer ? 'aceptado' : 'pendiente',
+                'decided_at'    => $isReviewer ? now() : null,
+            ]);
+
             return $ride;
         });
+
+        if ($fueraDeTope) {
+            $cur = Setting::get('currency', 'S/');
+            $msg = $fueraDeTope['base'] >= $fueraDeTope['max']
+                ? "Esta carrera ya llega al máximo de {$cur} ".number_format($fueraDeTope['max'], 2).': no se puede subir el precio.'
+                : "El precio máximo por carrera es {$cur} ".number_format($fueraDeTope['max'], 2).'.';
+
+            return response()->json(['message' => $msg, 'max_total' => $fueraDeTope['max']], 422);
+        }
 
         if (! $ride) {
             return response()->json(['message' => 'Ese viaje ya fue tomado por otro conductor.'], 409);
@@ -447,9 +485,14 @@ class RideController extends Controller
         defer(fn () => Dispatch::notifyRideTaken($ride, $driver->id));
 
         // Avisar por push al pasajero que un conductor lo ofreció (debe confirmar).
+        // Con contraoferta el precio va en el aviso: que no se entere recién al abrir la app.
+        $cur = Setting::get('currency', 'S/');
+        $aviso = (float) $ride->counter_offer > 0
+            ? 'Un conductor propone '.$cur.' '.number_format(Fare::total((float) $ride->offered_price, (float) $ride->approach_fee, (float) $ride->counter_offer), 2).' por tu viaje. Toca para aceptar o buscar otro.'
+            : 'Un conductor quiere tu viaje. Toca para confirmar.';
         defer(fn () => WebPushSender::toOwner('passenger', (int) $ride->passenger_id, [
             'title' => '¡Conductor encontrado! 🚕',
-            'body'  => 'Un conductor quiere tu viaje. Toca para confirmar.',
+            'body'  => $aviso,
             'url'   => '/app',
             'tag'   => 'ride-offer',
         ]));

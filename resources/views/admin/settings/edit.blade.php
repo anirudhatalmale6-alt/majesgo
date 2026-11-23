@@ -103,29 +103,72 @@
         <div class="card">
             <h3 style="margin-bottom:6px">Contraoferta del conductor</h3>
             <div class="muted" style="font-size:12px;margin-bottom:14px">
-                Permite que el conductor pida <b>un poco más</b> por una carrera concreta (llueve, es de noche,
+                Permite que el conductor pida <b>más</b> por una carrera concreta (llueve, es de noche,
                 el destino no tiene retorno, el pasajero ofertó por debajo de lo sugerido).
-                No es un regateo: el conductor <b>no escribe</b> montos, elige entre los botones que ustedes definan aquí.
-                El pasajero ve el desglose y decide: acepta, o toca «Buscar otro» y la carrera pasa a otro conductor
-                (a ese ya no se le vuelve a ofrecer ese viaje).
+                El pasajero ve el precio de la app, la propuesta del conductor y el total, y decide: acepta,
+                o toca «Buscar otro» y la carrera pasa a otro conductor (a ese ya no se le vuelve a ofrecer ese viaje).
             </div>
             <div class="field">
                 <label style="display:flex;align-items:center;gap:9px;cursor:pointer">
                     <input type="checkbox" name="counter_offer_enabled" value="1" {{ old('counter_offer_enabled',$settings['counter_offer_enabled'])=='1' ? 'checked' : '' }} style="width:auto">
                     <span>Permitir que el conductor pida más al aceptar</span>
                 </label>
-                <div class="muted" style="font-size:12px;margin-top:5px">Si lo desactivas, los botones desaparecen de la app del conductor y solo puede aceptar o rechazar.</div>
+                <div class="muted" style="font-size:12px;margin-top:5px">Si lo desactivas, el conductor solo puede aceptar o rechazar (ni botones ni monto libre).</div>
             </div>
             <div class="field">
-                <label>Importes permitidos ({{ $settings['currency'] }})</label>
+                <label>Botones rápidos ({{ $settings['currency'] }})</label>
                 <input class="input" name="counter_offer_options" value="{{ old('counter_offer_options',$settings['counter_offer_options']) }}" placeholder="3,5">
                 <div class="muted" style="font-size:12px;margin-top:5px">
-                    Separados por coma, máximo 4. Ej: <code>3,5</code>. Cualquier otro monto que llegue del celular se ignora y se cobra 0.
+                    Separados por coma, máximo 4. Ej: <code>3,5</code>. Sin monto libre son lo único que puede pedir;
+                    con monto libre son atajos junto al campo donde escribe su precio.
                 </div>
             </div>
+
+            <div style="border-top:1px solid rgba(255,255,255,.08);padding-top:14px;margin-top:4px">
+                <div class="field">
+                    <label>Monto libre (el conductor escribe su precio)</label>
+                    @php $fm = old('counter_free_mode', $settings['counter_free_mode']); @endphp
+                    <select class="input" name="counter_free_mode">
+                        <option value="off" {{ $fm=='off' ? 'selected' : '' }}>Desactivado: solo los botones rápidos</option>
+                        <option value="prueba" {{ $fm=='prueba' ? 'selected' : '' }}>Solo los conductores de prueba (lista de abajo)</option>
+                        <option value="todos" {{ $fm=='todos' ? 'selected' : '' }}>Todos los conductores</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label>Conductores de prueba (códigos)</label>
+                    <input class="input" name="counter_free_drivers" value="{{ old('counter_free_drivers',$settings['counter_free_drivers']) }}" placeholder="MG-0012, MG-0031">
+                    <div class="muted" style="font-size:12px;margin-top:5px">Separados por coma. Solo cuenta si arriba eligen «Solo los conductores de prueba».</div>
+                </div>
+                <div class="row">
+                    <div class="field">
+                        <label>Precio máximo por carrera ({{ $settings['currency'] }})</label>
+                        <input class="input" type="number" step="0.50" min="1" name="counter_max_total" value="{{ old('counter_max_total',$settings['counter_max_total']) }}" required>
+                    </div>
+                    <div class="field">
+                        <label>Segundos para decidir (con contraoferta)</label>
+                        <input class="input" type="number" step="1" min="10" max="120" name="counter_timeout_s" value="{{ old('counter_timeout_s',$settings['counter_timeout_s']) }}" required>
+                    </div>
+                </div>
+                <div class="field">
+                    <label>Segundos para confirmar (sin contraoferta)</label>
+                    <input class="input" type="number" step="1" min="10" max="120" name="offer_timeout_s" value="{{ old('offer_timeout_s',$settings['offer_timeout_s']) }}" required style="max-width:160px">
+                </div>
+            </div>
+
+            @php $cMax = (float) $settings['counter_max_total']; @endphp
             <div class="muted" style="font-size:12px;line-height:1.9;border-top:1px solid rgba(255,255,255,.08);padding-top:12px">
-                @if ($coOpts->isEmpty() || old('counter_offer_enabled',$settings['counter_offer_enabled']) != '1')
+                @if (old('counter_offer_enabled',$settings['counter_offer_enabled']) != '1')
                     <b>Desactivado.</b> El conductor solo ve «Aceptar» y «Rechazar».
+                @elseif ($settings['counter_free_mode'] !== 'off')
+                    <b>Monto libre {{ $settings['counter_free_mode'] === 'todos' ? 'para todos los conductores' : 'solo para los conductores de prueba' }}.</b>
+                    Nunca por debajo de lo que ya paga el pasajero, nunca por encima de {{ $settings['currency'] }} {{ number_format($cMax,2) }} en total.<br>
+                    Carrera de {{ $settings['currency'] }} {{ number_format((float)$settings['fare_min'],2) }} → el conductor puede pedir hasta
+                    <b>{{ $settings['currency'] }} {{ number_format(max($cMax,(float)$settings['fare_min']),2) }}</b>.
+                    Si la carrera ya cuesta {{ $settings['currency'] }} {{ number_format($cMax,2) }} o más, no puede subirla: se respeta el precio calculado.<br>
+                    El pasajero tiene {{ (int) $settings['counter_timeout_s'] }} s para decidir cuando hay contraoferta
+                    ({{ (int) $settings['offer_timeout_s'] }} s cuando no la hay).
+                @elseif ($coOpts->isEmpty())
+                    <b>Sin botones.</b> El conductor solo ve «Aceptar» y «Rechazar».
                 @else
                     <b>El conductor verá {{ $coOpts->count() }} {{ $coOpts->count() == 1 ? 'botón' : 'botones' }}:</b>
                     {{ $coOpts->map(fn ($v) => '+ '.$settings['currency'].' '.number_format($v,2))->implode(' · ') }}<br>
