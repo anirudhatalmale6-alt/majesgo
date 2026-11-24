@@ -133,7 +133,6 @@ let counterOptions = [];
 // pasajero y el tope por carrera de la central. Lo decide el servidor por conductor
 // (se prueba primero con unos pocos), por eso viaja en cada sondeo.
 let counterFree = false;
-let counterMax = null; // tope por carrera (sólo con monto libre)
 let reqBump = 0; // ajuste elegido en la tarjeta que está en pantalla
 
 let offerLabels = []; // etiquetas resaltadas (recojo + destino) durante la oferta
@@ -1511,7 +1510,6 @@ async function tick() {
       if (typeof d.commission_pct === 'number') commissionPct = d.commission_pct;
       counterOptions = (d.counter && d.counter.enabled && Array.isArray(d.counter.options)) ? d.counter.options : [];
       counterFree = !!(d.counter && d.counter.enabled && d.counter.free);
-      counterMax = counterFree ? Number(d.counter.max_total) || null : null;
       // La lista se repinta en cada sondeo: entran las nuevas y salen las que otro ya tomó.
       // (los viajes activos salieron antes por 'return'; aquí 'ride' es null o ya finalizado)
       renderRequests(d.requests || []);
@@ -1858,7 +1856,7 @@ function bloqueContraoferta(req) {
   }
   const tope = precioBase(req) + margenSubida(req);
   if (margenSubida(req) <= 0) {
-    return `<div class="bumps" id="reqBumps"><div class="pmax">Esta carrera ya llega al máximo${counterMax ? ' de ' + money(counterMax) : ''}: se cobra el precio de la app.</div></div>`;
+    return `<div class="bumps" id="reqBumps"><div class="pmax">Por ahora no se puede subir el precio: se cobra el precio de la app.</div></div>`;
   }
   return `<div class="bumps" id="reqBumps">
       <div class="tuprecio">
@@ -2139,7 +2137,7 @@ async function acceptRequest(req) {
     toast(bump > 0 ? `Enviado: pediste ${money(precioBase(req) + bump)}. Esperando al pasajero…` : 'Enviado. Esperando que el pasajero confirme…');
     renderRide(ride);
   } catch (e) {
-    // El precio no cabe bajo el tope (la central lo cambió mientras miraba la ficha): el viaje
+    // El precio no cabe bajo el máximo (la central lo cambió mientras miraba la ficha): el viaje
     // sigue libre, así que se queda en la ficha con el precio de la app y puede volver a enviar.
     if (e.status === 422 && e.max_total != null) {
       toast(e.message);

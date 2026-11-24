@@ -141,8 +141,8 @@
                 </div>
                 <div class="row">
                     <div class="field">
-                        <label>Precio máximo por carrera ({{ $settings['currency'] }})</label>
-                        <input class="input" type="number" step="0.50" min="1" name="counter_max_total" value="{{ old('counter_max_total',$settings['counter_max_total']) }}" required>
+                        <label>Aumento máximo sobre el precio de la app ({{ $settings['currency'] }})</label>
+                        <input class="input" type="number" step="0.50" min="0" name="counter_max_add" value="{{ old('counter_max_add',$settings['counter_max_add']) }}" required>
                     </div>
                     <div class="field">
                         <label>Segundos para decidir (con contraoferta)</label>
@@ -155,16 +155,17 @@
                 </div>
             </div>
 
-            @php $cMax = (float) $settings['counter_max_total']; @endphp
+            @php $cAdd = (float) $settings['counter_max_add']; @endphp
             <div class="muted" style="font-size:12px;line-height:1.9;border-top:1px solid rgba(255,255,255,.08);padding-top:12px">
                 @if (old('counter_offer_enabled',$settings['counter_offer_enabled']) != '1')
                     <b>Desactivado.</b> El conductor solo ve «Aceptar» y «Rechazar».
                 @elseif ($settings['counter_free_mode'] !== 'off')
                     <b>Monto libre {{ $settings['counter_free_mode'] === 'todos' ? 'para todos los conductores' : 'solo para los conductores de prueba' }}.</b>
-                    Nunca por debajo de lo que ya paga el pasajero, nunca por encima de {{ $settings['currency'] }} {{ number_format($cMax,2) }} en total.<br>
-                    Carrera de {{ $settings['currency'] }} {{ number_format((float)$settings['fare_min'],2) }} → el conductor puede pedir hasta
-                    <b>{{ $settings['currency'] }} {{ number_format(max($cMax,(float)$settings['fare_min']),2) }}</b>.
-                    Si la carrera ya cuesta {{ $settings['currency'] }} {{ number_format($cMax,2) }} o más, no puede subirla: se respeta el precio calculado.<br>
+                    Nunca por debajo de lo que ya paga el pasajero, y como mucho {{ $settings['currency'] }} {{ number_format($cAdd,2) }} más.<br>
+                    @foreach ([(float) $settings['fare_min'], 20, 30] as $ej)
+                        App {{ $settings['currency'] }} {{ number_format($ej,2) }} → el conductor puede pedir hasta
+                        <b>{{ $settings['currency'] }} {{ number_format($ej + $cAdd,2) }}</b><br>
+                    @endforeach
                     El pasajero tiene {{ (int) $settings['counter_timeout_s'] }} s para decidir cuando hay contraoferta
                     ({{ (int) $settings['offer_timeout_s'] }} s cuando no la hay).
                 @elseif ($coOpts->isEmpty())

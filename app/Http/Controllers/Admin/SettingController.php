@@ -41,7 +41,7 @@ class SettingController extends Controller
             'counter_offer_options' => Setting::get('counter_offer_options', '3,5'),
             'counter_free_mode'    => Setting::get('counter_free_mode', 'off'),
             'counter_free_drivers' => Setting::get('counter_free_drivers', ''),
-            'counter_max_total'    => Setting::get('counter_max_total', '25.00'),
+            'counter_max_add'      => Setting::get('counter_max_add', '20.00'),
             'counter_timeout_s'    => Setting::get('counter_timeout_s', '25'),
             'offer_timeout_s'      => Setting::get('offer_timeout_s', '15'),
             'demo_enabled'     => Setting::get('demo_enabled', '1'),
@@ -87,7 +87,7 @@ class SettingController extends Controller
             // contraoferta libre: apagada → sólo los conductores de prueba → todos
             'counter_free_mode'    => ['required', 'in:off,prueba,todos'],
             'counter_free_drivers' => ['nullable', 'string', 'max:400'],
-            'counter_max_total'    => ['required', 'numeric', 'min:1', 'max:1000'],
+            'counter_max_add'      => ['required', 'numeric', 'min:0', 'max:500'],
             'counter_timeout_s'    => ['required', 'integer', 'min:10', 'max:120'],
             'offer_timeout_s'      => ['required', 'integer', 'min:10', 'max:120'],
             'demo_enabled'     => ['nullable'],

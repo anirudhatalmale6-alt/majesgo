@@ -425,7 +425,7 @@ class RideController extends Controller
             $base = Fare::total((float) $ride->offered_price, $approachFee);
             $counterOffer = Fare::counterOffer($bump, $driver, $base);
             if ($counterOffer === null) {
-                $fueraDeTope = ['max' => Fare::counterMaxTotal(), 'base' => $base];
+                $fueraDeTope = ['max' => round($base + Fare::counterRoom($base), 2), 'add' => Fare::counterRoom($base)];
 
                 return null;
             }
@@ -468,9 +468,10 @@ class RideController extends Controller
 
         if ($fueraDeTope) {
             $cur = Setting::get('currency', 'S/');
-            $msg = $fueraDeTope['base'] >= $fueraDeTope['max']
-                ? "Esta carrera ya llega al máximo de {$cur} ".number_format($fueraDeTope['max'], 2).': no se puede subir el precio.'
-                : "El precio máximo por carrera es {$cur} ".number_format($fueraDeTope['max'], 2).'.';
+            $msg = $fueraDeTope['add'] <= 0
+                ? 'Por ahora la central no permite subir el precio: se cobra el precio de la app.'
+                : "El máximo para esta carrera es {$cur} ".number_format($fueraDeTope['max'], 2)
+                  ." (precio de la app + {$cur} ".number_format($fueraDeTope['add'], 2).').';
 
             return response()->json(['message' => $msg, 'max_total' => $fueraDeTope['max']], 422);
         }

@@ -27,8 +27,9 @@ use App\Models\Setting;
  *
  * CONTRAOFERTA LIBRE (pedido de la central, 24 nov):
  *   - El conductor escribe su precio (o usa los mismos botones como atajo).
- *   - Nunca por debajo de lo que ya paga el pasajero, nunca por encima del tope por carrera
- *     (S/ 25 por defecto). Si la carrera ya llega al tope, no se puede subir: se respeta el precio.
+ *   - Nunca por debajo de lo que ya paga el pasajero, y como mucho S/ 20 POR ENCIMA de ese precio
+ *     (counter_max_add). Hasta el 24 nov era un tope TOTAL de S/ 25 por carrera; la central lo
+ *     cambió a un aumento máximo: app S/ 15 → hasta S/ 35, app S/ 30 → hasta S/ 50.
  *   - Se activa por etapas: apagada → sólo los conductores de prueba → todos (counter_free_mode).
  *   - Con contraoferta, el pasajero tiene más segundos para decidir (counter_timeout_s).
  *
@@ -214,19 +215,20 @@ class Fare
         };
     }
 
-    /** Precio máximo por carrera con contraoferta libre (lo que paga el pasajero en total). */
-    public static function counterMaxTotal(): float
+    /** Lo máximo que el conductor puede subir sobre el precio de la app (contraoferta libre). */
+    public static function counterMaxAdd(): float
     {
-        return max(0.0, (float) Setting::get('counter_max_total', 25.00));
+        return max(0.0, round((float) Setting::get('counter_max_add', 20.00), 2));
     }
 
     /**
-     * Cuánto puede subir el conductor sobre $base (lo que ya paga el pasajero) sin pasar del tope.
-     * 0 si la carrera ya llega al tope: ahí se respeta el precio calculado.
+     * Cuánto puede subir el conductor sobre $base (lo que ya paga el pasajero).
+     * Es el mismo aumento para cualquier carrera; $base se queda en la firma para que el
+     * tope se pueda volver a medir contra el precio sin tocar a quien lo llama.
      */
     public static function counterRoom(float $base): float
     {
-        return max(0.0, round(self::counterMaxTotal() - $base, 2));
+        return self::counterMaxAdd();
     }
 
     /**
@@ -270,7 +272,7 @@ class Fare
             'enabled'   => self::counterEnabled($driver),
             'options'   => self::counterEnabled($driver) ? self::counterOptions() : [],
             'free'      => $free,
-            'max_total' => $free ? self::counterMaxTotal() : null,
+            'max_add'   => $free ? self::counterMaxAdd() : null,
             'timeout_s' => self::counterTimeout(),
         ];
     }
